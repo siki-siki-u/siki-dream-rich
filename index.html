@@ -1761,7 +1761,7 @@ async function fetchYoutubeVideos() {
     var res = await fetchWithTimeout('/api/youtube-rss', 15000);
     if(!res || !res.ok) throw new Error('서버 오류 ('+res.status+')');
     var data = await res.json();
-    if(data.error) throw new Error(data.error);
+    if(data.error) throw new Error(data.error + (data.details ? '\n'+data.details.join('\n') : ''));
     if(!data.videos || !data.videos.length) throw new Error('영상을 찾지 못했어요');
 
     ytVideos = data.videos;
