@@ -2591,7 +2591,7 @@ async function fetchTrades(id, btn) {
         return all.filter(function(t) {
           if(!t.name) return false;
           var itemNorm = t.name.replace(/\s/g,'');
-          return itemNorm.includes(aptNameNorm) || aptNameNorm.includes(itemNorm);
+          return itemNorm.includes(aptNameNorm);
         });
       });
     }).catch(function(){ return []; });
