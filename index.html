@@ -907,7 +907,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
             2. <b style="color:var(--text)">🔍 주소 검색</b> 버튼 클릭<br/>
             3. 주소 검색 후 선택 → 자동 입력<br/>
             4. 면적·목표가·메모 입력 후 추가<br/>
-            <span style="font-size:.75rem">※ 실거래가 조회는 설정의 공공데이터 API 키 필요</span>
+            <span style="font-size:.75rem">※ 실거래가는 자동으로 조회돼요</span>
           </div>
         </div>
       </div>
@@ -936,13 +936,6 @@ tr:hover td{background:rgba(108,138,255,.03)}
       <input type="password" id="s-apikey" placeholder="sk-ant-..."/>
       <div style="margin-top:.4rem;font-size:.75rem;color:var(--muted)">
         👉 <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent)">console.anthropic.com</a> 에서 무료 발급
-      </div>
-    </div>
-    <div class="field">
-      <label>🏠 공공데이터 API 키 (부동산 실거래가용)</label>
-      <input type="password" id="s-pubkey" placeholder="공공데이터포털 일반 인증키"/>
-      <div style="margin-top:.4rem;font-size:.75rem;color:var(--muted)">
-        👉 <a href="https://www.data.go.kr/data/15126469/openapi.do" target="_blank" style="color:var(--accent)">data.go.kr</a> 에서 무료 발급
       </div>
     </div>
     <div class="modal-btns">
@@ -1058,7 +1051,6 @@ function openSettings() {
   document.getElementById('s-anniversary').value = S.get('anniversary') || '';
   document.getElementById('s-myname').value = S.get('myname') || '';
   document.getElementById('s-apikey').value = S.get('apikey') || '';
-  document.getElementById('s-pubkey').value = S.get('pubkey') || '';
   document.getElementById('settings-modal').classList.add('open');
 }
 function closeSettings() { document.getElementById('settings-modal').classList.remove('open'); }
@@ -1067,7 +1059,6 @@ function saveSettings() {
   S.set('anniversary', document.getElementById('s-anniversary').value);
   S.set('myname', document.getElementById('s-myname').value);
   S.set('apikey', document.getElementById('s-apikey').value);
-  S.set('pubkey', document.getElementById('s-pubkey').value);
   const name = S.get('myname');
   if(name) {
     document.querySelector('.sidebar-logo p').textContent = name + '님의 대시보드';
@@ -2556,9 +2547,6 @@ function renderMiniChart(trades) {
 }
 
 async function fetchTrades(id, btn) {
-  var pubkey = S.get('pubkey');
-  if(!pubkey) { alert('설정에서 공공데이터 API 키를 먼저 입력해 주세요!'); openSettings(); return; }
-
   var apts = S.get('apts') || [];
   var apt = apts.find(function(a){return a.id===id;});
   if(!apt) return;
@@ -2577,8 +2565,7 @@ async function fetchTrades(id, btn) {
 
   function parseMonth(ym) {
     var apiUrl = '/api/apt-trades?lawdCd='+encodeURIComponent(apt.lawdCd)
-      +'&ym='+encodeURIComponent(ym)
-      +'&key='+encodeURIComponent(pubkey);
+      +'&ym='+encodeURIComponent(ym);
     return fetchWithTimeout(apiUrl, 12000).then(function(res) {
       if(!res || !res.ok) return [];
       return res.json().then(function(data) {
@@ -2620,7 +2607,7 @@ async function fetchTrades(id, btn) {
   btn.textContent = '📊 실거래가 조회';
   btn.disabled = false;
 
-  if(!allTrades.length) alert('거래 내역을 찾지 못했어요.\n\n확인사항:\n① 설정에서 공공데이터 API 키 입력됐나요?\n② 주소 검색으로 법정동코드 자동입력 됐나요?\n③ API키는 data.go.kr에서 "일반인증키(Decoding)" 버전 사용해야 해요!');
+  if(!allTrades.length) alert('거래 내역을 찾지 못했어요.\n\n확인사항:\n① 주소 검색으로 법정동코드 자동입력 됐나요?\n② 해당 지역/기간에 실제 거래가 있었나요?');
 }
 
 async function getAptAI(id, btn) {

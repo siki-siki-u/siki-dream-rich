@@ -23,16 +23,18 @@ module.exports = async function(req, res) {
 
   var lawdCd = req.query.lawdCd;
   var ym     = req.query.ym;
-  var key    = req.query.key;  // 포털에서 받은 키 그대로 (인코딩 없이)
+  var key    = process.env.seoul_apt;
 
-  if (!lawdCd || !ym || !key) {
+  if (!lawdCd || !ym) {
     return res.status(400).json({ error: '파라미터 누락' });
   }
+  if (!key) {
+    return res.status(500).json({ error: 'API 키가 서버에 설정되지 않았습니다. Vercel 환경변수 seoul_apt를 확인하세요.' });
+  }
 
-  // 키에 이미 특수문자가 있으면 그대로, 없으면 그대로 사용
-  // 포털 "일반 인증키(Decoding)" 사용 권장
-  var apiUrl = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev'
-    + '?serviceKey=' + encodeURIComponent(key)
+  // 인코딩된 키(Encoding 버전)를 그대로 사용
+  var apiUrl = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade'
+    + '?serviceKey=' + key
     + '&LAWD_CD=' + lawdCd
     + '&DEAL_YMD=' + ym
     + '&numOfRows=100&pageNo=1';
