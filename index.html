@@ -2363,10 +2363,12 @@ function deleteJournal(id){
 function openAddressSearch() {
   new daum.Postcode({
     oncomplete: function(data) {
+      // sigunguCode(5자리) 없으면 bcode(10자리) 앞 5자리 사용
+      var lawdCd = (data.sigunguCode || (data.bcode||'').slice(0,5) || (data.autoJibunAddress||'').slice(0,5)).slice(0,5);
       document.getElementById('apt-sigungu').value = data.sigungu || '';
       document.getElementById('apt-dong').value = data.bname || '';
-      document.getElementById('apt-lawdcd').value = data.sigunguCode || '';
-      document.getElementById('apt-address-display').value = data.address || data.roadAddress || '';
+      document.getElementById('apt-lawdcd').value = lawdCd;
+      document.getElementById('apt-address-display').value = (data.address || data.roadAddress || '') + (lawdCd ? '  [코드: '+lawdCd+']' : '');
     }
   }).open();
 }
@@ -2618,7 +2620,7 @@ async function fetchTrades(id, btn) {
   btn.textContent = '📊 실거래가 조회';
   btn.disabled = false;
 
-  if(!allTrades.length) alert('해당 아파트의 거래 내역을 찾지 못했어요.\n아파트명이나 법정동코드를 확인해 주세요!');
+  if(!allTrades.length) alert('거래 내역을 찾지 못했어요.\n\n확인사항:\n① 설정에서 공공데이터 API 키 입력됐나요?\n② 주소 검색으로 법정동코드 자동입력 됐나요?\n③ API키는 data.go.kr에서 "일반인증키(Decoding)" 버전 사용해야 해요!');
 }
 
 async function getAptAI(id, btn) {

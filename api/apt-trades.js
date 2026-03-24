@@ -46,8 +46,9 @@ module.exports = async function(req, res) {
     // XML 파싱
     var body = result.body;
     var errMsg = (body.match(/<errMsg>(.*?)<\/errMsg>/) || [])[1];
+    var returnReasonCode = (body.match(/<returnReasonCode>(.*?)<\/returnReasonCode>/) || [])[1] || '';
     if (errMsg && errMsg !== '정상') {
-      return res.status(500).json({ error: '공공API 오류: ' + errMsg });
+      return res.status(500).json({ error: '공공API 오류: ' + errMsg + ' ('+returnReasonCode+')', raw: body.slice(0,500) });
     }
 
     var items = [];
@@ -68,7 +69,7 @@ module.exports = async function(req, res) {
       });
     }
 
-    res.json({ items: items, count: items.length });
+    res.json({ items: items, count: items.length, raw: items.length === 0 ? body.slice(0,500) : undefined });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
