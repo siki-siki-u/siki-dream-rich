@@ -1757,45 +1757,67 @@ async function fetchYoutubeVideos() {
   ytVideos = [];
 
   try {
-    // Netlify Function으로 서버사이드 RSS 가져오기 (CORS 없음)
-    var res = await fetchWithTimeout('/.netlify/functions/youtube-rss', 10000);
-    if(!res || !res.ok) throw new Error('서버 오류 ('+res.status+')');
-    var text = await res.text();
-    var xml = new DOMParser().parseFromString(text, 'text/xml');
-    var entries = xml.querySelectorAll('entry');
-    if(!entries.length) throw new Error('영상 목록이 비어있어요');
+    // rss2json.com - YouTube RSS 전용 변환 서비스 (무료, CORS 허용)
+    var rssUrl = 'https://www.youtube.com/feeds/videos.xml?channel_id='+YT_CHANNEL_ID;
+    var res = await fetchWithTimeout('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(rssUrl), 12000);
+    if(!res || !res.ok) throw new Error('네트워크 오류');
+    var data = await res.json();
+    if(data.status !== 'ok' || !data.items || !data.items.length) throw new Error('데이터 없음');
 
-    entries.forEach(function(entry, i) {
-      var idEl   = entry.querySelector('videoId') || entry.querySelector('id');
-      var videoId = idEl ? idEl.textContent.replace('yt:video:','') : '';
-      if(!videoId) return;
-      var title     = (entry.querySelector('title')||{textContent:''}).textContent;
-      var published = (entry.querySelector('published')||{textContent:''}).textContent.split('T')[0];
-      var desc      = (entry.querySelector('description')||{textContent:''}).textContent.slice(0,300);
-      var thumb     = 'https://img.youtube.com/vi/'+videoId+'/mqdefault.jpg';
-      var isNew     = (i===0 && lastSavedId && videoId !== lastSavedId);
-      ytVideos.push({ videoId:videoId, title:title, published:published, desc:desc, thumb:thumb, isNew:isNew });
-    });
+    ytVideos = data.items.map(function(item) {
+      var videoId = (item.link||'').split('v=')[1] || (item.guid||'').split('v=')[1] || '';
+      return {
+        videoId:   videoId,
+        title:     item.title || '',
+        published: (item.pubDate||'').split(' ')[0],
+        desc:      (item.description||'').replace(/<[^>]*>/g,'').slice(0,300),
+        thumb:     item.thumbnail || 'https://img.youtube.com/vi/'+videoId+'/mqdefault.jpg',
+      };
+    }).filter(function(v){ return !!v.videoId; });
 
-    // 가장 최신 영상 ID 저장
-    if(ytVideos.length) S.set('yt_last_seen_id', ytVideos[0].videoId);
+    if(!ytVideos.length) throw new Error('영상을 찾지 못했어요');
 
-    renderYtVideoGrid();
+    // 새 영상 확인
+    var latestId = ytVideos[0].videoId;
+    var isNew = lastSavedId && latestId !== lastSavedId;
+    var isFirst = !lastSavedId;
+
+    S.set('yt_last_seen_id', latestId);
+
     var now = new Date();
     document.getElementById('yt-last-fetch').textContent =
       now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')+' 기준';
 
+    if(!isFirst && !isNew) {
+      // 이미 봤던 최신 영상 - 새 영상 없음 안내
+      document.getElementById('yt-video-grid').innerHTML =
+        '<div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--muted)">'+
+        '<div style="font-size:2rem;margin-bottom:.8rem">✅</div>'+
+        '<div style="font-size:1rem;color:var(--text);margin-bottom:.4rem">새 영상 없음</div>'+
+        '<div style="font-size:.85rem">최근 확인: <b style="color:var(--accent)">'+ytVideos[0].title+'</b></div>'+
+        '<div style="font-size:.78rem;margin-top:.3rem">'+ytVideos[0].published+'</div>'+
+        '<button class="btn btn-ghost" style="margin-top:1rem;font-size:.82rem" onclick="showAllYtVideos()">전체 영상 보기</button>'+
+        '</div>';
+      btn.textContent = '🔄 최신 영상 가져오기'; btn.disabled = false;
+      return;
+    }
+
+    renderYtVideoGrid();
+
   } catch(err) {
     document.getElementById('yt-video-grid').innerHTML =
-      '<div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--danger)">⚠️ 가져오기 실패: '+err.message+'<br/><span style="color:var(--muted);font-size:.8rem">잠시 후 다시 시도해 주세요</span></div>';
+      '<div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--danger)">⚠️ '+err.message+'<br/><span style="color:var(--muted);font-size:.8rem">잠시 후 다시 시도해 주세요</span></div>';
   }
   btn.textContent = '🔄 최신 영상 가져오기';
   btn.disabled = false;
 }
 
+function showAllYtVideos() { renderYtVideoGrid(); }
+
 function renderYtVideoGrid() {
   var el = document.getElementById('yt-video-grid');
   if(!ytVideos.length) { el.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--muted)">영상을 찾지 못했어요</div>'; return; }
+  var lastSavedId = S.get('yt_last_seen_id');
   var saved = S.get('yt_summaries') || [];
   el.innerHTML = ytVideos.map(function(v) {
     var alreadySaved = saved.find(function(s){return s.videoId===v.videoId;});
@@ -1805,7 +1827,8 @@ function renderYtVideoGrid() {
       '</a>'+
       '<div class="yt-info">'+
         '<div class="yt-title">'+
-          (v.isNew ? '<span class="yt-new-badge">NEW</span> ' : '')+
+          (v.videoId === lastSavedId && ytVideos.indexOf(v)===0 ? '' : '')+
+          (ytVideos.indexOf(v)===0 ? '<span class="yt-new-badge">NEW</span> ' : '')+
           v.title+
         '</div>'+
         '<div class="yt-date">'+v.published+'</div>'+
