@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>우리의 홈 🏠</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -955,6 +956,48 @@ tr:hover td{background:rgba(108,138,255,.03)}
 </div>
 
 <script>
+// ── SUPABASE ──
+const SUPABASE_URL = 'https://boyhppqnwtxedicxbfpz.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_Uh-YK_wDgAgQMO_CZwnyRw_SrRyQ-Tq';
+const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function dbUpsert(table, row) {
+  try { await supa.from(table).upsert(row); } catch(e) { console.warn('[DB upsert]', table, e.message); }
+}
+async function dbDelete(table, id) {
+  try { await supa.from(table).delete().eq('id', id); } catch(e) { console.warn('[DB delete]', table, e.message); }
+}
+async function syncFromSupabase() {
+  try {
+    // stocks
+    const { data: stocks } = await supa.from('stocks').select('*');
+    if(stocks) S.set('stocks', stocks.map(function(s){ return {id:s.id, type:s.type, ticker:s.ticker, name:s.name, note:s.note||'', price:null, change:null, changeP:null, fetchError:false}; }));
+    // journals
+    const { data: journals } = await supa.from('journals').select('*').order('created_at',{ascending:false});
+    if(journals) S.set('journals', journals.map(function(j){ return {id:j.id, date:j.date, emotion:j.emotion, title:j.title, tickers:j.tickers||'', fearGreed:j.fear_greed||'', action:j.action||'', content:j.content, feedback:j.feedback||null, advice:j.advice||null, savedAt:j.saved_at}; }));
+    // assets
+    const { data: assets } = await supa.from('assets').select('*');
+    if(assets) assets.forEach(function(a){ S.set('assets_'+a.month_key, Object.assign({}, a.data, {savedAt:a.saved_at})); });
+    // transactions
+    const { data: txs } = await supa.from('transactions').select('*');
+    if(txs) {
+      const byKey = {};
+      txs.forEach(function(t){ if(!byKey[t.budget_key]) byKey[t.budget_key]=[]; byKey[t.budget_key].push({id:t.id, date:t.date, cat:t.cat, amount:t.amount, desc:t.descr||''}); });
+      Object.keys(byKey).forEach(function(k){ S.set('txs_'+k, byKey[k]); });
+    }
+    // income
+    const { data: incomes } = await supa.from('income').select('*');
+    if(incomes) incomes.forEach(function(i){ S.set('income_'+i.budget_key, {yoonsik:i.yoonsik||0, yujin:i.yujin||0, bonusY:i.bonus_y||0, bonusU:i.bonus_u||0, etc:i.etc||0}); });
+    // realty
+    const { data: realty } = await supa.from('realty').select('*');
+    if(realty) S.set('apts', realty.map(function(r){ return r.data; }));
+    // re-render
+    renderStocks(); fetchAllPrices();
+    renderBudget(); refreshDashboard();
+    renderJournal(); renderRealty();
+  } catch(e) { console.warn('[Supabase sync]', e.message); }
+}
+
 // ── STORAGE HELPERS ──
 const S = {
   get: k => { try { return JSON.parse(localStorage.getItem(k)) } catch { return null } },
@@ -1193,13 +1236,15 @@ function recalcBudget() {
 
 function saveIncome() {
   const key = budgetKey();
-  S.set('income_'+key, {
+  const incomeData = {
     yoonsik: parseFloat(document.getElementById('b-in-yoonsik').value)||0,
     yujin:   parseFloat(document.getElementById('b-in-yujin').value)||0,
     bonusY:  parseFloat(document.getElementById('b-in-bonus-y').value)||0,
     bonusU:  parseFloat(document.getElementById('b-in-bonus-u').value)||0,
     etc:     parseFloat(document.getElementById('b-in-etc').value)||0,
-  });
+  };
+  S.set('income_'+key, incomeData);
+  dbUpsert('income', {budget_key: key, yoonsik: incomeData.yoonsik, yujin: incomeData.yujin, bonus_y: incomeData.bonusY, bonus_u: incomeData.bonusU, etc: incomeData.etc});
   recalcBudget();
   alert('✅ 수입이 저장됐어요!');
 }
@@ -1212,8 +1257,10 @@ function addTransaction() {
   if(!amount || isNaN(amount)) return;
   const key = budgetKey();
   const txs = S.get('txs_'+key) || [];
-  txs.push({id:Date.now(), date, cat, amount, desc});
+  const newTx = {id:Date.now(), date, cat, amount, desc};
+  txs.push(newTx);
   S.set('txs_'+key, txs);
+  dbUpsert('transactions', {id: newTx.id, budget_key: key, date, cat, amount, descr: desc});
   document.getElementById('tx-amount').value = '';
   document.getElementById('tx-desc').value   = '';
   recalcBudget();
@@ -1276,6 +1323,7 @@ function renderTransactions() {
 function deleteTx(id) {
   var key = budgetKey();
   S.set('txs_'+key, (S.get('txs_'+key)||[]).filter(function(t){return t.id!==id;}));
+  dbDelete('transactions', id);
   recalcBudget();
   renderTransactions();
 }
@@ -1396,6 +1444,7 @@ function saveAssets() {
   data.savedAt = today();
   S.set('assets_'+key, data);
   S.set('assets_latest', data);
+  dbUpsert('assets', {month_key: key, data: data, saved_at: data.savedAt});
   renderAssetHistory();
   alert('✅ 자산이 저장됐어요!');
 }
@@ -1459,8 +1508,10 @@ function addStock() {
   if(!ticker) return;
   const stocks = S.get('stocks') || [];
   if(stocks.find(s => s.ticker === ticker)) { alert('이미 추가된 종목이에요!'); return; }
-  stocks.push({ id: Date.now(), type, ticker, name: name || ticker, note, price: null, change: null, changeP: null, fetchError: false });
+  const newStock = { id: Date.now(), type, ticker, name: name || ticker, note, price: null, change: null, changeP: null, fetchError: false };
+  stocks.push(newStock);
   S.set('stocks', stocks);
+  dbUpsert('stocks', {id: newStock.id, type: newStock.type, ticker: newStock.ticker, name: newStock.name, note: newStock.note});
   document.getElementById('st-ticker').value = '';
   document.getElementById('st-name').value = '';
   document.getElementById('st-note').value = '';
@@ -1526,7 +1577,12 @@ async function fetchAllPrices() {
     return { ...s, fetchError: true };  // mark failed
   }));
 
-  S.set('stocks', updated);
+  // 버그 수정: race condition - 비동기 대기 중 추가된 새 종목이 사라지지 않도록 머지
+  const latestStocks = S.get('stocks') || [];
+  const priceMap = {};
+  updated.forEach(function(s){ priceMap[s.id] = s; });
+  const merged = latestStocks.map(function(s){ return priceMap[s.id] ? Object.assign({}, s, priceMap[s.id]) : s; });
+  S.set('stocks', merged);
   renderStocks();
 
   const now = new Date();
@@ -1592,6 +1648,7 @@ function renderStocks() {
 
 function deleteStock(id) {
   S.set('stocks', (S.get('stocks')||[]).filter(s=>s.id!==id));
+  dbDelete('stocks', id);
   renderStocks();
   refreshDashboard();
 }
@@ -2174,8 +2231,10 @@ function saveJournal() {
   var content=document.getElementById('jn-content').value.trim();
   if(!title||!content){alert('제목과 내용을 입력해 주세요!');return;}
   var journals=S.get('journals')||[];
-  journals.unshift({id:Date.now(),date,emotion,title,tickers,fearGreed,action,content,feedback:null,advice:null,savedAt:today()});
+  var newJournal={id:Date.now(),date,emotion,title,tickers,fearGreed,action,content,feedback:null,advice:null,savedAt:today()};
+  journals.unshift(newJournal);
   S.set('journals',journals);
+  dbUpsert('journals',{id:newJournal.id,date:newJournal.date,emotion:newJournal.emotion,title:newJournal.title,tickers:newJournal.tickers,fear_greed:newJournal.fearGreed,action:newJournal.action,content:newJournal.content,feedback:null,advice:null,saved_at:newJournal.savedAt});
   document.getElementById('jn-title').value='';
   document.getElementById('jn-tickers').value='';
   document.getElementById('jn-fear-greed').value='';
@@ -2283,6 +2342,7 @@ async function getJournalFeedback(id, btn) {
 function deleteJournal(id){
   if(!confirm('이 일지를 삭제할까요?')) return;
   S.set('journals',(S.get('journals')||[]).filter(function(j){return j.id!==id;}));
+  dbDelete('journals',id);
   renderJournal();
 }
 // ── 부동산 관리 ──
@@ -2297,8 +2357,10 @@ function addApt() {
   if(!name || !lawdCd) { alert('아파트명과 법정동코드는 필수예요!'); return; }
 
   var apts = S.get('apts') || [];
-  apts.unshift({ id:Date.now(), name, sigungu, dong, lawdCd, size, targetPrice, memo, trades:[], lastFetch:null, aiAnalysis:null });
+  var newApt={ id:Date.now(), name, sigungu, dong, lawdCd, size, targetPrice, memo, trades:[], lastFetch:null, aiAnalysis:null };
+  apts.unshift(newApt);
   S.set('apts', apts);
+  dbUpsert('realty',{id:newApt.id, name:newApt.name, sigungu:newApt.sigungu, data:newApt});
 
   document.getElementById('apt-name').value = '';
   document.getElementById('apt-sigungu').value = '';
@@ -2601,6 +2663,7 @@ async function getAptAI(id, btn) {
 function deleteApt(id) {
   if(!confirm('이 아파트를 삭제할까요?')) return;
   S.set('apts', (S.get('apts')||[]).filter(function(a){return a.id!==id;}));
+  dbDelete('realty',id);
   renderRealty();
 }
 
@@ -2620,6 +2683,8 @@ function deleteApt(id) {
     function(){ renderMemos(); },
   ];
   inits.forEach(function(fn){ try{ fn(); } catch(e){ console.warn('safeInit error:', e.message); } });
+  // Supabase에서 최신 데이터 동기화
+  syncFromSupabase();
 })();
 
 </script>
