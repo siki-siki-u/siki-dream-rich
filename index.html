@@ -939,13 +939,6 @@ tr:hover td{background:rgba(108,138,255,.03)}
       </div>
     </div>
     <div class="field">
-      <label>▶️ YouTube Data API 키 (올랜도킴 영상용)</label>
-      <input type="password" id="s-ytkey" placeholder="AIza..."/>
-      <div style="margin-top:.4rem;font-size:.75rem;color:var(--muted)">
-        👉 <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" style="color:var(--accent)">Google Cloud Console</a> → YouTube Data API v3 → 사용 설정 → 사용자 인증 정보 → API 키 생성
-      </div>
-    </div>
-    <div class="field">
       <label>🏠 공공데이터 API 키 (부동산 실거래가용)</label>
       <input type="password" id="s-pubkey" placeholder="공공데이터포털 일반 인증키"/>
       <div style="margin-top:.4rem;font-size:.75rem;color:var(--muted)">
@@ -1760,46 +1753,36 @@ async function fetchYoutubeVideos() {
   btn.textContent = '⏳ 가져오는 중...';
   btn.disabled = true;
 
-  var ytkey = S.get('ytkey');
   var lastSavedId = S.get('yt_last_seen_id');
   ytVideos = [];
 
+  // Invidious 공개 인스턴스 목록 (키/결제 불필요)
+  var INVIDIOUS = [
+    'https://inv.nadeko.net',
+    'https://yewtu.be',
+    'https://invidious.privacydev.net',
+    'https://invidious.lunar.icu',
+  ];
+
   try {
-    if(ytkey) {
-      // YouTube Data API v3 (CORS 없음, 가장 안정적)
-      var apiUrl = 'https://www.googleapis.com/youtube/v3/search?channelId='+YT_CHANNEL_ID
-        +'&part=snippet&order=date&maxResults=20&type=video&key='+ytkey;
-      var res = await fetchWithTimeout(apiUrl, 10000);
-      if(!res || !res.ok) throw new Error('YouTube API 오류 ('+res.status+')');
-      var data = await res.json();
-      if(data.error) throw new Error(data.error.message);
-      data.items.forEach(function(item, i) {
-        var videoId   = item.id.videoId;
-        var snippet   = item.snippet;
-        var title     = snippet.title;
-        var published = snippet.publishedAt.split('T')[0];
-        var desc      = (snippet.description||'').slice(0,300);
-        var thumb     = (snippet.thumbnails.medium||snippet.thumbnails.default||{}).url || 'https://img.youtube.com/vi/'+videoId+'/mqdefault.jpg';
-        var isNew     = (i===0 && lastSavedId && videoId !== lastSavedId);
-        ytVideos.push({ videoId, title, published, desc, thumb, isNew });
-      });
-    } else {
-      // RSS 폴백 (API 키 없을 때)
-      var rssUrl = 'https://www.youtube.com/feeds/videos.xml?channel_id='+YT_CHANNEL_ID;
-      var res = await fetchWithProxy(rssUrl);
-      if(!res || !res.ok) throw new Error('RSS 가져오기 실패\n설정에서 YouTube API 키를 입력하면 더 안정적으로 작동해요');
-      var text = await res.text();
-      var xml = new DOMParser().parseFromString(text, 'text/xml');
-      xml.querySelectorAll('entry').forEach(function(entry, i) {
-        var videoId  = (entry.querySelector('videoId')||entry.querySelector('id')).textContent.replace('yt:video:','');
-        var title    = entry.querySelector('title').textContent;
-        var published= entry.querySelector('published').textContent.split('T')[0];
-        var desc     = (entry.querySelector('description')||{textContent:''}).textContent.slice(0,300);
-        var thumb    = 'https://img.youtube.com/vi/'+videoId+'/mqdefault.jpg';
-        var isNew    = (i===0 && lastSavedId && videoId !== lastSavedId);
-        ytVideos.push({ videoId, title, published, desc, thumb, isNew });
-      });
+    var data = null;
+    for(var ii=0; ii<INVIDIOUS.length; ii++) {
+      try {
+        var res = await fetchWithTimeout(INVIDIOUS[ii]+'/api/v1/channels/'+YT_CHANNEL_ID+'/videos?page=1', 8000);
+        if(res && res.ok) { data = await res.json(); break; }
+      } catch(e) {}
     }
+    if(!data || !data.videos || !data.videos.length) throw new Error('영상을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
+
+    data.videos.slice(0,20).forEach(function(v, i) {
+      var thumb = 'https://img.youtube.com/vi/'+v.videoId+'/mqdefault.jpg';
+      var thumbArr = v.videoThumbnails||[];
+      var med = thumbArr.find(function(t){return t.quality==='medium'||t.quality==='mqdefault';});
+      if(med && med.url && med.url.startsWith('http')) thumb = med.url;
+      var published = v.published ? new Date(v.published*1000).toISOString().split('T')[0] : '';
+      var isNew = (i===0 && lastSavedId && v.videoId !== lastSavedId);
+      ytVideos.push({ videoId:v.videoId, title:v.title, published:published, desc:(v.description||'').slice(0,300), thumb:thumb, isNew:isNew });
+    });
 
     // 가장 최신 영상 ID 저장
     if(ytVideos.length) S.set('yt_last_seen_id', ytVideos[0].videoId);
