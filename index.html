@@ -6,6 +6,7 @@
 <title>우리의 홈 🏠</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -871,14 +872,13 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div class="sec-title">➕ 관심 아파트 추가</div>
         <div style="display:flex;flex-direction:column;gap:.65rem">
           <input type="text" id="apt-name" placeholder="아파트명 (예: 래미안 퍼스티지)" style="width:100%"/>
-          <div style="display:flex;gap:.5rem">
-            <input type="text" id="apt-sigungu" placeholder="시군구 (예: 서초구)" style="flex:1"/>
-            <input type="text" id="apt-dong" placeholder="동 (예: 잠원동)" style="flex:1"/>
+          <div style="display:flex;gap:.5rem;align-items:center">
+            <input type="text" id="apt-address-display" placeholder="주소 검색 버튼을 눌러주세요" readonly style="flex:1;background:var(--surface2);cursor:default"/>
+            <button class="btn btn-ghost" onclick="openAddressSearch()" style="white-space:nowrap">🔍 주소 검색</button>
           </div>
-          <input type="text" id="apt-lawdcd" placeholder="법정동코드 앞 5자리 (예: 11650 = 서초구)" style="width:100%"/>
-          <div style="background:rgba(108,138,255,.07);border:1px solid rgba(108,138,255,.15);border-radius:8px;padding:.7rem;font-size:.78rem;color:var(--muted);line-height:1.7">
-            💡 법정동코드: <a href="https://www.code.go.kr/stdcodesearch.do" target="_blank" style="color:var(--accent)">code.go.kr</a> 에서 확인 (서울 서초구=11650, 강남구=11680, 송파구=11710)
-          </div>
+          <input type="hidden" id="apt-sigungu"/>
+          <input type="hidden" id="apt-dong"/>
+          <input type="hidden" id="apt-lawdcd"/>
           <div style="display:flex;gap:.5rem">
             <input type="number" id="apt-size" placeholder="전용면적 (㎡)" style="flex:1"/>
             <input type="number" id="apt-target-price" placeholder="목표 매수가 (만원)" style="flex:1"/>
@@ -901,16 +901,13 @@ tr:hover td{background:rgba(108,138,255,.03)}
           </div>
         </div>
         <div class="card">
-          <div class="sec-title">📋 주요 법정동코드 참고</div>
-          <div style="font-size:.8rem;display:flex;flex-direction:column;gap:.3rem;color:var(--muted)">
-            <div style="display:flex;justify-content:space-between"><span>서울 강남구</span><code style="color:var(--accent)">11680</code></div>
-            <div style="display:flex;justify-content:space-between"><span>서울 서초구</span><code style="color:var(--accent)">11650</code></div>
-            <div style="display:flex;justify-content:space-between"><span>서울 송파구</span><code style="color:var(--accent)">11710</code></div>
-            <div style="display:flex;justify-content:space-between"><span>서울 마포구</span><code style="color:var(--accent)">11440</code></div>
-            <div style="display:flex;justify-content:space-between"><span>서울 용산구</span><code style="color:var(--accent)">11170</code></div>
-            <div style="display:flex;justify-content:space-between"><span>서울 성동구</span><code style="color:var(--accent)">11200</code></div>
-            <div style="display:flex;justify-content:space-between"><span>경기 성남 분당구</span><code style="color:var(--accent)">41135</code></div>
-            <div style="display:flex;justify-content:space-between"><span>경기 수원 영통구</span><code style="color:var(--accent)">41115</code></div>
+          <div class="sec-title">💡 사용 방법</div>
+          <div style="font-size:.82rem;color:var(--muted);line-height:1.9">
+            1. 아파트명 입력<br/>
+            2. <b style="color:var(--text)">🔍 주소 검색</b> 버튼 클릭<br/>
+            3. 주소 검색 후 선택 → 자동 입력<br/>
+            4. 면적·목표가·메모 입력 후 추가<br/>
+            <span style="font-size:.75rem">※ 실거래가 조회는 설정의 공공데이터 API 키 필요</span>
           </div>
         </div>
       </div>
@@ -971,26 +968,26 @@ async function syncFromSupabase() {
   try {
     // stocks
     const { data: stocks } = await supa.from('stocks').select('*');
-    if(stocks) S.set('stocks', stocks.map(function(s){ return {id:s.id, type:s.type, ticker:s.ticker, name:s.name, note:s.note||'', price:null, change:null, changeP:null, fetchError:false}; }));
+    if(stocks && stocks.length > 0) S.set('stocks', stocks.map(function(s){ return {id:s.id, type:s.type, ticker:s.ticker, name:s.name, note:s.note||'', price:null, change:null, changeP:null, fetchError:false}; }));
     // journals
     const { data: journals } = await supa.from('journals').select('*').order('created_at',{ascending:false});
-    if(journals) S.set('journals', journals.map(function(j){ return {id:j.id, date:j.date, emotion:j.emotion, title:j.title, tickers:j.tickers||'', fearGreed:j.fear_greed||'', action:j.action||'', content:j.content, feedback:j.feedback||null, advice:j.advice||null, savedAt:j.saved_at}; }));
+    if(journals && journals.length > 0) S.set('journals', journals.map(function(j){ return {id:j.id, date:j.date, emotion:j.emotion, title:j.title, tickers:j.tickers||'', fearGreed:j.fear_greed||'', action:j.action||'', content:j.content, feedback:j.feedback||null, advice:j.advice||null, savedAt:j.saved_at}; }));
     // assets
     const { data: assets } = await supa.from('assets').select('*');
-    if(assets) assets.forEach(function(a){ S.set('assets_'+a.month_key, Object.assign({}, a.data, {savedAt:a.saved_at})); });
+    if(assets && assets.length > 0) assets.forEach(function(a){ S.set('assets_'+a.month_key, Object.assign({}, a.data, {savedAt:a.saved_at})); });
     // transactions
     const { data: txs } = await supa.from('transactions').select('*');
-    if(txs) {
+    if(txs && txs.length > 0) {
       const byKey = {};
       txs.forEach(function(t){ if(!byKey[t.budget_key]) byKey[t.budget_key]=[]; byKey[t.budget_key].push({id:t.id, date:t.date, cat:t.cat, amount:t.amount, desc:t.descr||''}); });
       Object.keys(byKey).forEach(function(k){ S.set('txs_'+k, byKey[k]); });
     }
     // income
     const { data: incomes } = await supa.from('income').select('*');
-    if(incomes) incomes.forEach(function(i){ S.set('income_'+i.budget_key, {yoonsik:i.yoonsik||0, yujin:i.yujin||0, bonusY:i.bonus_y||0, bonusU:i.bonus_u||0, etc:i.etc||0}); });
+    if(incomes && incomes.length > 0) incomes.forEach(function(i){ S.set('income_'+i.budget_key, {yoonsik:i.yoonsik||0, yujin:i.yujin||0, bonusY:i.bonus_y||0, bonusU:i.bonus_u||0, etc:i.etc||0}); });
     // realty
     const { data: realty } = await supa.from('realty').select('*');
-    if(realty) S.set('apts', realty.map(function(r){ return r.data; }));
+    if(realty && realty.length > 0) S.set('apts', realty.map(function(r){ return r.data; }));
     // re-render
     renderStocks(); fetchAllPrices();
     renderBudget(); refreshDashboard();
@@ -2346,6 +2343,17 @@ function deleteJournal(id){
   renderJournal();
 }
 // ── 부동산 관리 ──
+function openAddressSearch() {
+  new daum.Postcode({
+    oncomplete: function(data) {
+      document.getElementById('apt-sigungu').value = data.sigungu || '';
+      document.getElementById('apt-dong').value = data.bname || '';
+      document.getElementById('apt-lawdcd').value = data.sigunguCode || '';
+      document.getElementById('apt-address-display').value = data.address || data.roadAddress || '';
+    }
+  }).open();
+}
+
 function addApt() {
   var name       = document.getElementById('apt-name').value.trim();
   var sigungu    = document.getElementById('apt-sigungu').value.trim();
@@ -2354,7 +2362,7 @@ function addApt() {
   var size       = document.getElementById('apt-size').value;
   var targetPrice= document.getElementById('apt-target-price').value;
   var memo       = document.getElementById('apt-memo').value.trim();
-  if(!name || !lawdCd) { alert('아파트명과 법정동코드는 필수예요!'); return; }
+  if(!name || !lawdCd) { alert('아파트명을 입력하고 주소 검색을 해주세요!'); return; }
 
   var apts = S.get('apts') || [];
   var newApt={ id:Date.now(), name, sigungu, dong, lawdCd, size, targetPrice, memo, trades:[], lastFetch:null, aiAnalysis:null };
@@ -2363,6 +2371,7 @@ function addApt() {
   dbUpsert('realty',{id:newApt.id, name:newApt.name, sigungu:newApt.sigungu, data:newApt});
 
   document.getElementById('apt-name').value = '';
+  document.getElementById('apt-address-display').value = '';
   document.getElementById('apt-sigungu').value = '';
   document.getElementById('apt-dong').value = '';
   document.getElementById('apt-lawdcd').value = '';
