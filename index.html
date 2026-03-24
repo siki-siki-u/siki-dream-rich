@@ -956,15 +956,19 @@ tr:hover td{background:rgba(108,138,255,.03)}
 // ── SUPABASE ──
 const SUPABASE_URL = 'https://boyhppqnwtxedicxbfpz.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_Uh-YK_wDgAgQMO_CZwnyRw_SrRyQ-Tq';
-const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let supa = null;
+try { if(window.supabase) supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e) { console.warn('Supabase init 실패:', e.message); }
 
 async function dbUpsert(table, row) {
+  if(!supa) return;
   try { await supa.from(table).upsert(row); } catch(e) { console.warn('[DB upsert]', table, e.message); }
 }
 async function dbDelete(table, id) {
+  if(!supa) return;
   try { await supa.from(table).delete().eq('id', id); } catch(e) { console.warn('[DB delete]', table, e.message); }
 }
 async function syncFromSupabase() {
+  if(!supa) return;
   try {
     // stocks
     const { data: stocks } = await supa.from('stocks').select('*');
@@ -2577,12 +2581,7 @@ async function fetchTrades(id, btn) {
       if(!res || !res.ok) return [];
       return res.json().then(function(data) {
         if(!data.items) return [];
-        return data.items.filter(function(item) {
-          if(!apt.name || !item.aptNm) return true;
-          var n1 = apt.name.replace(/\s/g,'').slice(0,4);
-          var n2 = item.aptNm.replace(/\s/g,'');
-          return n2.includes(n1) || n1.includes(n2.slice(0,4));
-        }).map(function(item) {
+        var all = data.items.map(function(item) {
           return {
             name:  item.aptNm,
             date:  item.year+'-'+String(item.month).padStart(2,'0')+'-'+String(item.day).padStart(2,'0'),
@@ -2591,6 +2590,11 @@ async function fetchTrades(id, btn) {
             area:  item.area,
           };
         });
+        // 이름 필터 (느슨하게: 2글자만 비교, 매칭 없으면 전체 반환)
+        if(!apt.name) return all;
+        var n1 = apt.name.replace(/\s/g,'').slice(0,2);
+        var filtered = all.filter(function(t){ return t.name && t.name.replace(/\s/g,'').includes(n1); });
+        return filtered.length > 0 ? filtered : all;
       });
     }).catch(function(){ return []; });
   }
