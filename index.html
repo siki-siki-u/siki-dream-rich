@@ -1752,10 +1752,9 @@ async function fetchYoutubeVideos() {
   btn.disabled = true;
 
   var rssUrl = 'https://www.youtube.com/feeds/videos.xml?channel_id='+YT_CHANNEL_ID;
-  var proxyUrl = 'https://api.allorigins.win/raw?url='+encodeURIComponent(rssUrl);
 
   try {
-    var res = await fetchWithTimeout(proxyUrl, 10000);
+    var res = await fetchWithProxy(rssUrl);
     if(!res || !res.ok) throw new Error('RSS 가져오기 실패');
     var text = await res.text();
     var parser = new DOMParser();
@@ -2546,56 +2545,51 @@ async function fetchTrades(id, btn) {
 
   btn.textContent = '⏳ 조회 중...'; btn.disabled = true;
 
-  // 최근 7년치 월 목록 생성
+  // 최근 2년치 월 목록 생성
   var months = [];
   var now = new Date();
-  for(var i=0; i<84; i++) {
+  for(var i=0; i<24; i++) {
     var d = new Date(now.getFullYear(), now.getMonth()-i, 1);
     months.push(d.getFullYear().toString() + String(d.getMonth()+1).padStart(2,'0'));
   }
 
   var allTrades = [];
-  var proxyBase = 'https://api.allorigins.win/raw?url=';
 
-  // 최근 3년치만 실제 조회 (API 부담 줄이기)
-  var targetMonths = months.slice(0, 36);
-
-  for(var mi=0; mi<targetMonths.length; mi++) {
-    var ym = targetMonths[mi];
+  function parseMonth(ym) {
     var apiUrl = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev'+
       '?serviceKey='+encodeURIComponent(pubkey)+
       '&LAWD_CD='+apt.lawdCd+
       '&DEAL_YMD='+ym+
       '&numOfRows=100&pageNo=1';
-
-    try {
-      var res = await fetchWithTimeout(proxyBase+encodeURIComponent(apiUrl), 8000);
-      if(!res || !res.ok) continue;
-      var text = await res.text();
-      var parser = new DOMParser();
-      var xml = parser.parseFromString(text, 'text/xml');
-      var items = xml.querySelectorAll('item');
-      items.forEach(function(item) {
-        var aptNm   = (item.querySelector('aptNm')||{textContent:''}).textContent.trim();
-        var price   = (item.querySelector('dealAmount')||{textContent:'0'}).textContent.replace(/,/g,'').trim();
-        var year    = (item.querySelector('dealYear')||{textContent:''}).textContent.trim();
-        var month   = (item.querySelector('dealMonth')||{textContent:''}).textContent.trim();
-        var day     = (item.querySelector('dealDay')||{textContent:''}).textContent.trim();
-        var floor   = (item.querySelector('floor')||{textContent:''}).textContent.trim();
-        var area    = (item.querySelector('excluUseAr')||{textContent:''}).textContent.trim();
-        if(!price || isNaN(Number(price))) return;
-        // 아파트명 필터 (입력한 이름과 비교)
-        if(apt.name && aptNm && !aptNm.includes(apt.name.replace(/\s/g,'').slice(0,4)) &&
-           !apt.name.replace(/\s/g,'').includes(aptNm.replace(/\s/g,'').slice(0,4))) return;
-        allTrades.push({
-          name: aptNm,
-          date: year+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0'),
-          price: Number(price),
-          floor: floor,
-          area: area
+    return fetchWithProxy(apiUrl).then(function(res) {
+      if(!res || !res.ok) return [];
+      return res.text().then(function(text) {
+        var xml = new DOMParser().parseFromString(text, 'text/xml');
+        var trades = [];
+        xml.querySelectorAll('item').forEach(function(item) {
+          var aptNm = (item.querySelector('aptNm')||{textContent:''}).textContent.trim();
+          var price = (item.querySelector('dealAmount')||{textContent:'0'}).textContent.replace(/,/g,'').trim();
+          var year  = (item.querySelector('dealYear')||{textContent:''}).textContent.trim();
+          var month = (item.querySelector('dealMonth')||{textContent:''}).textContent.trim();
+          var day   = (item.querySelector('dealDay')||{textContent:''}).textContent.trim();
+          var floor = (item.querySelector('floor')||{textContent:''}).textContent.trim();
+          var area  = (item.querySelector('excluUseAr')||{textContent:''}).textContent.trim();
+          if(!price || isNaN(Number(price))) return;
+          if(apt.name && aptNm && !aptNm.includes(apt.name.replace(/\s/g,'').slice(0,4)) &&
+             !apt.name.replace(/\s/g,'').includes(aptNm.replace(/\s/g,'').slice(0,4))) return;
+          trades.push({ name:aptNm, date:year+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0'), price:Number(price), floor:floor, area:area });
         });
+        return trades;
       });
-    } catch(e) { continue; }
+    }).catch(function(){ return []; });
+  }
+
+  // 6개월씩 병렬 배치로 조회
+  var BATCH = 6;
+  for(var bi=0; bi<months.length; bi+=BATCH) {
+    var batch = months.slice(bi, bi+BATCH);
+    var results = await Promise.all(batch.map(parseMonth));
+    results.forEach(function(r){ allTrades = allTrades.concat(r); });
   }
 
   // 날짜 최신순 정렬
