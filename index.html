@@ -1756,32 +1756,25 @@ async function fetchYoutubeVideos() {
   var lastSavedId = S.get('yt_last_seen_id');
   ytVideos = [];
 
-  // Invidious 공개 인스턴스 목록 (키/결제 불필요)
-  var INVIDIOUS = [
-    'https://inv.nadeko.net',
-    'https://yewtu.be',
-    'https://invidious.privacydev.net',
-    'https://invidious.lunar.icu',
-  ];
-
   try {
-    var data = null;
-    for(var ii=0; ii<INVIDIOUS.length; ii++) {
-      try {
-        var res = await fetchWithTimeout(INVIDIOUS[ii]+'/api/v1/channels/'+YT_CHANNEL_ID+'/videos?page=1', 8000);
-        if(res && res.ok) { data = await res.json(); break; }
-      } catch(e) {}
-    }
-    if(!data || !data.videos || !data.videos.length) throw new Error('영상을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
+    // Netlify Function으로 서버사이드 RSS 가져오기 (CORS 없음)
+    var res = await fetchWithTimeout('/.netlify/functions/youtube-rss', 10000);
+    if(!res || !res.ok) throw new Error('서버 오류 ('+res.status+')');
+    var text = await res.text();
+    var xml = new DOMParser().parseFromString(text, 'text/xml');
+    var entries = xml.querySelectorAll('entry');
+    if(!entries.length) throw new Error('영상 목록이 비어있어요');
 
-    data.videos.slice(0,20).forEach(function(v, i) {
-      var thumb = 'https://img.youtube.com/vi/'+v.videoId+'/mqdefault.jpg';
-      var thumbArr = v.videoThumbnails||[];
-      var med = thumbArr.find(function(t){return t.quality==='medium'||t.quality==='mqdefault';});
-      if(med && med.url && med.url.startsWith('http')) thumb = med.url;
-      var published = v.published ? new Date(v.published*1000).toISOString().split('T')[0] : '';
-      var isNew = (i===0 && lastSavedId && v.videoId !== lastSavedId);
-      ytVideos.push({ videoId:v.videoId, title:v.title, published:published, desc:(v.description||'').slice(0,300), thumb:thumb, isNew:isNew });
+    entries.forEach(function(entry, i) {
+      var idEl   = entry.querySelector('videoId') || entry.querySelector('id');
+      var videoId = idEl ? idEl.textContent.replace('yt:video:','') : '';
+      if(!videoId) return;
+      var title     = (entry.querySelector('title')||{textContent:''}).textContent;
+      var published = (entry.querySelector('published')||{textContent:''}).textContent.split('T')[0];
+      var desc      = (entry.querySelector('description')||{textContent:''}).textContent.slice(0,300);
+      var thumb     = 'https://img.youtube.com/vi/'+videoId+'/mqdefault.jpg';
+      var isNew     = (i===0 && lastSavedId && videoId !== lastSavedId);
+      ytVideos.push({ videoId:videoId, title:title, published:published, desc:desc, thumb:thumb, isNew:isNew });
     });
 
     // 가장 최신 영상 ID 저장
