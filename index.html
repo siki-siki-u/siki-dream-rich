@@ -602,13 +602,21 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div class="card" style="margin-bottom:1.2rem">
           <div class="sec-title">종목 추가</div>
           <div style="display:flex;flex-direction:column;gap:.6rem">
-            <select id="st-type" style="width:100%">
+            <select id="st-type" style="width:100%" onchange="clearStockSearch()">
               <option value="KR">🇰🇷 국내 주식 (코스피/코스닥)</option>
               <option value="US">🇺🇸 미국 주식 (나스닥/NYSE)</option>
               <option value="CRYPTO">🪙 암호화폐</option>
             </select>
-            <input type="text" id="st-ticker" placeholder="티커 입력 (예: 005930 / AAPL / bitcoin)" style="width:100%"/>
-            <input type="text" id="st-name" placeholder="종목 이름 (예: 삼성전자)" style="width:100%"/>
+            <div style="position:relative">
+              <input type="text" id="st-search" placeholder="종목명 또는 티커 검색..." style="width:100%" oninput="onStockSearch(this.value)" onblur="setTimeout(function(){document.getElementById('st-dropdown').style.display='none'},200)" autocomplete="off"/>
+              <div id="st-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.3)"></div>
+            </div>
+            <input type="hidden" id="st-ticker"/>
+            <input type="hidden" id="st-name"/>
+            <div id="st-selected" style="display:none;background:var(--surface2);border-radius:8px;padding:.5rem .8rem;font-size:.85rem;display:flex;justify-content:space-between;align-items:center">
+              <span id="st-selected-label"></span>
+              <span style="cursor:pointer;color:var(--muted)" onclick="clearStockSearch()">✕</span>
+            </div>
             <textarea id="st-note" placeholder="메모 (관심 이유, 목표가 등)" rows="2" style="width:100%"></textarea>
             <button class="btn btn-success" onclick="addStock()">종목 추가 ＋</button>
           </div>
@@ -1492,6 +1500,79 @@ async function fetchWithProxy(url) {
   return null;
 }
 
+// ── 종목 검색 자동완성 ──
+var _stockSearchTimer = null;
+function onStockSearch(q) {
+  clearTimeout(_stockSearchTimer);
+  var dd = document.getElementById('st-dropdown');
+  if(!q || q.length < 1) { dd.style.display='none'; return; }
+  _stockSearchTimer = setTimeout(function(){ doStockSearch(q); }, 350);
+}
+async function doStockSearch(q) {
+  var type = document.getElementById('st-type').value;
+  var dd = document.getElementById('st-dropdown');
+  dd.innerHTML = '<div style="padding:.6rem 1rem;color:var(--muted);font-size:.83rem">검색 중...</div>';
+  dd.style.display = 'block';
+  try {
+    var results = [];
+    if(type === 'CRYPTO') {
+      var res = await fetchWithTimeout('https://api.coingecko.com/api/v3/search?query='+encodeURIComponent(q), 6000);
+      if(res && res.ok) {
+        var data = await res.json();
+        results = (data.coins||[]).slice(0,8).map(function(c){ return { ticker: c.id, name: c.name, sub: c.symbol.toUpperCase() }; });
+      }
+    } else {
+      var url = 'https://query1.finance.yahoo.com/v1/finance/search?q='+encodeURIComponent(q)+'&quotesCount=10&newsCount=0&lang=ko-KR';
+      var res2 = await fetchWithProxy(url);
+      if(res2 && res2.ok) {
+        var raw = await res2.json();
+        var parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        // allorigins wraps in .contents
+        if(parsed && parsed.contents) parsed = JSON.parse(parsed.contents);
+        var quotes = (parsed && parsed.quotes) || [];
+        quotes.forEach(function(q2) {
+          if(!q2.symbol) return;
+          var isKR = q2.symbol.endsWith('.KS') || q2.symbol.endsWith('.KQ');
+          if(type === 'KR' && !isKR) return;
+          if(type === 'US' && isKR) return;
+          var ticker = isKR ? q2.symbol.replace(/\.(KS|KQ)$/,'') : q2.symbol;
+          results.push({ ticker: ticker, name: q2.shortname || q2.longname || ticker, sub: q2.exchange || '' });
+        });
+        results = results.slice(0,8);
+      }
+    }
+    if(!results.length) {
+      dd.innerHTML = '<div style="padding:.6rem 1rem;color:var(--muted);font-size:.83rem">결과 없음</div>';
+      return;
+    }
+    dd.innerHTML = results.map(function(r) {
+      return '<div style="padding:.55rem 1rem;cursor:pointer;border-bottom:1px solid var(--border);font-size:.88rem" onmousedown="selectStock(\''+r.ticker.replace(/'/g,'')+'\',\''+r.name.replace(/'/g,'').replace(/"/g,'')+'\')">'+
+        '<span style="font-weight:600;color:var(--text)">'+r.name+'</span> '+
+        '<span style="font-family:JetBrains Mono,monospace;font-size:.75rem;color:var(--accent)">'+r.ticker+'</span>'+
+        (r.sub ? ' <span style="font-size:.72rem;color:var(--muted)">'+r.sub+'</span>' : '')+
+        '</div>';
+    }).join('');
+  } catch(e) {
+    dd.innerHTML = '<div style="padding:.6rem 1rem;color:var(--muted);font-size:.83rem">검색 실패</div>';
+  }
+}
+function selectStock(ticker, name) {
+  document.getElementById('st-ticker').value = ticker;
+  document.getElementById('st-name').value = name;
+  document.getElementById('st-search').value = '';
+  document.getElementById('st-dropdown').style.display = 'none';
+  var sel = document.getElementById('st-selected');
+  document.getElementById('st-selected-label').textContent = name + ' (' + ticker + ')';
+  sel.style.display = 'flex';
+}
+function clearStockSearch() {
+  document.getElementById('st-ticker').value = '';
+  document.getElementById('st-name').value = '';
+  document.getElementById('st-search').value = '';
+  document.getElementById('st-dropdown').style.display = 'none';
+  document.getElementById('st-selected').style.display = 'none';
+}
+
 function addStock() {
   const type   = document.getElementById('st-type').value;
   const ticker = document.getElementById('st-ticker').value.trim().toUpperCase();
@@ -1504,8 +1585,7 @@ function addStock() {
   stocks.push(newStock);
   S.set('stocks', stocks);
   dbUpsert('stocks', {id: newStock.id, type: newStock.type, ticker: newStock.ticker, name: newStock.name, note: newStock.note});
-  document.getElementById('st-ticker').value = '';
-  document.getElementById('st-name').value = '';
+  clearStockSearch();
   document.getElementById('st-note').value = '';
   renderStocks();
   fetchAllPrices();
