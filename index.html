@@ -2572,30 +2572,27 @@ async function fetchTrades(id, btn) {
   var allTrades = [];
 
   function parseMonth(ym) {
-    var apiUrl = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev'+
-      '?serviceKey='+encodeURIComponent(pubkey)+
-      '&LAWD_CD='+apt.lawdCd+
-      '&DEAL_YMD='+ym+
-      '&numOfRows=100&pageNo=1';
-    return fetchWithProxy(apiUrl).then(function(res) {
+    var apiUrl = '/api/apt-trades?lawdCd='+encodeURIComponent(apt.lawdCd)
+      +'&ym='+encodeURIComponent(ym)
+      +'&key='+encodeURIComponent(pubkey);
+    return fetchWithTimeout(apiUrl, 12000).then(function(res) {
       if(!res || !res.ok) return [];
-      return res.text().then(function(text) {
-        var xml = new DOMParser().parseFromString(text, 'text/xml');
-        var trades = [];
-        xml.querySelectorAll('item').forEach(function(item) {
-          var aptNm = (item.querySelector('aptNm')||{textContent:''}).textContent.trim();
-          var price = (item.querySelector('dealAmount')||{textContent:'0'}).textContent.replace(/,/g,'').trim();
-          var year  = (item.querySelector('dealYear')||{textContent:''}).textContent.trim();
-          var month = (item.querySelector('dealMonth')||{textContent:''}).textContent.trim();
-          var day   = (item.querySelector('dealDay')||{textContent:''}).textContent.trim();
-          var floor = (item.querySelector('floor')||{textContent:''}).textContent.trim();
-          var area  = (item.querySelector('excluUseAr')||{textContent:''}).textContent.trim();
-          if(!price || isNaN(Number(price))) return;
-          if(apt.name && aptNm && !aptNm.includes(apt.name.replace(/\s/g,'').slice(0,4)) &&
-             !apt.name.replace(/\s/g,'').includes(aptNm.replace(/\s/g,'').slice(0,4))) return;
-          trades.push({ name:aptNm, date:year+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0'), price:Number(price), floor:floor, area:area });
+      return res.json().then(function(data) {
+        if(!data.items) return [];
+        return data.items.filter(function(item) {
+          if(!apt.name || !item.aptNm) return true;
+          var n1 = apt.name.replace(/\s/g,'').slice(0,4);
+          var n2 = item.aptNm.replace(/\s/g,'');
+          return n2.includes(n1) || n1.includes(n2.slice(0,4));
+        }).map(function(item) {
+          return {
+            name:  item.aptNm,
+            date:  item.year+'-'+String(item.month).padStart(2,'0')+'-'+String(item.day).padStart(2,'0'),
+            price: item.price,
+            floor: item.floor,
+            area:  item.area,
+          };
         });
-        return trades;
       });
     }).catch(function(){ return []; });
   }
