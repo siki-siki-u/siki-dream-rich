@@ -33,7 +33,7 @@ module.exports = async function(req, res) {
   }
 
   // 인코딩된 키(Encoding 버전)를 그대로 사용
-  var apiUrl = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade'
+  var apiUrl = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev'
     + '?serviceKey=' + key
     + '&LAWD_CD=' + lawdCd
     + '&DEAL_YMD=' + ym
