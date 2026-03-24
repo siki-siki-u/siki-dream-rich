@@ -1758,7 +1758,7 @@ async function fetchYoutubeVideos() {
 
   try {
     // Netlify Function - 서버에서 YouTube RSS 파싱 후 JSON 반환
-    var res = await fetchWithTimeout('/.netlify/functions/youtube-rss', 15000);
+    var res = await fetchWithTimeout('/api/youtube-rss', 15000);
     if(!res || !res.ok) throw new Error('서버 오류 ('+res.status+')');
     var data = await res.json();
     if(data.error) throw new Error(data.error);
