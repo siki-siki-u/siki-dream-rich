@@ -2585,11 +2585,14 @@ async function fetchTrades(id, btn) {
             area:  item.area,
           };
         });
-        // 이름 필터 (느슨하게: 2글자만 비교, 매칭 없으면 전체 반환)
+        // 아파트명 필터 (공백 제거 후 포함 여부 비교)
         if(!apt.name) return all;
-        var n1 = apt.name.replace(/\s/g,'').slice(0,2);
-        var filtered = all.filter(function(t){ return t.name && t.name.replace(/\s/g,'').includes(n1); });
-        return filtered.length > 0 ? filtered : all;
+        var aptNameNorm = apt.name.replace(/\s/g,'');
+        return all.filter(function(t) {
+          if(!t.name) return false;
+          var itemNorm = t.name.replace(/\s/g,'');
+          return itemNorm.includes(aptNameNorm) || aptNameNorm.includes(itemNorm);
+        });
       });
     }).catch(function(){ return []; });
   }
