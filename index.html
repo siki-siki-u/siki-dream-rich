@@ -1757,25 +1757,14 @@ async function fetchYoutubeVideos() {
   ytVideos = [];
 
   try {
-    // rss2json.com - YouTube RSS 전용 변환 서비스 (무료, CORS 허용)
-    var rssUrl = 'https://www.youtube.com/feeds/videos.xml?channel_id='+YT_CHANNEL_ID;
-    var res = await fetchWithTimeout('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(rssUrl), 12000);
-    if(!res || !res.ok) throw new Error('네트워크 오류');
+    // Netlify Function - 서버에서 YouTube RSS 파싱 후 JSON 반환
+    var res = await fetchWithTimeout('/.netlify/functions/youtube-rss', 15000);
+    if(!res || !res.ok) throw new Error('서버 오류 ('+res.status+')');
     var data = await res.json();
-    if(data.status !== 'ok' || !data.items || !data.items.length) throw new Error('데이터 없음');
+    if(data.error) throw new Error(data.error);
+    if(!data.videos || !data.videos.length) throw new Error('영상을 찾지 못했어요');
 
-    ytVideos = data.items.map(function(item) {
-      var videoId = (item.link||'').split('v=')[1] || (item.guid||'').split('v=')[1] || '';
-      return {
-        videoId:   videoId,
-        title:     item.title || '',
-        published: (item.pubDate||'').split(' ')[0],
-        desc:      (item.description||'').replace(/<[^>]*>/g,'').slice(0,300),
-        thumb:     item.thumbnail || 'https://img.youtube.com/vi/'+videoId+'/mqdefault.jpg',
-      };
-    }).filter(function(v){ return !!v.videoId; });
-
-    if(!ytVideos.length) throw new Error('영상을 찾지 못했어요');
+    ytVideos = data.videos;
 
     // 새 영상 확인
     var latestId = ytVideos[0].videoId;
