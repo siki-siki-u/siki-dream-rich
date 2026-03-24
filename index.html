@@ -1054,7 +1054,6 @@ function openSettings() {
   document.getElementById('s-anniversary').value = S.get('anniversary') || '';
   document.getElementById('s-myname').value = S.get('myname') || '';
   document.getElementById('s-apikey').value = S.get('apikey') || '';
-  document.getElementById('s-ytkey').value  = S.get('ytkey')  || '';
   document.getElementById('s-pubkey').value = S.get('pubkey') || '';
   document.getElementById('settings-modal').classList.add('open');
 }
@@ -1064,7 +1063,6 @@ function saveSettings() {
   S.set('anniversary', document.getElementById('s-anniversary').value);
   S.set('myname', document.getElementById('s-myname').value);
   S.set('apikey', document.getElementById('s-apikey').value);
-  S.set('ytkey',  document.getElementById('s-ytkey').value);
   S.set('pubkey', document.getElementById('s-pubkey').value);
   const name = S.get('myname');
   if(name) {
