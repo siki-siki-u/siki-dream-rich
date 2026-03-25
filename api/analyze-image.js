@@ -35,7 +35,7 @@ module.exports = async function(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
   var body = req.body || {};
-  var apiKey = req.headers['x-api-key'] || body.apiKey;
+  var apiKey = process.env.ANTHROPIC_API_KEY;
   var person = body.person || 'yujin';
   var image  = body.image;  // base64
   var mediaType = body.mediaType || 'image/jpeg';
@@ -44,7 +44,7 @@ module.exports = async function(req, res) {
   var supportedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
   if (!supportedTypes.includes(mediaType)) mediaType = 'image/jpeg';
 
-  if (!apiKey) return res.status(400).json({ error: 'API 키 누락' });
+  if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY가 서버에 설정되지 않았습니다. Vercel 환경변수를 확인하세요.' });
   if (!image)  return res.status(400).json({ error: '이미지 누락 (body: ' + JSON.stringify(Object.keys(body)) + ')' });
 
   var isYujin = person === 'yujin';

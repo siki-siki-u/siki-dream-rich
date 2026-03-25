@@ -350,7 +350,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
   </div>
 
   <div class="sidebar-footer">
-    <button class="settings-btn" onclick="openSettings()">⚙️ 설정 (API 키)</button>
+    <button class="settings-btn" onclick="openSettings()">⚙️ 설정</button>
   </div>
 </nav>
 
@@ -1165,13 +1165,6 @@ tr:hover td{background:rgba(108,138,255,.03)}
       <label>내 이름</label>
       <input type="text" id="s-myname" placeholder="홍길동"/>
     </div>
-    <div class="field">
-      <label>🤖 Anthropic API 키 (AI 분석용)</label>
-      <input type="password" id="s-apikey" placeholder="sk-ant-..."/>
-      <div style="margin-top:.4rem;font-size:.75rem;color:var(--muted)">
-        👉 <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent)">console.anthropic.com</a> 에서 무료 발급
-      </div>
-    </div>
     <div class="modal-btns">
       <button class="btn btn-ghost" onclick="closeSettings()">취소</button>
       <button class="btn btn-primary" onclick="saveSettings()">저장하기 💾</button>
@@ -1295,7 +1288,6 @@ try { updateDday(); } catch(e){}
 function openSettings() {
   document.getElementById('s-anniversary').value = S.get('anniversary') || '';
   document.getElementById('s-myname').value = S.get('myname') || '';
-  document.getElementById('s-apikey').value = S.get('apikey') || '';
   document.getElementById('settings-modal').classList.add('open');
 }
 function closeSettings() { document.getElementById('settings-modal').classList.remove('open'); }
@@ -1303,7 +1295,6 @@ function closeSettingsOut(e) { if(e.target.id==='settings-modal') closeSettings(
 function saveSettings() {
   S.set('anniversary', document.getElementById('s-anniversary').value);
   S.set('myname', document.getElementById('s-myname').value);
-  S.set('apikey', document.getElementById('s-apikey').value);
   const name = S.get('myname');
   if(name) {
     document.querySelector('.sidebar-logo p').textContent = name + '님의 대시보드';
@@ -2090,9 +2081,6 @@ function renderYtVideoGrid() {
 }
 
 async function analyzeYtVideo(videoId, title, published, thumb, btn) {
-  var apiKey = S.get('apikey');
-  if(!apiKey) { alert('설정에서 API 키를 먼저 입력해 주세요!'); openSettings(); return; }
-
   btn.textContent = '⏳ 분석 중...';
   btn.disabled = true;
 
@@ -2101,9 +2089,9 @@ async function analyzeYtVideo(videoId, title, published, thumb, btn) {
   var desc = video.desc || '';
 
   try {
-    var res = await fetch('https://api.anthropic.com/v1/messages', {
+    var res = await fetch('/api/claude', {
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
+      headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         model: 'claude-3-5-sonnet-20241022',
         max_tokens: 800,
@@ -2222,8 +2210,6 @@ function handleAiShotDrop(e) {
 
 async function analyzeScreenshot() {
   if(!pendingAiImg) { alert('먼저 스크린샷을 업로드해 주세요!'); return; }
-  const apiKey = S.get('apikey');
-  if(!apiKey) { alert('설정에서 API 키를 먼저 입력해 주세요!'); openSettings(); return; }
 
   const person = document.getElementById('shot-person').value;
   const isYujin = person === 'yujin';
@@ -2236,7 +2222,7 @@ async function analyzeScreenshot() {
   try {
     const res = await fetchWithTimeout('/api/analyze-image', 35000, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ person, image: base64, mediaType }),
     });
     if(!res || !res.ok) {
@@ -2544,8 +2530,6 @@ function renderJournal() {
 }
 
 async function getJournalFeedback(id, btn) {
-  var apiKey=S.get('apikey');
-  if(!apiKey){alert('설정에서 API 키를 먼저 입력해 주세요!');openSettings();return;}
   var journals=S.get('journals')||[];
   var j=journals.find(function(x){return x.id===id;});
   if(!j) return;
@@ -2563,9 +2547,9 @@ async function getJournalFeedback(id, btn) {
     priceInfo=pResults.filter(Boolean).join('\n');
   }
   try{
-    var res=await fetch('https://api.anthropic.com/v1/messages',{
+    var res=await fetch('/api/claude',{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         model:'claude-3-5-sonnet-20241022',max_tokens:1000,
         messages:[{role:'user',content:
@@ -2871,9 +2855,6 @@ async function fetchTrades(id, btn) {
 }
 
 async function getAptAI(id, btn) {
-  var apiKey = S.get('apikey');
-  if(!apiKey) { alert('설정에서 Anthropic API 키를 먼저 입력해 주세요!'); openSettings(); return; }
-
   var apts = S.get('apts') || [];
   var apt = apts.find(function(a){return a.id===id;});
   if(!apt) return;
@@ -2893,9 +2874,9 @@ async function getAptAI(id, btn) {
   }).join('\n');
 
   try {
-    var res = await fetch('https://api.anthropic.com/v1/messages',{
+    var res = await fetch('/api/claude',{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         model:'claude-3-5-sonnet-20241022', max_tokens:800,
         messages:[{role:'user',content:
