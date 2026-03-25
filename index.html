@@ -668,9 +668,6 @@ tr:hover td{background:rgba(108,138,255,.03)}
             <span style="font-size:.78rem;color:rgba(123,130,168,.6)">설정에서 API 키를 먼저 입력해 주세요</span>
           </div>
         </div>
-        <div id="ai-apply-btns" style="display:none;margin-top:1rem">
-          <button class="btn btn-success" style="width:100%" onclick="applyAiToAssets()">✅ 자산 현황에 자동 입력하기</button>
-        </div>
       </div>
     </div>
   </div>
@@ -1500,10 +1497,10 @@ const PROXIES = [
   url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
 ];
 
-function fetchWithTimeout(url, ms) {
+function fetchWithTimeout(url, ms, opts) {
   ms = ms || 7000;
   return Promise.race([
-    fetch(url),
+    fetch(url, opts),
     new Promise(function(_,reject){ setTimeout(function(){ reject(new Error('timeout')); }, ms); })
   ]);
 }
@@ -2008,65 +2005,26 @@ async function analyzeScreenshot() {
 
   const person = document.getElementById('shot-person').value;
   const isYujin = person === 'yujin';
-
   const resultBox = document.getElementById('ai-result-box');
   resultBox.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted)"><div style="font-size:2rem;margin-bottom:.8rem">⏳</div>AI가 분석 중이에요...</div>';
 
   const base64 = pendingAiImg.split(',')[1];
   const mediaType = pendingAiImg.split(';')[0].split(':')[1];
 
-  const promptYujin = `이 투자계좌 스크린샷에서 유진의 자산 정보를 읽어서 아래 JSON 형식으로만 응답해줘. 다른 말은 하지 말고 JSON만.
-{
-  "toss": 토스증권 총 평가금액(숫자),
-  "isa": ISA계좌 평가금액(숫자),
-  "gold": 금계좌 금액(숫자),
-  "coin_u": 코인 평가금액(숫자),
-  "fund": 펀드 평가금액(숫자),
-  "cheongyak": 주택청약 금액(숫자),
-  "savings_u": 적금 금액(숫자),
-  "stock_u": 개인주식 평가금액(숫자),
-  "summary": "한줄요약 (예: 총 평가금액 3천만원, 수익률 +3.2%)"
-}
-없는 항목은 0으로. 금액은 원화 숫자(쉼표없이).`;
-
-  const promptYoonsik = `이 투자계좌 스크린샷에서 윤식의 자산 정보를 읽어서 아래 JSON 형식으로만 응답해줘. 다른 말은 하지 말고 JSON만.
-{
-  "coin_y": 코인 평가금액(숫자),
-  "savings_y": 적금 금액(숫자),
-  "ret_y": 퇴직연금 금액(숫자),
-  "summary": "한줄요약 (예: 코인 총 평가금액 500만원)"
-}
-없는 항목은 0으로. 금액은 원화 숫자(쉼표없이).`;
-
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetchWithTimeout('/api/analyze-image', 35000, {
       method: 'POST',
-      headers: { 'Content-Type':'application/json', 'x-api-key': apiKey, 'anthropic-version':'2023-06-01' },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 800,
-        messages: [{
-          role: 'user',
-          content: [
-            { type:'image', source:{ type:'base64', media_type: mediaType, data: base64 } },
-            { type:'text', text: isYujin ? promptYujin : promptYoonsik }
-          ]
-        }]
-      })
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+      body: JSON.stringify({ person, image: base64, mediaType }),
     });
-    const data = await res.json();
-    const text = data.content?.[0]?.text || '';
-    const clean = text.replace(/```json|```/g,'').trim();
-    aiParsedData = JSON.parse(clean);
-    aiParsedData._person = person;
+    if(!res || !res.ok) {
+      const err = await res.json().catch(function(){return {};});
+      throw new Error(err.error || 'HTTP ' + res.status);
+    }
+    const result = await res.json();
+    aiParsedData = result.parsed;
 
-    const rows = isYujin
-      ? [['토스증권', aiParsedData.toss], ['ISA계좌', aiParsedData.isa], ['금계좌', aiParsedData.gold],
-         ['코인', aiParsedData.coin_u], ['펀드', aiParsedData.fund], ['주택청약', aiParsedData.cheongyak],
-         ['적금', aiParsedData.savings_u], ['개인주식', aiParsedData.stock_u]]
-      : [['코인', aiParsedData.coin_y], ['적금', aiParsedData.savings_y], ['퇴직연금', aiParsedData.ret_y]];
-
-    const rowsHtml = rows.filter(function(r){return r[1]>0;}).map(function(r){
+    const rowsHtml = result.rows.map(function(r){
       return '<div style="display:flex;justify-content:space-between;padding:.35rem 0;border-bottom:1px solid var(--border)">'+
         '<span style="color:var(--muted)">'+r[0]+'</span>'+
         '<span style="font-family:JetBrains Mono,monospace;color:var(--accent)">'+fmtMoney(r[1])+'</span>'+
@@ -2077,40 +2035,15 @@ async function analyzeScreenshot() {
       '<div style="font-size:.82rem;color:var(--muted);margin-bottom:.5rem">'+(isYujin?'👩 유진':'👨 윤식')+'</div>'+
       '<div style="font-size:.9rem;color:var(--accent3);margin-bottom:1rem">✅ '+aiParsedData.summary+'</div>'+
       '<div style="display:flex;flex-direction:column;gap:.4rem;font-size:.85rem">'+rowsHtml+'</div>'+
-      '<div id="ai-insight-box" style="margin-top:1rem;padding:.8rem;background:rgba(108,138,255,.07);border-radius:8px;font-size:.82rem;color:var(--muted)">'+
-        '<div style="text-align:center">⏳ AI 인사이트 분석 중...</div>'+
-      '</div>';
+      (result.insight ? '<div style="margin-top:1rem;padding:.8rem;background:rgba(108,138,255,.07);border-radius:8px;font-size:.82rem;color:var(--text);line-height:1.8">'+result.insight.replace(/\n/g,'<br/>')+'</div>' : '');
 
-    document.getElementById('ai-apply-btns').style.display = '';
+    // 자동으로 자산 현황에 입력
+    applyAiToAssets();
 
     var shots = S.get('toss_shots') || [];
     shots.unshift({ id:Date.now(), img:pendingAiImg, summary:(isYujin?'[유진] ':'[윤식] ')+aiParsedData.summary, date:today() });
     S.set('toss_shots', shots.slice(0,10));
     renderTossGallery();
-
-    // 2단계: AI 인사이트 코멘트
-    const insightPrompt = `아래는 ${isYujin?'유진':'윤식'}의 투자 포트폴리오야:\n`
-      + rows.filter(function(r){return r[1]>0;}).map(function(r){return r[0]+': '+r[1].toLocaleString()+'원';}).join('\n')
-      + '\n\n이 포트폴리오에 대해 아래 형식으로 한국어로 간결하게 분석해줘:\n'
-      + '📊 포트폴리오 구성: (자산 분산 평가, 1줄)\n'
-      + '💡 긍정적인 점: (1~2줄)\n'
-      + '⚠️ 개선 제안: (1~2줄)\n'
-      + '🎯 다음 단계: (구체적 행동 제안, 1줄)\n'
-      + '투자 권유가 아닌 참고 의견으로.';
-
-    const insightRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json', 'x-api-key': apiKey, 'anthropic-version':'2023-06-01' },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 600,
-        messages: [{ role:'user', content: insightPrompt }]
-      })
-    });
-    const insightData = await insightRes.json();
-    const insightText = (insightData.content?.[0]?.text || '').replace(/\n/g,'<br/>');
-    const insightBox = document.getElementById('ai-insight-box');
-    if(insightBox) insightBox.innerHTML = '<div style="color:var(--text);line-height:1.8">'+insightText+'</div>';
 
   } catch(err) {
     resultBox.innerHTML = '<div style="color:var(--danger);padding:1.5rem;font-size:.88rem">⚠️ 분석 실패: '+err.message+'<br/><span style="color:var(--muted);font-size:.8rem">API 키를 확인하거나 다시 시도해 주세요</span></div>';
@@ -2135,8 +2068,6 @@ function applyAiToAssets() {
     if(aiParsedData.ret_y)     document.getElementById('a-ret-y').value     = aiParsedData.ret_y;
   }
   recalcAssets();
-  alert('✅ 자산 현황에 입력됐어요! 자산 현황 탭에서 저장 눌러주세요 😊');
-  showPage('assets', document.querySelector('[onclick*="assets"]'));
 }
 
 function renderTossGallery() {
