@@ -2662,7 +2662,12 @@ async function fetchTrades(id, btn) {
         return all.filter(function(t) {
           if(!t.name) return false;
           var itemNorm = t.name.replace(/\s/g,'');
-          return itemNorm.includes(aptNameNorm);
+          // 정방향: API 아이템명이 저장된 아파트명을 포함
+          if(itemNorm.includes(aptNameNorm)) return true;
+          // 역방향: 저장된 아파트명이 API 아이템명을 포함 (API가 짧은 이름 반환 시)
+          // itemNorm이 4자 미만이면 짧은 접두어 오매칭 방지를 위해 skip
+          if(itemNorm.length >= 4 && aptNameNorm.includes(itemNorm)) return true;
+          return false;
         });
       });
     }).catch(function(){ return []; });
