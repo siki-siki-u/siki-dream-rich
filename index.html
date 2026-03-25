@@ -290,7 +290,6 @@ tr:hover td{background:rgba(108,138,255,.03)}
     <div class="nav-item" onclick="showPage('stocks',this);closeSidebar()"><span class="icon">📈</span> 주식 · 코인</div>
     <div class="nav-item" onclick="showPage('youtube',this);closeSidebar()"><span class="icon">▶️</span> 올랜도킴 분석</div>
     <div class="nav-item" onclick="showPage('journal',this);closeSidebar()"><span class="icon">📝</span> 투자 일지</div>
-    <div class="nav-item" onclick="showPage('toss',this);closeSidebar()"><span class="icon">📱</span> 토스 현황</div>
   </div>
   <div class="nav-section">
     <div class="nav-label">내집마련</div>
@@ -513,6 +512,43 @@ tr:hover td{background:rgba(108,138,255,.03)}
       </div>
     </div>
 
+    <!-- 토스뱅크 엑셀 명세서 가져오기 -->
+    <div class="grid2" style="align-items:start;margin-bottom:1.5rem">
+      <div class="card">
+        <div class="sec-title">📊 토스뱅크 엑셀 명세서 가져오기</div>
+        <div style="background:rgba(108,138,255,.07);border:1px solid rgba(108,138,255,.18);border-radius:10px;padding:1rem;margin-bottom:1rem;font-size:.82rem;color:var(--muted);line-height:1.8">
+          📌 <b style="color:var(--text)">토스 거래내역 받는 법</b><br/>
+          토스 앱 → 공용통장 → 거래내역 → 우측 상단 내보내기 → 엑셀
+        </div>
+        <div class="toss-drop" id="excel-drop"
+          ondragover="event.preventDefault();this.classList.add('drag-over')"
+          ondragleave="this.classList.remove('drag-over')"
+          ondrop="handleExcelDrop(event)">
+          <input type="file" accept=".xlsx,.xls,.csv" onchange="handleExcelFile(this.files[0])"/>
+          <div id="excel-drop-inner">
+            <div style="font-size:2.5rem;margin-bottom:.8rem">📊</div>
+            <div style="color:var(--text);font-size:.95rem;margin-bottom:.3rem">엑셀 파일 업로드</div>
+            <div style="color:var(--muted);font-size:.8rem">.xlsx .xls .csv 지원</div>
+          </div>
+        </div>
+        <div style="margin-top:1rem;display:flex;flex-direction:column;gap:.6rem">
+          <div style="display:flex;gap:.5rem;align-items:center">
+            <label style="font-size:.82rem;color:var(--muted);min-width:60px">대상 월</label>
+            <select id="excel-target-month" style="flex:1"></select>
+          </div>
+          <button class="btn btn-success" onclick="importExcelToBudget()">📥 가계부에 자동 입력하기</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="sec-title">👀 미리보기 & 분류</div>
+        <div id="excel-preview" style="max-height:500px;overflow-y:auto">
+          <div style="color:var(--muted);font-size:.85rem;text-align:center;padding:3rem 1rem">
+            <div style="font-size:2rem;margin-bottom:.8rem">📋</div>
+            엑셀을 올리면 거래내역을 자동으로 분류해서<br/>가계부에 바로 넣어줘요!
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div class="grid2" style="align-items:start">
       <!-- 카테고리별 지출 -->
@@ -589,6 +625,51 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div class="card">
           <div class="sec-title">📅 월별 자산 기록</div>
           <div id="a-history" style="max-height:300px;overflow-y:auto"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 투자계좌 스크린샷 AI 분석 -->
+    <div class="grid2" style="align-items:start;margin-top:1.5rem">
+      <div>
+        <div class="card" style="margin-bottom:1rem">
+          <div class="sec-title">📸 투자계좌 캡처 업로드</div>
+          <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem">
+            <label style="font-size:.82rem;color:var(--muted);white-space:nowrap">누가 올리나요?</label>
+            <select id="shot-person" style="flex:1">
+              <option value="yujin">👩 유진</option>
+              <option value="yoonsik">👨 윤식</option>
+            </select>
+          </div>
+          <div class="toss-drop" id="ai-shot-drop"
+            ondragover="event.preventDefault();this.classList.add('drag-over')"
+            ondragleave="this.classList.remove('drag-over')"
+            ondrop="handleAiShotDrop(event)">
+            <input type="file" accept="image/*" onchange="handleAiShotFile(this.files[0])"/>
+            <div id="ai-shot-inner">
+              <div style="font-size:2.5rem;margin-bottom:.8rem">📲</div>
+              <div style="color:var(--text);font-size:.95rem;margin-bottom:.3rem">투자계좌 스크린샷 업로드</div>
+              <div style="color:var(--muted);font-size:.8rem">클릭하거나 드래그앤드롭</div>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="width:100%;margin-top:.8rem" onclick="analyzeScreenshot()">🤖 AI로 분석하기</button>
+        </div>
+        <div class="card">
+          <div class="sec-title">💾 저장된 스크린샷</div>
+          <div id="toss-gallery" style="max-height:300px;overflow-y:auto"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="sec-title">🤖 AI 분석 결과</div>
+        <div id="ai-result-box" style="min-height:200px">
+          <div style="color:var(--muted);font-size:.85rem;text-align:center;padding:3rem 1rem">
+            <div style="font-size:2rem;margin-bottom:.8rem">🤖</div>
+            캡처를 올리고 분석하기를 누르면<br/>AI가 자산 현황을 읽어서 자동으로 입력해줘요!<br/><br/>
+            <span style="font-size:.78rem;color:rgba(123,130,168,.6)">설정에서 API 키를 먼저 입력해 주세요</span>
+          </div>
+        </div>
+        <div id="ai-apply-btns" style="display:none;margin-top:1rem">
+          <button class="btn btn-success" style="width:100%" onclick="applyAiToAssets()">✅ 자산 현황에 자동 입력하기</button>
         </div>
       </div>
     </div>
@@ -794,106 +875,6 @@ tr:hover td{background:rgba(108,138,255,.03)}
     </div>
   </div>
 
-  <!-- TOSS -->
-  <div class="page" id="page-toss">
-    <div class="page-header">
-      <h2>📱 토스 스마트 가져오기</h2>
-      <p>스크린샷 AI 분석 · 거래내역 엑셀 자동 입력</p>
-    </div>
-
-    <!-- 탭 -->
-    <div style="display:flex;gap:.5rem;margin-bottom:1.5rem">
-      <button class="btn btn-primary" id="tab-screenshot-btn" onclick="switchTossTab('screenshot')">📸 주식 스크린샷 분석</button>
-      <button class="btn btn-ghost"   id="tab-excel-btn"      onclick="switchTossTab('excel')">📊 거래내역 엑셀 가져오기</button>
-    </div>
-
-    <!-- 스크린샷 탭 -->
-    <div id="toss-tab-screenshot">
-      <div class="grid2" style="align-items:start">
-        <div>
-          <div class="card" style="margin-bottom:1rem">
-            <div class="sec-title">📸 스크린샷 업로드</div>
-            <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem">
-              <label style="font-size:.82rem;color:var(--muted);white-space:nowrap">누가 올리나요?</label>
-              <select id="shot-person" style="flex:1">
-                <option value="yujin">👩 유진</option>
-                <option value="yoonsik">👨 윤식</option>
-              </select>
-            </div>
-            <div class="toss-drop" id="ai-shot-drop"
-              ondragover="event.preventDefault();this.classList.add('drag-over')"
-              ondragleave="this.classList.remove('drag-over')"
-              ondrop="handleAiShotDrop(event)">
-              <input type="file" accept="image/*" onchange="handleAiShotFile(this.files[0])"/>
-              <div id="ai-shot-inner">
-                <div style="font-size:2.5rem;margin-bottom:.8rem">📲</div>
-                <div style="color:var(--text);font-size:.95rem;margin-bottom:.3rem">투자계좌 스크린샷 업로드</div>
-                <div style="color:var(--muted);font-size:.8rem">클릭하거나 드래그앤드롭</div>
-              </div>
-            </div>
-            <button class="btn btn-primary" style="width:100%;margin-top:.8rem" onclick="analyzeScreenshot()">🤖 AI로 분석하기</button>
-          </div>
-          <div class="card">
-            <div class="sec-title">💾 저장된 스크린샷</div>
-            <div id="toss-gallery" style="max-height:300px;overflow-y:auto"></div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="sec-title">🤖 AI 분석 결과</div>
-          <div id="ai-result-box" style="min-height:200px">
-            <div style="color:var(--muted);font-size:.85rem;text-align:center;padding:3rem 1rem">
-              <div style="font-size:2rem;margin-bottom:.8rem">🤖</div>
-              스크린샷을 올리고 분석하기를 누르면<br/>AI가 자산 현황을 읽어서 자동으로 입력해줘요!<br/><br/>
-              <span style="font-size:.78rem;color:rgba(123,130,168,.6)">설정에서 API 키를 먼저 입력해 주세요</span>
-            </div>
-          </div>
-          <div id="ai-apply-btns" style="display:none;margin-top:1rem">
-            <button class="btn btn-success" style="width:100%" onclick="applyAiToAssets()">✅ 자산 현황에 자동 입력하기</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 엑셀 탭 -->
-    <div id="toss-tab-excel" style="display:none">
-      <div class="grid2" style="align-items:start">
-        <div class="card">
-          <div class="sec-title">📊 엑셀 파일 업로드</div>
-          <div style="background:rgba(108,138,255,.07);border:1px solid rgba(108,138,255,.18);border-radius:10px;padding:1rem;margin-bottom:1rem;font-size:.82rem;color:var(--muted);line-height:1.8">
-            📌 <b style="color:var(--text)">토스 거래내역 받는 법</b><br/>
-            토스 앱 → 공용통장 → 거래내역 → 우측 상단 내보내기 → 엑셀
-          </div>
-          <div class="toss-drop" id="excel-drop"
-            ondragover="event.preventDefault();this.classList.add('drag-over')"
-            ondragleave="this.classList.remove('drag-over')"
-            ondrop="handleExcelDrop(event)">
-            <input type="file" accept=".xlsx,.xls,.csv" onchange="handleExcelFile(this.files[0])"/>
-            <div id="excel-drop-inner">
-              <div style="font-size:2.5rem;margin-bottom:.8rem">📊</div>
-              <div style="color:var(--text);font-size:.95rem;margin-bottom:.3rem">엑셀 파일 업로드</div>
-              <div style="color:var(--muted);font-size:.8rem">.xlsx .xls .csv 지원</div>
-            </div>
-          </div>
-          <div style="margin-top:1rem;display:flex;flex-direction:column;gap:.6rem">
-            <div style="display:flex;gap:.5rem;align-items:center">
-              <label style="font-size:.82rem;color:var(--muted);min-width:60px">대상 월</label>
-              <select id="excel-target-month" style="flex:1"></select>
-            </div>
-            <button class="btn btn-success" onclick="importExcelToBudget()">📥 가계부에 자동 입력하기</button>
-          </div>
-        </div>
-        <div class="card">
-          <div class="sec-title">👀 미리보기 & 분류</div>
-          <div id="excel-preview" style="max-height:500px;overflow-y:auto">
-            <div style="color:var(--muted);font-size:.85rem;text-align:center;padding:3rem 1rem">
-              <div style="font-size:2rem;margin-bottom:.8rem">📋</div>
-              엑셀을 올리면 거래내역을 자동으로 분류해서<br/>가계부에 바로 넣어줘요!
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
   <!-- 부동산 관리 -->
   <div class="page" id="page-realty">
     <div class="page-header">
@@ -1996,13 +1977,6 @@ function checkLock() {
   }
 }
 
-// ── TOSS 탭 전환 ──
-function switchTossTab(tab) {
-  document.getElementById('toss-tab-screenshot').style.display = tab==='screenshot' ? '' : 'none';
-  document.getElementById('toss-tab-excel').style.display      = tab==='excel'      ? '' : 'none';
-  document.getElementById('tab-screenshot-btn').className = 'btn '+(tab==='screenshot'?'btn-primary':'btn-ghost');
-  document.getElementById('tab-excel-btn').className      = 'btn '+(tab==='excel'     ?'btn-primary':'btn-ghost');
-}
 
 // ── 스크린샷 AI 분석 ──
 var pendingAiImg = null;
