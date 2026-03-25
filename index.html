@@ -212,6 +212,11 @@ tr:hover td{background:rgba(108,138,255,.03)}
   .form-row{flex-wrap:wrap}
 }
 @media(max-width:640px){
+  /* 마켓 탭 위젯 높이 모바일 축소 */
+  #page-market .tradingview-widget-container[style*="500px"]{height:400px!important}
+  #page-market .tradingview-widget-container[style*="520px"]{height:420px!important}
+  #page-market .tradingview-widget-container[style*="400px"]{height:320px!important}
+  #page-market .tradingview-widget-container[style*="450px"]{height:360px!important}
   .grid3{grid-template-columns:1fr}
   /* 주식 종목 추가 폼 */
   #page-stocks .grid2 > div:first-child{order:1}
@@ -335,6 +340,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
     <div class="nav-item" onclick="showPage('budget',this);closeSidebar()"><span class="icon">💰</span> 가계부</div>
     <div class="nav-item" onclick="showPage('assets',this);closeSidebar()"><span class="icon">🏦</span> 자산 현황</div>
     <div class="nav-item" onclick="showPage('stocks',this);closeSidebar()"><span class="icon">📈</span> 주식 · 코인</div>
+    <div class="nav-item" onclick="showPage('market',this);closeSidebar()"><span class="icon">📊</span> 마켓 현황</div>
     <div class="nav-item" onclick="showPage('youtube',this);closeSidebar()"><span class="icon">▶️</span> 올랜도킴 분석</div>
     <div class="nav-item" onclick="showPage('journal',this);closeSidebar()"><span class="icon">📝</span> 투자 일지</div>
   </div>
@@ -785,6 +791,174 @@ tr:hover td{background:rgba(108,138,255,.03)}
 
 
 
+  <!-- 마켓 현황 -->
+  <div class="page" id="page-market">
+    <div class="page-header">
+      <h2>📊 글로벌 마켓 현황</h2>
+      <p>실시간 지수 · 섹터 히트맵 · 환율 · 원자재</p>
+    </div>
+
+    <!-- 지수/환율/크립토 오버뷰 -->
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:1.5rem">
+      <div class="tradingview-widget-container" style="height:500px">
+        <div class="tradingview-widget-container__widget" style="height:100%"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js" async>
+        {
+          "colorTheme": "dark",
+          "dateRange": "1M",
+          "showChart": true,
+          "locale": "kr",
+          "isTransparent": true,
+          "showSymbolLogo": true,
+          "showFloatingTooltip": false,
+          "width": "100%",
+          "height": "500",
+          "tabs": [
+            {
+              "title": "📈 지수",
+              "symbols": [
+                {"s":"KRX:KOSPI","d":"코스피"},
+                {"s":"KRX:KOSDAQ","d":"코스닥"},
+                {"s":"FOREXCOM:SPXUSD","d":"S&P 500"},
+                {"s":"FOREXCOM:NSXUSD","d":"나스닥 100"},
+                {"s":"FOREXCOM:DJI","d":"다우존스"},
+                {"s":"INDEX:NKY","d":"닛케이 225"},
+                {"s":"INDEX:HSI","d":"항셍"},
+                {"s":"INDEX:SHC","d":"상해종합"}
+              ],
+              "originalTitle":"Indices"
+            },
+            {
+              "title": "💱 환율/원자재",
+              "symbols": [
+                {"s":"FX:USDKRW","d":"달러/원"},
+                {"s":"FX:EURUSD","d":"유로/달러"},
+                {"s":"FX:USDJPY","d":"달러/엔"},
+                {"s":"COMEX:GC1!","d":"금"},
+                {"s":"NYMEX:CL1!","d":"WTI 원유"},
+                {"s":"COMEX:SI1!","d":"은"}
+              ],
+              "originalTitle":"Forex"
+            },
+            {
+              "title": "₿ 크립토",
+              "symbols": [
+                {"s":"BITSTAMP:BTCUSD","d":"비트코인"},
+                {"s":"BITSTAMP:ETHUSD","d":"이더리움"},
+                {"s":"BINANCE:SOLUSDT","d":"솔라나"},
+                {"s":"BINANCE:BNBUSDT","d":"BNB"},
+                {"s":"BINANCE:XRPUSDT","d":"리플"}
+              ],
+              "originalTitle":"Crypto"
+            }
+          ]
+        }
+        </script>
+      </div>
+    </div>
+
+    <!-- S&P 500 섹터 히트맵 (Finviz 스타일) -->
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:1.5rem">
+      <div style="padding:1rem 1.2rem .5rem;background:var(--surface)">
+        <div style="font-size:1rem;font-weight:700;color:var(--text)">🗺️ S&P 500 섹터 히트맵</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-top:.2rem">시가총액 기준 크기 · 등락률 기준 색상 (초록=상승 / 빨강=하락)</div>
+      </div>
+      <div class="tradingview-widget-container" style="height:520px">
+        <div class="tradingview-widget-container__widget" style="height:100%"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js" async>
+        {
+          "exchanges": [],
+          "dataSource": "SPX500",
+          "grouping": "sector",
+          "blockSize": "market_cap_basic",
+          "blockColor": "change",
+          "locale": "kr",
+          "symbolUrl": "",
+          "colorTheme": "dark",
+          "hasTopBar": true,
+          "isDataSetEnabled": true,
+          "isZoomEnabled": true,
+          "hasSymbolTooltip": true,
+          "isMonoSize": false,
+          "width": "100%",
+          "height": "520"
+        }
+        </script>
+      </div>
+    </div>
+
+    <!-- 2단: 코스피 히트맵 + 크립토 히트맵 -->
+    <div class="grid2" style="gap:1.2rem;margin-bottom:1.5rem">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:1rem 1.2rem .5rem;background:var(--surface)">
+          <div style="font-size:.95rem;font-weight:700;color:var(--text)">🇰🇷 코스피 히트맵</div>
+        </div>
+        <div class="tradingview-widget-container" style="height:400px">
+          <div class="tradingview-widget-container__widget" style="height:100%"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js" async>
+          {
+            "exchanges": ["KRX"],
+            "dataSource": "KOSPI",
+            "grouping": "sector",
+            "blockSize": "market_cap_basic",
+            "blockColor": "change",
+            "locale": "kr",
+            "colorTheme": "dark",
+            "hasTopBar": true,
+            "isDataSetEnabled": true,
+            "isZoomEnabled": true,
+            "hasSymbolTooltip": true,
+            "isMonoSize": false,
+            "width": "100%",
+            "height": "400"
+          }
+          </script>
+        </div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:1rem 1.2rem .5rem;background:var(--surface)">
+          <div style="font-size:.95rem;font-weight:700;color:var(--text)">₿ 크립토 시장</div>
+        </div>
+        <div class="tradingview-widget-container" style="height:400px">
+          <div class="tradingview-widget-container__widget" style="height:100%"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-crypto-coins-heatmap.js" async>
+          {
+            "dataSource": "Crypto",
+            "blockSize": "market_cap_calc",
+            "blockColor": "change",
+            "locale": "kr",
+            "colorTheme": "dark",
+            "width": "100%",
+            "height": "400"
+          }
+          </script>
+        </div>
+      </div>
+    </div>
+
+    <!-- 경제 캘린더 -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:1rem 1.2rem .5rem;background:var(--surface)">
+        <div style="font-size:.95rem;font-weight:700;color:var(--text)">📅 경제 캘린더</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-top:.2rem">FOMC · CPI · 고용지표 등 주요 일정</div>
+      </div>
+      <div class="tradingview-widget-container" style="height:450px">
+        <div class="tradingview-widget-container__widget" style="height:100%"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-events.js" async>
+        {
+          "colorTheme": "dark",
+          "isTransparent": true,
+          "width": "100%",
+          "height": "450",
+          "locale": "kr",
+          "importanceFilter": "0,1",
+          "countryFilter": "us,kr,cn,jp,eu"
+        }
+        </script>
+      </div>
+    </div>
+  </div>
+
   <!-- YOUTUBE 분석 -->
   <div class="page" id="page-youtube">
     <div class="page-header">
@@ -1082,6 +1256,7 @@ function showPage(id, el) {
   if(id==='youtube') { renderYtLibrary(); }
   if(id==='journal') { renderJournal(); }
   if(id==='realty')  { renderRealty(); }
+  if(id==='market')  { /* TradingView widgets load automatically */ }
 }
 
 // ── DATE HELPERS ──
