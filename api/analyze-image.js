@@ -70,7 +70,7 @@ module.exports = async function(req, res) {
   try {
     // 1단계: 숫자 추출
     var r1 = await post(apiKey, {
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 800,
       messages: [{
         role: 'user',
@@ -81,7 +81,11 @@ module.exports = async function(req, res) {
       }],
     });
 
-    if (r1.status !== 200) return res.status(500).json({ error: 'Claude API 오류: ' + r1.status, detail: r1.body.slice(0, 300) });
+    if (r1.status !== 200) {
+      var errBody = {};
+      try { errBody = JSON.parse(r1.body); } catch(e) {}
+      return res.status(500).json({ error: 'Claude API 오류: ' + r1.status, detail: errBody.error?.message || r1.body.slice(0, 300) });
+    }
 
     var d1 = JSON.parse(r1.body);
     var text1 = d1.content?.[0]?.text || '';
@@ -105,7 +109,7 @@ module.exports = async function(req, res) {
       + '투자 권유가 아닌 참고 의견으로.';
 
     var r2 = await post(apiKey, {
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 600,
       messages: [{ role: 'user', content: insightPrompt }],
     });

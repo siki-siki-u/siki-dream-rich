@@ -1883,7 +1883,7 @@ async function analyzeYtVideo(videoId, title, published, thumb, btn) {
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-3-5-sonnet-20241022',
         max_tokens: 800,
         messages:[{
           role:'user',
@@ -2345,7 +2345,7 @@ async function getJournalFeedback(id, btn) {
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',max_tokens:1000,
+        model:'claude-3-5-sonnet-20241022',max_tokens:1000,
         messages:[{role:'user',content:
           '미국주식 투자자의 투자 일지를 분석해줘. 한국어로. 친근하고 솔직하게.\n\n'+
           '작성일: '+j.date+'\n시장심리: '+j.emotion+(j.fearGreed?' / 탐욕지수 '+j.fearGreed:'')+
@@ -2670,7 +2670,7 @@ async function getAptAI(id, btn) {
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514', max_tokens:800,
+        model:'claude-3-5-sonnet-20241022', max_tokens:800,
         messages:[{role:'user',content:
           '부동산 매수 분석을 해줘. 한국어로. 친근하고 실용적으로.\n\n'+
           '아파트: '+apt.name+'\n'+
