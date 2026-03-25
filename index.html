@@ -2019,7 +2019,7 @@ async function analyzeScreenshot() {
     });
     if(!res || !res.ok) {
       const err = await res.json().catch(function(){return {};});
-      throw new Error(err.error || 'HTTP ' + res.status);
+      throw new Error((err.error || 'HTTP ' + res.status) + (err.detail ? ' | ' + err.detail : ''));
     }
     const result = await res.json();
     aiParsedData = result.parsed;
