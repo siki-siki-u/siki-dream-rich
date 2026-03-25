@@ -201,16 +201,63 @@ tr:hover td{background:rgba(108,138,255,.03)}
   .main{margin-left:0;padding:1rem;padding-top:3.8rem}
   .stats-row{grid-template-columns:1fr 1fr}
   .grid2{grid-template-columns:1fr}
-  .grid3{grid-template-columns:1fr}
+  .grid3{grid-template-columns:1fr 1fr}
   .page-header h2{font-size:1.2rem}
   .btn{padding:.55rem .9rem;font-size:.82rem}
   .card{padding:1rem}
   .dday-banner{flex-direction:column;gap:.4rem;text-align:center}
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{min-width:480px}
+  /* 인라인 flex 줄바꿈 */
+  .form-row{flex-wrap:wrap}
+}
+@media(max-width:640px){
+  .grid3{grid-template-columns:1fr}
+  /* 주식 종목 추가 폼 */
+  #page-stocks .grid2 > div:first-child{order:1}
+  /* 부동산 */
+  #page-realty .grid2{gap:1rem}
+  /* 가계부 지출 입력 줄바꿈 */
+  #tx-date,#tx-cat,#tx-amount,#tx-desc{width:100%!important;min-width:0!important}
+  /* 자산 현황 라벨 */
+  .asset-row label{min-width:100px!important}
+  /* 캘린더 */
+  .cal-grid{font-size:.75rem}
+  .cal-day{min-height:52px;padding:.25rem}
+  /* 설정 모달 */
+  .modal-box{width:95vw;padding:1.2rem}
 }
 @media(max-width:480px){
   .stats-row{grid-template-columns:1fr 1fr}
-  .stat-value{font-size:1.3rem}
-  .main{padding:.8rem;padding-top:3.8rem}
+  .stat-value{font-size:1.2rem}
+  .stat-card{padding:.9rem}
+  .main{padding:.7rem;padding-top:3.6rem}
+  .page-header{margin-bottom:1rem}
+  .page-header h2{font-size:1.1rem}
+  .page-header p{font-size:.78rem}
+  .toss-drop{padding:1.5rem}
+  #apt-address-display{font-size:.78rem}
+  .stock-card{padding:.9rem}
+  .dday-banner{font-size:.82rem}
+  .cal-nav{padding:.3rem .6rem;font-size:.8rem}
+  table{font-size:.78rem;min-width:360px}
+  th,td{padding:.35rem .4rem}
+  .sec-title{font-size:.78rem}
+  input,select,textarea{font-size:.85rem;padding:.5rem .75rem}
+  #st-search-results{font-size:.82rem}
+  /* stats-row 인라인으로 4칸 고정된 경우도 강제 2칸 */
+  .stats-row[style*="repeat(4"]{grid-template-columns:1fr 1fr!important}
+  .stats-row[style*="repeat(3"]{grid-template-columns:1fr 1fr!important}
+  /* 주식탭 상단 flex */
+  #page-stocks .page-header > div{flex-direction:column;align-items:flex-start!important;gap:.5rem}
+  /* 부동산 주소 row */
+  #page-realty .card div[style*="display:flex"][style*="gap:.5rem"]{flex-wrap:wrap}
+  /* 자산 탭 라벨 너비 축소 */
+  #page-assets label[style*="min-width:130px"]{min-width:90px!important;font-size:.78rem}
+  /* 가계부 요약 4칸 */
+  #page-budget .stats-row{grid-template-columns:1fr 1fr}
+  /* 투자일지 flex row */
+  .journal-header{flex-direction:column;gap:.5rem}
 }
 
 /* SCROLLBAR */
@@ -490,8 +537,8 @@ tr:hover td{background:rgba(108,138,255,.03)}
     <div class="card" style="margin-bottom:1.5rem">
       <div class="sec-title">🧾 지출 입력</div>
       <div style="display:flex;gap:.7rem;flex-wrap:wrap;align-items:center">
-        <input type="date" id="tx-date" style="width:150px"/>
-        <select id="tx-cat" style="width:130px">
+        <input type="date" id="tx-date" style="width:150px;min-width:0;flex:1 1 130px"/>
+        <select id="tx-cat" style="width:130px;min-width:0;flex:1 1 120px">
           <option value="식료품">🛒 식료품</option>
           <option value="식비">🍽️ 식비</option>
           <option value="취미여가">🎮 취미여가</option>
@@ -506,7 +553,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
           <option value="대출/충당">💳 대출/충당</option>
           <option value="기타">📦 기타</option>
         </select>
-        <input type="number" id="tx-amount" placeholder="금액" style="width:140px"/>
+        <input type="number" id="tx-amount" placeholder="금액" style="width:140px;min-width:0;flex:1 1 110px"/>
         <input type="text" id="tx-desc" placeholder="세부내용 (선택)" style="flex:1;min-width:150px"/>
         <button class="btn btn-primary" onclick="addTransaction()">추가 ＋</button>
       </div>
