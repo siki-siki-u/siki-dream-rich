@@ -1600,44 +1600,14 @@ function addStock() {
   refreshDashboard();
 }
 
-// ── FETCH: Yahoo Finance (US + KR) ──
-async function fetchYahoo(ticker, type) {
-  const sym = type === 'KR' ? ticker + '.KS' : ticker;
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1d`;
+// ── FETCH: 서버사이드 가격 조회 ──
+async function fetchStockPrice(ticker, type) {
   try {
-    const res = await fetchWithProxy(url);
-    if(!res) return null;
+    const res = await fetchWithTimeout('/api/stock-price?ticker=' + encodeURIComponent(ticker) + '&type=' + type, 12000);
+    if (!res || !res.ok) return null;
     const data = await res.json();
-    // allorigins wraps in contents string sometimes
-    const parsed = typeof data === 'string' ? JSON.parse(data) : data;
-    const meta = parsed?.chart?.result?.[0]?.meta;
-    if(!meta || !meta.regularMarketPrice) return null;
-    const price   = meta.regularMarketPrice;
-    const prev    = meta.chartPreviousClose || meta.previousClose || price;
-    const change  = price - prev;
-    const changeP = prev ? (change / prev) * 100 : 0;
-    return { price, change, changeP, currency: meta.currency || (type==='US'?'USD':'KRW'), fetchError: false };
-  } catch { return null; }
-}
-
-// ── FETCH: CoinGecko (CRYPTO) ──
-async function fetchCrypto(id) {
-  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${id.toLowerCase()}&vs_currencies=krw,usd&include_24hr_change=true`;
-  try {
-    // CoinGecko usually allows direct fetch
-    let res = await fetchWithTimeout(url).catch(function(){ return null; });
-    if(!res || !res.ok) res = await fetchWithProxy(url);
-    if(!res) return null;
-    const raw = await res.json();
-    const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    const coin = data[id.toLowerCase()];
-    if(!coin || !coin.krw) return null;
-    return {
-      price: coin.krw, priceUsd: coin.usd,
-      changeP: coin.krw_24h_change || 0,
-      change: coin.krw * ((coin.krw_24h_change||0) / 100),
-      currency: 'KRW', fetchError: false
-    };
+    if (data.error) return null;
+    return { price: data.price, priceUsd: data.priceUsd, change: data.change, changeP: data.changeP, currency: data.currency, fetchError: false };
   } catch { return null; }
 }
 
@@ -1651,8 +1621,7 @@ async function fetchAllPrices() {
   // fetch all in parallel
   const updated = await Promise.all(stocks.map(async s => {
     let result = null;
-    if(s.type === 'CRYPTO') result = await fetchCrypto(s.ticker.toLowerCase());
-    else result = await fetchYahoo(s.ticker, s.type);
+    result = await fetchStockPrice(s.type === 'CRYPTO' ? s.ticker.toLowerCase() : s.ticker, s.type);
     if(result) return { ...s, ...result, fetchError: false };
     return { ...s, fetchError: true };  // mark failed
   }));
@@ -2397,8 +2366,8 @@ async function getJournalFeedback(id, btn) {
   if(j.tickers){
     var tList=j.tickers.split(',').map(function(t){return t.trim();}).slice(0,3);
     var pResults=await Promise.all(tList.map(async function(t){
-      var r=await fetchYahoo(t,'US');
-      if(!r) r=await fetchYahoo(t,'KR');
+      var r=await fetchStockPrice(t,'US');
+      if(!r) r=await fetchStockPrice(t,'KR');
       if(r) return t+': '+(r.currency==='USD'?'$':'₩')+r.price.toLocaleString(undefined,{maximumFractionDigits:2})+(r.changeP!=null?' ('+(r.changeP>=0?'+':'')+r.changeP.toFixed(1)+'%)':'');
       return null;
     }));
