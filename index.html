@@ -310,6 +310,15 @@ tr:hover td{background:rgba(108,138,255,.03)}
 </head>
 <body>
 
+<!-- CREDIT ALERT BANNER -->
+<div id="credit-alert-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,#ff4444,#ff6644);color:#fff;padding:.75rem 1.2rem;font-size:.88rem;display:none;align-items:center;justify-content:space-between;gap:1rem;box-shadow:0 2px 12px rgba(255,68,68,.4)">
+  <div style="display:flex;align-items:center;gap:.7rem">
+    <span style="font-size:1.2rem">⚠️</span>
+    <span><b>AI 크레딧이 부족해요.</b> 관리자에게 문의하세요 (AI 기능 결제)</span>
+  </div>
+  <button onclick="document.getElementById('credit-alert-banner').style.display='none'" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:.3rem .7rem;cursor:pointer;font-size:.82rem;white-space:nowrap">닫기 ✕</button>
+</div>
+
 <!-- LOCK SCREEN -->
 <div class="lock-screen" id="lock-screen">
   <div class="lock-icon">🔐</div>
@@ -1697,6 +1706,21 @@ const PROXIES = [
   url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
 ];
 
+// ── 크레딧 부족 알림 ──
+function showCreditAlert() {
+  var el = document.getElementById('credit-alert-banner');
+  if(el) { el.style.display = 'flex'; }
+}
+function checkCreditError(data) {
+  if(!data) return false;
+  var isCreditErr =
+    data.errorCode === 'credit_low' ||
+    /credit|billing|balance|payment/i.test(data.detail || '') ||
+    /credit|billing|balance|payment/i.test(data.error || '');
+  if(isCreditErr) showCreditAlert();
+  return isCreditErr;
+}
+
 function fetchWithTimeout(url, ms, opts) {
   ms = ms || 7000;
   return Promise.race([
@@ -1818,6 +1842,7 @@ async function getPortfolioAI(btn) {
       body:JSON.stringify({messages:[{role:'user',content:prompt}], max_tokens:1000})
     });
     var d = await res.json();
+    if(checkCreditError(d)) throw new Error('크레딧 부족');
     var text = d.content?.[0]?.text || '분석 실패';
     resultEl.innerHTML = '<div style="margin-top:1rem;padding:.9rem;background:rgba(108,138,255,.07);border-radius:10px;font-size:.83rem;color:var(--text);line-height:1.9">'+text.replace(/\n/g,'<br/>')+'</div>';
   } catch(e) {
@@ -1992,6 +2017,7 @@ async function analyzeYtVideo(videoId, title, published, thumb, btn) {
       })
     });
     var data = await res.json();
+    if(checkCreditError(data)) throw new Error('크레딧 부족');
     var summary = data.content?.[0]?.text || '분석 실패';
 
     // 저장
@@ -2262,6 +2288,7 @@ async function analyzeScreenshot() {
       throw new Error((err.error || 'HTTP ' + res.status) + (err.detail ? ' | ' + err.detail : ''));
     }
     const result = await res.json();
+    if(checkCreditError(result)) throw new Error('크레딧 부족 — 관리자에게 문의하세요');
     aiParsedData = result.parsed;
 
     const rowsHtml = result.rows.map(function(r){
@@ -2931,6 +2958,7 @@ async function getAptAI(id, btn) {
       })
     });
     var data = await res.json();
+    if(checkCreditError(data)) throw new Error('크레딧 부족');
     var analysis = data.content?.[0]?.text||'분석 실패';
     apts = apts.map(function(a){return a.id===id?Object.assign({},a,{aiAnalysis:analysis}):a;});
     S.set('apts', apts);

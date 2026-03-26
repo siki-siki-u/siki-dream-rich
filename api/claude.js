@@ -54,9 +54,12 @@ module.exports = async function(req, res) {
     if (r.status !== 200) {
       var errBody = {};
       try { errBody = JSON.parse(r.body); } catch(e) {}
+      var detail = (errBody.error && errBody.error.message) || r.body.slice(0, 300);
+      var isCredit = /credit|billing|balance|payment/i.test(detail);
       return res.status(500).json({
         error: 'Claude API 오류: ' + r.status,
-        detail: (errBody.error && errBody.error.message) || r.body.slice(0, 300),
+        detail: detail,
+        errorCode: isCredit ? 'credit_low' : undefined,
       });
     }
 
