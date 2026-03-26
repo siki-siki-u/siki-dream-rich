@@ -339,7 +339,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
     <div class="nav-label">재정</div>
     <div class="nav-item" onclick="showPage('budget',this);closeSidebar()"><span class="icon">💰</span> 가계부</div>
     <div class="nav-item" onclick="showPage('assets',this);closeSidebar()"><span class="icon">🏦</span> 자산 현황</div>
-    <div class="nav-item" onclick="showPage('stocks',this);closeSidebar()"><span class="icon">📈</span> 주식 · 코인</div>
+    <div class="nav-item" onclick="showPage('stocks',this);closeSidebar()"><span class="icon">💼</span> 투자현황</div>
     <div class="nav-item" onclick="showPage('market',this);closeSidebar()"><span class="icon">📊</span> 마켓 현황</div>
     <div class="nav-item" onclick="showPage('youtube',this);closeSidebar()"><span class="icon">▶️</span> 올랜도킴 분석</div>
     <div class="nav-item" onclick="showPage('journal',this);closeSidebar()"><span class="icon">📝</span> 투자 일지</div>
@@ -682,11 +682,37 @@ tr:hover td{background:rgba(108,138,255,.03)}
       </div>
     </div>
 
-    <!-- 투자계좌 스크린샷 AI 분석 -->
-    <div class="grid2" style="align-items:start;margin-top:1.5rem">
+  </div>
+
+  <!-- 투자현황 -->
+  <div class="page" id="page-stocks">
+    <div class="page-header">
+      <h2>💼 투자현황</h2>
+      <p>투자계좌 캡처로 자동입력 · AI 포트폴리오 분석</p>
+    </div>
+
+    <div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:1.5rem">
+      <div class="stat-card blue">
+        <div class="stat-label">총 투자자산</div>
+        <div class="stat-value blue" id="inv-total">₩0</div>
+        <div class="stat-sub">전세 제외</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">유진 포트폴리오</div>
+        <div class="stat-value green" id="inv-yujin">₩0</div>
+        <div class="stat-sub">토스·ISA·코인 등</div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-label">윤식 포트폴리오</div>
+        <div class="stat-value yellow" id="inv-yoonsik">₩0</div>
+        <div class="stat-sub">코인·적금·퇴직연금</div>
+      </div>
+    </div>
+
+    <div class="grid2" style="align-items:start">
       <div>
         <div class="card" style="margin-bottom:1rem">
-          <div class="sec-title">📸 투자계좌 캡처 업로드</div>
+          <div class="sec-title">📸 투자계좌 캡처 → AI 자동입력</div>
           <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem">
             <label style="font-size:.82rem;color:var(--muted);white-space:nowrap">누가 올리나요?</label>
             <select id="shot-person" style="flex:1">
@@ -705,86 +731,32 @@ tr:hover td{background:rgba(108,138,255,.03)}
               <div style="color:var(--muted);font-size:.8rem">클릭하거나 드래그앤드롭</div>
             </div>
           </div>
-          <button class="btn btn-primary" style="width:100%;margin-top:.8rem" onclick="analyzeScreenshot()">🤖 AI로 분석하기</button>
+          <button class="btn btn-primary" style="width:100%;margin-top:.8rem" onclick="analyzeScreenshot()">🤖 AI로 분석 · 자동입력</button>
         </div>
         <div class="card">
           <div class="sec-title">💾 저장된 스크린샷</div>
-          <div id="toss-gallery" style="max-height:300px;overflow-y:auto"></div>
+          <div id="toss-gallery" style="max-height:320px;overflow-y:auto"></div>
         </div>
       </div>
-      <div class="card">
-        <div class="sec-title">🤖 AI 분석 결과</div>
-        <div id="ai-result-box" style="min-height:200px">
-          <div style="color:var(--muted);font-size:.85rem;text-align:center;padding:3rem 1rem">
-            <div style="font-size:2rem;margin-bottom:.8rem">🤖</div>
-            캡처를 올리고 분석하기를 누르면<br/>AI가 자산 현황을 읽어서 자동으로 입력해줘요!<br/><br/>
-            <span style="font-size:.78rem;color:rgba(123,130,168,.6)">설정에서 API 키를 먼저 입력해 주세요</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
 
-  <!-- STOCKS -->
-  <div class="page" id="page-stocks">
-    <div class="page-header">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div>
-          <h2>📈 주식 · 코인 실시간</h2>
-          <p>관심 종목의 실시간 주가를 자동으로 불러와요</p>
-        </div>
-        <div style="display:flex;align-items:center;gap:.8rem">
-          <span id="st-last-update" style="font-size:.75rem;color:var(--muted)">—</span>
-          <button class="btn btn-ghost" onclick="fetchAllPrices()" id="st-refresh-btn" style="font-size:.82rem;padding:.45rem .9rem">🔄 새로고침</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- TICKER GUIDE BANNER -->
-    <div style="background:rgba(108,138,255,.07);border:1px solid rgba(108,138,255,.18);border-radius:12px;padding:1rem 1.2rem;margin-bottom:1.5rem;font-size:.82rem;color:var(--muted);line-height:1.9">
-      📌 <b style="color:var(--text)">티커 입력 방법</b> &nbsp;|&nbsp;
-      🇰🇷 국내: <code style="color:var(--accent4)">005930</code> (삼성전자) &nbsp;·&nbsp;
-      🇺🇸 미국: <code style="color:var(--accent)">AAPL</code>, <code style="color:var(--accent)">TSLA</code> &nbsp;·&nbsp;
-      🪙 코인: <code style="color:var(--accent3)">bitcoin</code>, <code style="color:var(--accent3)">ethereum</code>, <code style="color:var(--accent3)">solana</code>
-    </div>
-
-    <div class="grid2" style="align-items:start">
       <div>
-        <div class="card" style="margin-bottom:1.2rem">
-          <div class="sec-title">종목 추가</div>
-          <div style="display:flex;flex-direction:column;gap:.6rem">
-            <select id="st-type" style="width:100%" onchange="clearStockSearch()">
-              <option value="KR">🇰🇷 국내 주식 (코스피/코스닥)</option>
-              <option value="US">🇺🇸 미국 주식 (나스닥/NYSE)</option>
-              <option value="CRYPTO">🪙 암호화폐</option>
-            </select>
-            <div style="position:relative">
-              <input type="text" id="st-search" placeholder="종목명 또는 티커 검색..." style="width:100%" oninput="onStockSearch(this.value)" onblur="setTimeout(function(){document.getElementById('st-dropdown').style.display='none'},200)" autocomplete="off"/>
-              <div id="st-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.3)"></div>
+        <div class="card" style="margin-bottom:1rem">
+          <div class="sec-title">🤖 AI 분석 결과</div>
+          <div id="ai-result-box" style="min-height:200px">
+            <div style="color:var(--muted);font-size:.85rem;text-align:center;padding:3rem 1rem">
+              <div style="font-size:2rem;margin-bottom:.8rem">🤖</div>
+              캡처를 올리고 분석하기를 누르면<br/>AI가 자산 현황을 읽어서 자동입력해줘요!
             </div>
-            <input type="hidden" id="st-ticker"/>
-            <input type="hidden" id="st-name"/>
-            <div id="st-selected" style="display:none;background:var(--surface2);border-radius:8px;padding:.5rem .8rem;font-size:.85rem;display:flex;justify-content:space-between;align-items:center">
-              <span id="st-selected-label"></span>
-              <span style="cursor:pointer;color:var(--muted)" onclick="clearStockSearch()">✕</span>
-            </div>
-            <textarea id="st-note" placeholder="메모 (관심 이유, 목표가 등)" rows="2" style="width:100%"></textarea>
-            <button class="btn btn-success" onclick="addStock()">종목 추가 ＋</button>
           </div>
         </div>
         <div class="card">
-          <div class="sec-title">학습 메모</div>
-          <div style="display:flex;flex-direction:column;gap:.6rem">
-            <input type="text" id="memo-title" placeholder="메모 제목" style="width:100%"/>
-            <textarea id="memo-text" placeholder="주식 공부 메모를 자유롭게 적어요" rows="3" style="width:100%"></textarea>
-            <button class="btn btn-ghost" onclick="addMemo()">메모 저장</button>
+          <div class="sec-title">📊 포트폴리오 구성</div>
+          <div id="invest-breakdown">
+            <div style="color:var(--muted);font-size:.85rem;text-align:center;padding:2rem">자산 현황 탭에서 자산을 입력하면 여기에 표시돼요</div>
           </div>
-          <div id="memo-list" style="margin-top:.8rem;max-height:260px;overflow-y:auto"></div>
+          <button class="btn btn-primary" style="width:100%;margin-top:1rem" onclick="getPortfolioAI(this)">🤖 포트폴리오 AI 분석</button>
+          <div id="portfolio-ai-result"></div>
         </div>
-      </div>
-
-      <div>
-        <div id="stock-list"></div>
       </div>
     </div>
   </div>
@@ -1674,6 +1646,7 @@ function saveAssets() {
   S.set('assets_latest', data);
   dbUpsert('assets', {month_key: key, data: data, saved_at: data.savedAt});
   renderAssetHistory();
+  renderInvestStats();
   alert('✅ 자산이 저장됐어요!');
 }
 
@@ -1729,214 +1702,117 @@ async function fetchWithProxy(url) {
 }
 
 // ── 종목 검색 자동완성 ──
-var _stockSearchTimer = null;
-function onStockSearch(q) {
-  clearTimeout(_stockSearchTimer);
-  var dd = document.getElementById('st-dropdown');
-  if(!q || q.length < 1) { dd.style.display='none'; return; }
-  _stockSearchTimer = setTimeout(function(){ doStockSearch(q); }, 350);
-}
-async function doStockSearch(q) {
-  var type = document.getElementById('st-type').value;
-  var dd = document.getElementById('st-dropdown');
-  dd.innerHTML = '<div style="padding:.6rem 1rem;color:var(--muted);font-size:.83rem">검색 중...</div>';
-  dd.style.display = 'block';
-  try {
-    var results = [];
-    var apiRes = await fetchWithTimeout('/api/stock-search?q='+encodeURIComponent(q)+'&type='+type, 8000);
-    if(apiRes && apiRes.ok) {
-      var data = await apiRes.json();
-      results = data.results || [];
-    }
-    if(!results.length) {
-      dd.innerHTML = '<div style="padding:.6rem 1rem;color:var(--muted);font-size:.83rem">결과 없음</div>';
-      return;
-    }
-    dd.innerHTML = results.map(function(r) {
-      return '<div style="padding:.55rem 1rem;cursor:pointer;border-bottom:1px solid var(--border);font-size:.88rem" onmousedown="selectStock(\''+r.ticker.replace(/'/g,'')+'\',\''+r.name.replace(/'/g,'').replace(/"/g,'')+'\')">'+
-        '<span style="font-weight:600;color:var(--text)">'+r.name+'</span> '+
-        '<span style="font-family:JetBrains Mono,monospace;font-size:.75rem;color:var(--accent)">'+r.ticker+'</span>'+
-        (r.sub ? ' <span style="font-size:.72rem;color:var(--muted)">'+r.sub+'</span>' : '')+
-        '</div>';
-    }).join('');
-  } catch(e) {
-    dd.innerHTML = '<div style="padding:.6rem 1rem;color:var(--muted);font-size:.83rem">검색 실패</div>';
-  }
-}
-function selectStock(ticker, name) {
-  document.getElementById('st-ticker').value = ticker;
-  document.getElementById('st-name').value = name;
-  document.getElementById('st-search').value = '';
-  document.getElementById('st-dropdown').style.display = 'none';
-  var sel = document.getElementById('st-selected');
-  document.getElementById('st-selected-label').textContent = name + ' (' + ticker + ')';
-  sel.style.display = 'flex';
-}
-function clearStockSearch() {
-  document.getElementById('st-ticker').value = '';
-  document.getElementById('st-name').value = '';
-  document.getElementById('st-search').value = '';
-  document.getElementById('st-dropdown').style.display = 'none';
-  document.getElementById('st-selected').style.display = 'none';
+// ── 투자현황 ──
+var YUJIN_INVEST_KEYS  = ['a-toss','a-isa','a-gold','a-coin-u','a-fund','a-cheongyak','a-savings-u','a-cma','a-ret-u','a-stock-u'];
+var YOONSIK_INVEST_KEYS = ['a-coin-y','a-savings-y','a-ret-y'];
+
+function renderInvestStats() {
+  var data = S.get('assets_'+assetMonthKey()) || S.get('assets_latest') || {};
+  var yujin   = YUJIN_INVEST_KEYS.reduce(function(s,k){return s+(data[k]||0);},0);
+  var yoonsik = YOONSIK_INVEST_KEYS.reduce(function(s,k){return s+(data[k]||0);},0);
+  var total   = yujin + yoonsik;
+  var et = document.getElementById('inv-total');
+  var ey = document.getElementById('inv-yujin');
+  var eys= document.getElementById('inv-yoonsik');
+  if(et)  et.textContent  = '₩'+total.toLocaleString();
+  if(ey)  ey.textContent  = '₩'+yujin.toLocaleString();
+  if(eys) eys.textContent = '₩'+yoonsik.toLocaleString();
+  renderInvestBreakdown(data, total);
 }
 
-function addStock() {
-  const type   = document.getElementById('st-type').value;
-  const ticker = document.getElementById('st-ticker').value.trim().toUpperCase();
-  const name   = document.getElementById('st-name').value.trim();
-  const note   = document.getElementById('st-note').value.trim();
-  if(!ticker) return;
-  const stocks = S.get('stocks') || [];
-  if(stocks.find(s => s.ticker === ticker)) { alert('이미 추가된 종목이에요!'); return; }
-  const newStock = { id: Date.now(), type, ticker, name: name || ticker, note, price: null, change: null, changeP: null, fetchError: false };
-  stocks.push(newStock);
-  S.set('stocks', stocks);
-  dbUpsert('stocks', {id: newStock.id, type: newStock.type, ticker: newStock.ticker, name: newStock.name, note: newStock.note});
-  clearStockSearch();
-  document.getElementById('st-note').value = '';
-  renderStocks();
-  fetchAllPrices();
-  refreshDashboard();
-}
-
-// ── FETCH: 서버사이드 가격 조회 ──
-async function fetchStockPrice(ticker, type) {
-  try {
-    const res = await fetchWithTimeout('/api/stock-price?ticker=' + encodeURIComponent(ticker) + '&type=' + type, 12000);
-    if (!res || !res.ok) return null;
-    const data = await res.json();
-    if (data.error) return null;
-    return { price: data.price, priceUsd: data.priceUsd, change: data.change, changeP: data.changeP, currency: data.currency, fetchError: false };
-  } catch { return null; }
-}
-
-async function fetchAllPrices() {
-  const btn = document.getElementById('st-refresh-btn');
-  if(btn) { btn.textContent = '⏳ 불러오는 중...'; btn.disabled = true; }
-
-  const stocks = S.get('stocks') || [];
-  if(!stocks.length) { if(btn){ btn.textContent='🔄 새로고침'; btn.disabled=false; } return; }
-
-  // fetch all in parallel
-  const updated = await Promise.all(stocks.map(async s => {
-    let result = null;
-    result = await fetchStockPrice(s.type === 'CRYPTO' ? s.ticker.toLowerCase() : s.ticker, s.type);
-    if(result) return { ...s, ...result, fetchError: false };
-    return { ...s, fetchError: true };  // mark failed
-  }));
-
-  // 버그 수정: race condition - 비동기 대기 중 추가된 새 종목이 사라지지 않도록 머지
-  const latestStocks = S.get('stocks') || [];
-  const priceMap = {};
-  updated.forEach(function(s){ priceMap[s.id] = s; });
-  const merged = latestStocks.map(function(s){ return priceMap[s.id] ? Object.assign({}, s, priceMap[s.id]) : s; });
-  S.set('stocks', merged);
-  renderStocks();
-
-  const now = new Date();
-  const el = document.getElementById('st-last-update');
-  const ok = updated.filter(s=>!s.fetchError).length;
-  const fail = updated.filter(s=>s.fetchError && s.type!=='CRYPTO').length;
-  if(el) el.textContent = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')} 기준 · ${ok}/${updated.length}개 성공`;
-  if(btn){ btn.textContent='🔄 새로고침'; btn.disabled=false; }
-}
-
-function renderStocks() {
-  const stocks = S.get('stocks') || [];
-  const el = document.getElementById('stock-list');
-  if(!stocks.length) {
-    el.innerHTML = `<div class="card" style="text-align:center;padding:3rem;color:var(--muted)">
-      <div style="font-size:2.5rem;margin-bottom:1rem">📭</div>
-      <div>아직 관심 종목이 없어요<br/>왼쪽에서 종목을 추가해 보세요!</div>
-    </div>`;
+function renderInvestBreakdown(data, total) {
+  var el = document.getElementById('invest-breakdown');
+  if(!el) return;
+  if(!total) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:2rem">자산 현황 탭에서 자산을 입력하면 여기에 표시돼요</div>';
     return;
   }
-
-  const typeLabel = { KR:'🇰🇷 국내', US:'🇺🇸 미국', CRYPTO:'🪙 코인' };
-  const typeColor = { KR:'var(--accent2)', US:'var(--accent)', CRYPTO:'var(--accent3)' };
-
-  el.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.9rem">` +
-    stocks.map(s => {
-      const up      = s.changeP >= 0;
-      const clr     = s.changeP == null ? 'var(--muted)' : up ? 'var(--accent3)' : 'var(--danger)';
-      const arrow   = s.changeP == null ? '' : up ? '▲' : '▼';
-      const loading = s.price == null && !s.fetchError;
-      const errored = s.fetchError;
-
-      let priceStr = loading
-        ? `<div style="color:var(--muted);font-size:.85rem;margin:.4rem 0">⏳ 불러오는 중...</div>`
-        : errored
-          ? `<div style="color:var(--danger);font-size:.82rem;margin:.4rem 0">⚠️ 가격 조회 실패<br/><span style="font-size:.75rem;color:var(--muted)">티커를 확인해 주세요</span></div>`
-          : s.type === 'CRYPTO'
-            ? `<div style="font-size:1.1rem;font-weight:700;color:${clr};font-family:JetBrains Mono,monospace">₩${Number(s.price).toLocaleString()}</div>
-               ${s.priceUsd ? `<div style="font-size:.75rem;color:var(--muted)">$${Number(s.priceUsd).toLocaleString()}</div>` : ''}`
-            : `<div style="font-size:1.15rem;font-weight:700;color:${clr};font-family:JetBrains Mono,monospace">
-                 ${s.currency==='USD'?'$':'₩'}${Number(s.price).toLocaleString(undefined,{maximumFractionDigits:2})}
-               </div>`;
-
-      const changeStr = s.changeP != null
-        ? `<span style="font-size:.8rem;color:${clr};font-family:JetBrains Mono,monospace">${arrow} ${Math.abs(s.changeP).toFixed(2)}%</span>`
-        : '';
-
-      return `<div class="stock-card">
-        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:.5rem">
-          <div>
-            <div style="font-size:.65rem;color:${typeColor[s.type]};letter-spacing:.08em;margin-bottom:.2rem">${typeLabel[s.type]||''}</div>
-            <div class="stock-name">${s.name}</div>
-            <div class="stock-ticker">${s.ticker}</div>
-          </div>
-          <button onclick="deleteStock(${s.id})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.85rem;padding:.2rem">✕</button>
-        </div>
-        ${priceStr}
-        ${changeStr}
-        ${s.note ? `<div class="stock-note" style="margin-top:.6rem">${s.note}</div>` : ''}
-      </div>`;
-    }).join('') + `</div>`;
+  var items = [
+    {label:'토스증권',    key:'a-toss',      color:'var(--accent)',  person:'유진'},
+    {label:'ISA계좌',     key:'a-isa',       color:'var(--accent)',  person:'유진'},
+    {label:'금계좌',      key:'a-gold',      color:'var(--accent2)', person:'유진'},
+    {label:'코인',        key:'a-coin-u',    color:'var(--accent3)', person:'유진'},
+    {label:'펀드',        key:'a-fund',      color:'var(--accent)',  person:'유진'},
+    {label:'주택청약',    key:'a-cheongyak', color:'var(--accent2)', person:'유진'},
+    {label:'적금',        key:'a-savings-u', color:'var(--accent4)', person:'유진'},
+    {label:'CMA',         key:'a-cma',       color:'var(--muted)',   person:'유진'},
+    {label:'퇴직연금',    key:'a-ret-u',     color:'var(--muted)',   person:'유진'},
+    {label:'개인주식',    key:'a-stock-u',   color:'var(--accent)',  person:'유진'},
+    {label:'코인',        key:'a-coin-y',    color:'var(--accent3)', person:'윤식'},
+    {label:'적금',        key:'a-savings-y', color:'var(--accent4)', person:'윤식'},
+    {label:'퇴직연금',    key:'a-ret-y',     color:'var(--muted)',   person:'윤식'},
+  ];
+  var active = items.filter(function(i){return (data[i.key]||0)>0;});
+  el.innerHTML = active.map(function(item){
+    var val = data[item.key]||0;
+    var pct = (val/total*100).toFixed(1);
+    var pBadge = item.person==='유진'
+      ? '<span style="font-size:.68rem;background:rgba(108,138,255,.15);color:var(--accent);padding:.1rem .4rem;border-radius:4px;margin-right:.4rem">유진</span>'
+      : '<span style="font-size:.68rem;background:rgba(74,222,128,.12);color:var(--accent3);padding:.1rem .4rem;border-radius:4px;margin-right:.4rem">윤식</span>';
+    return '<div style="margin-bottom:.6rem">'+
+      '<div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:.25rem">'+
+        '<span style="color:var(--muted)">'+pBadge+item.label+'</span>'+
+        '<span style="font-family:JetBrains Mono,monospace;color:var(--text)">'+fmtMoney(val)+' <span style="color:var(--muted);font-size:.75rem">'+pct+'%</span></span>'+
+      '</div>'+
+      '<div style="height:6px;background:var(--surface2);border-radius:3px">'+
+        '<div style="height:100%;width:'+pct+'%;background:'+item.color+';border-radius:3px;transition:width .6s ease"></div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
 }
 
-function deleteStock(id) {
-  S.set('stocks', (S.get('stocks')||[]).filter(s=>s.id!==id));
-  dbDelete('stocks', id);
-  renderStocks();
-  refreshDashboard();
+async function getPortfolioAI(btn) {
+  var data = S.get('assets_'+assetMonthKey()) || S.get('assets_latest') || {};
+  var allItems = [
+    ['토스증권(유진)',   data['a-toss']||0],
+    ['ISA계좌(유진)',    data['a-isa']||0],
+    ['금계좌(유진)',     data['a-gold']||0],
+    ['코인(유진)',       data['a-coin-u']||0],
+    ['코인(윤식)',       data['a-coin-y']||0],
+    ['펀드(유진)',       data['a-fund']||0],
+    ['주택청약(유진)',   data['a-cheongyak']||0],
+    ['적금(유진)',       data['a-savings-u']||0],
+    ['적금(윤식)',       data['a-savings-y']||0],
+    ['CMA(유진)',        data['a-cma']||0],
+    ['퇴직연금(유진)',   data['a-ret-u']||0],
+    ['퇴직연금(윤식)',   data['a-ret-y']||0],
+    ['개인주식(유진)',   data['a-stock-u']||0],
+  ].filter(function(r){return r[1]>0;});
+
+  if(!allItems.length) { alert('먼저 자산 현황 탭에서 자산을 입력해 주세요!'); return; }
+
+  var resultEl = document.getElementById('portfolio-ai-result');
+  btn.textContent = '⏳ 분석 중...'; btn.disabled = true;
+  resultEl.innerHTML = '';
+
+  var total = allItems.reduce(function(s,r){return s+r[1];},0);
+  var prompt = '아래는 유진과 윤식 부부의 투자 포트폴리오야 (기준일: '+today()+'):\n\n'+
+    allItems.map(function(r){return '- '+r[0]+': '+Number(r[1]).toLocaleString()+'원 ('+((r[1]/total*100).toFixed(1))+'%)';}).join('\n')+
+    '\n\n총 투자자산: '+Number(total).toLocaleString()+'원\n\n'+
+    '이 포트폴리오를 한국어로, 친근하고 실용적으로 분석해줘. 아래 형식으로:\n\n'+
+    '📊 포트폴리오 요약\n(전체 구성 평가, 2줄)\n\n'+
+    '👩 유진 포트폴리오\n(강점과 개선점, 2줄)\n\n'+
+    '👨 윤식 포트폴리오\n(강점과 개선점, 2줄)\n\n'+
+    '💡 부부 합산 전략\n(균형 평가, 2줄)\n\n'+
+    '🎯 이번 달 추천 액션\n(구체적 행동 1~2가지)\n\n'+
+    '투자 권유 아닌 참고 의견으로.';
+
+  try {
+    var res = await fetchWithTimeout('/api/claude', 30000, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({messages:[{role:'user',content:prompt}], max_tokens:1000})
+    });
+    var d = await res.json();
+    var text = d.content?.[0]?.text || '분석 실패';
+    resultEl.innerHTML = '<div style="margin-top:1rem;padding:.9rem;background:rgba(108,138,255,.07);border-radius:10px;font-size:.83rem;color:var(--text);line-height:1.9">'+text.replace(/\n/g,'<br/>')+'</div>';
+  } catch(e) {
+    resultEl.innerHTML = '<div style="color:var(--danger);padding:.8rem;font-size:.85rem">⚠️ 분석 실패: '+e.message+'</div>';
+  }
+  btn.textContent = '🤖 포트폴리오 AI 분석'; btn.disabled = false;
 }
 
-// auto-refresh every 60s when on stocks page
-setInterval(() => {
-  if(document.getElementById('page-stocks').classList.contains('active')) fetchAllPrices();
-}, 60000);
-
-function addMemo() {
-  const title = document.getElementById('memo-title').value.trim();
-  const text = document.getElementById('memo-text').value.trim();
-  if(!text) return;
-  const memos = S.get('memos') || [];
-  memos.unshift({ id: Date.now(), title, text, date: today() });
-  S.set('memos', memos);
-  document.getElementById('memo-title').value = '';
-  document.getElementById('memo-text').value = '';
-  renderMemos();
-}
-
-function renderMemos() {
-  const memos = S.get('memos') || [];
-  const el = document.getElementById('memo-list');
-  el.innerHTML = memos.length ? memos.map(m => `
-    <div class="memo-card">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="memo-date">${m.date}${m.title?' · '+m.title:''}</div>
-        <button onclick="deleteMemo(${m.id})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem">✕</button>
-      </div>
-      <div class="memo-text">${m.text}</div>
-    </div>`).join('') : '<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:1rem">메모가 없어요</div>';
-}
-
-function deleteMemo(id) {
-  S.set('memos', (S.get('memos')||[]).filter(m=>m.id!==id));
-  renderMemos();
-}
-
-// stocks and memos initialized in safeInit
+// 투자현황 initialized in safeInit
 
 // ── DASHBOARD REFRESH ──
 function refreshDashboard() {
@@ -2276,6 +2152,7 @@ function applyAiToAssets() {
     if(aiParsedData.ret_y)     document.getElementById('a-ret-y').value     = aiParsedData.ret_y;
   }
   recalcAssets();
+  renderInvestStats();
 }
 
 function renderTossGallery() {
@@ -2927,8 +2804,7 @@ function deleteApt(id) {
     function(){ renderYtLibrary(); },
     function(){ renderJournal(); },
     function(){ renderRealty(); },
-    function(){ renderStocks(); },
-    function(){ renderMemos(); },
+    function(){ renderInvestStats(); },
   ];
   inits.forEach(function(fn){ try{ fn(); } catch(e){ console.warn('safeInit error:', e.message); } });
   // Supabase에서 최신 데이터 동기화
