@@ -2004,11 +2004,11 @@ async function analyzeYtVideo(videoId, title, published, thumb, btn) {
   var desc = video.desc || '';
 
   try {
-    var res = await fetch('/api/claude', {
+    var res = await fetchWithTimeout('/api/claude', 30000, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-3-5-haiku-20241022',
         max_tokens: 800,
         messages:[{
           role:'user',
@@ -2018,7 +2018,9 @@ async function analyzeYtVideo(videoId, title, published, thumb, btn) {
     });
     var data = await res.json();
     if(checkCreditError(data)) throw new Error('크레딧 부족');
-    var summary = data.content?.[0]?.text || '분석 실패';
+    if(data.error) throw new Error(data.detail || data.error);
+    var summary = data.content?.[0]?.text;
+    if(!summary) throw new Error('응답 내용 없음');
 
     // 저장
     var summaries = S.get('yt_summaries') || [];
@@ -2042,8 +2044,10 @@ async function analyzeYtVideo(videoId, title, published, thumb, btn) {
     renderYtVideoGrid();
 
   } catch(err) {
-    btn.textContent = '❌ 실패 - 다시 시도';
+    btn.textContent = '❌ 다시 시도';
     btn.disabled = false;
+    btn.title = err.message;
+    console.error('[YT 분석 실패]', err.message);
   }
 }
 
