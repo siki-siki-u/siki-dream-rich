@@ -2046,7 +2046,15 @@ async function analyzeYtVideo(videoId, title, published, thumb, btn) {
   } catch(err) {
     btn.textContent = '❌ 다시 시도';
     btn.disabled = false;
-    btn.title = err.message;
+    // 에러 메시지를 버튼 아래에 표시
+    var errDiv = btn.parentNode.querySelector('.yt-err-msg');
+    if(!errDiv) {
+      errDiv = document.createElement('div');
+      errDiv.className = 'yt-err-msg';
+      errDiv.style.cssText = 'color:var(--danger);font-size:.75rem;margin-top:.4rem;word-break:break-all';
+      btn.parentNode.appendChild(errDiv);
+    }
+    errDiv.textContent = '오류: ' + err.message;
     console.error('[YT 분석 실패]', err.message);
   }
 }
