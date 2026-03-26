@@ -2008,7 +2008,7 @@ async function analyzeYtVideo(videoId, title, published, thumb, btn) {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
-        model: 'claude-3-5-haiku-20241022',
+        model: 'claude-3-5-sonnet-20241022',
         max_tokens: 800,
         messages:[{
           role:'user',
