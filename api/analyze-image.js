@@ -75,7 +75,7 @@ module.exports = async function(req, res) {
   try {
     // 1단계: 숫자 추출
     var r1 = await post(apiKey, {
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-3-5-sonnet-20241022',
       max_tokens: 800,
       messages: [{
         role: 'user',
@@ -116,7 +116,7 @@ module.exports = async function(req, res) {
       + '투자 권유가 아닌 참고 의견으로.';
 
     var r2 = await post(apiKey, {
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-3-5-sonnet-20241022',
       max_tokens: 600,
       messages: [{ role: 'user', content: insightPrompt }],
     });
