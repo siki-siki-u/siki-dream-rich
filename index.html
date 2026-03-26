@@ -870,7 +870,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
           <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js" async>
           {
             "exchanges": ["KRX"],
-            "dataSource": "KOSPI",
+            "dataSource": "KOSPI200",
             "grouping": "sector",
             "blockSize": "market_cap_basic",
             "blockColor": "change",
@@ -922,7 +922,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
           "isTransparent": true,
           "width": "100%",
           "height": "450",
-          "locale": "kr",
+          "locale": "ko",
           "importanceFilter": "0,1",
           "countryFilter": "us,kr,cn,jp,eu"
         }
@@ -1005,7 +1005,10 @@ tr:hover td{background:rgba(108,138,255,.03)}
           <input type="text" id="jn-title" placeholder="제목 (예: 중동 긴장감에 시장 급락)" style="width:100%"/>
           <input type="text" id="jn-tickers" placeholder="관련 종목/ETF (예: QQQ, TSLA, 삼성전자)" style="width:100%"/>
           <div style="display:flex;gap:.5rem">
-            <input type="number" id="jn-fear-greed" placeholder="탐욕지수 (0~100)" style="flex:1"/>
+            <div style="flex:1;display:flex;gap:.4rem;align-items:center">
+              <input type="number" id="jn-fear-greed" placeholder="탐욕지수 (0~100)" style="flex:1"/>
+              <button type="button" onclick="fetchFearGreed()" id="fg-fetch-btn" class="btn btn-ghost" style="padding:.45rem .7rem;font-size:.8rem;white-space:nowrap">📡 실시간</button>
+            </div>
             <select id="jn-action" style="width:140px">
               <option value="관망">👀 관망 중</option>
               <option value="매수 고민">🤔 매수 고민</option>
@@ -1024,6 +1027,16 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div class="card" style="margin-bottom:1rem">
           <div class="sec-title">📊 시장 참고 지표</div>
           <div style="display:flex;flex-direction:column;gap:.5rem;font-size:.85rem">
+            <!-- 실시간 탐욕지수 -->
+            <div id="fg-realtime-card" style="background:var(--surface2);border-radius:10px;padding:.9rem;cursor:pointer" onclick="fetchFearGreed()">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+                <span style="color:var(--muted);font-size:.78rem">😱 CNN 공포·탐욕지수 (실시간)</span>
+                <span id="fg-realtime-time" style="font-size:.72rem;color:var(--muted)">탭하여 불러오기</span>
+              </div>
+              <div id="fg-realtime-content" style="text-align:center;padding:.5rem 0">
+                <div style="color:var(--muted);font-size:.8rem">📡 클릭하면 실시간 데이터를 불러와요</div>
+              </div>
+            </div>
             <div style="background:var(--surface2);border-radius:8px;padding:.8rem;display:flex;justify-content:space-between;align-items:center">
               <span style="color:var(--muted)">탐욕지수 기준</span>
               <div style="text-align:right;font-size:.78rem;color:var(--muted)">
@@ -1217,9 +1230,9 @@ function showPage(id, el) {
   if(id==='calendar') renderCalendar();
   if(id==='budget') { renderBudget(); }
   if(id==='assets') { loadAssetInputs(); renderAssetBreakdown(); renderAssetHistory(); }
-  if(id==='stocks') { renderStocks(); fetchAllPrices(); }
+  if(id==='stocks') { renderInvestStats(); }
   if(id==='youtube') { renderYtLibrary(); }
-  if(id==='journal') { renderJournal(); }
+  if(id==='journal') { renderJournal(); fetchFearGreed(); }
   if(id==='realty')  { renderRealty(); }
   if(id==='market')  { /* TradingView widgets load automatically */ }
 }
@@ -2060,6 +2073,60 @@ function checkLock() {
   }
 }
 
+
+// ── CNN 공포·탐욕지수 ──
+async function fetchFearGreed() {
+  var btn = document.getElementById('fg-fetch-btn');
+  var card = document.getElementById('fg-realtime-content');
+  var timeEl = document.getElementById('fg-realtime-time');
+  if(btn) { btn.textContent = '⏳'; btn.disabled = true; }
+  if(card) card.innerHTML = '<div style="color:var(--muted);font-size:.82rem;text-align:center">불러오는 중...</div>';
+
+  try {
+    var res = await fetchWithTimeout('/api/fear-greed', 10000);
+    if(!res || !res.ok) throw new Error('HTTP ' + (res ? res.status : '?'));
+    var d = await res.json();
+    if(d.error) throw new Error(d.error);
+
+    var score = d.score;
+    var emoji = score <= 25 ? '😨' : score <= 45 ? '😟' : score <= 55 ? '😐' : score <= 75 ? '😊' : '🤑';
+    var color = score <= 25 ? 'var(--danger)' : score <= 45 ? '#ff9944' : score <= 55 ? 'var(--muted)' : score <= 75 ? 'var(--accent3)' : '#00e676';
+    var barW  = score + '%';
+
+    if(card) card.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:center;gap:.8rem;margin-bottom:.6rem">'+
+        '<span style="font-size:2rem">'+emoji+'</span>'+
+        '<div>'+
+          '<div style="font-size:1.6rem;font-weight:700;color:'+color+';font-family:JetBrains Mono,monospace;line-height:1">'+score+'</div>'+
+          '<div style="font-size:.78rem;color:'+color+'">'+d.ratingKo+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="height:8px;background:linear-gradient(to right,#ff4444,#ff9944,#cccc44,#44cc88,#00e676);border-radius:4px;position:relative;margin-bottom:.4rem">'+
+        '<div style="position:absolute;top:-4px;left:calc('+barW+' - 8px);width:16px;height:16px;background:#fff;border-radius:50%;border:2px solid '+color+';box-shadow:0 0 6px '+color+'44"></div>'+
+      '</div>'+
+      (d.previous_1_week != null ? '<div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-top:.4rem">'+
+        '<span>1주전: '+(Math.round(d.previous_1_week))+'</span>'+
+        (d.previous_1_month != null ? '<span>1달전: '+(Math.round(d.previous_1_month))+'</span>' : '')+
+      '</div>' : '');
+
+    if(timeEl) timeEl.textContent = '방금 업데이트됨';
+
+    // 탐욕지수 입력 필드에 자동 입력
+    var inp = document.getElementById('jn-fear-greed');
+    if(inp && !inp.value) inp.value = score;
+
+    // 감정 셀렉트 자동 선택
+    var sel = document.getElementById('jn-emotion');
+    if(sel) {
+      var emotionVal = score <= 25 ? '😨 극공포' : score <= 45 ? '😟 공포' : score <= 55 ? '😐 중립' : score <= 75 ? '😊 탐욕' : '🤑 극탐욕';
+      sel.value = emotionVal;
+    }
+  } catch(e) {
+    if(card) card.innerHTML = '<div style="color:var(--danger);font-size:.8rem;text-align:center">⚠️ 불러오기 실패: '+e.message+'</div>';
+    if(timeEl) timeEl.textContent = '실패';
+  }
+  if(btn) { btn.textContent = '📡 실시간'; btn.disabled = false; }
+}
 
 // ── 스크린샷 AI 분석 ──
 var pendingAiImg = null;
