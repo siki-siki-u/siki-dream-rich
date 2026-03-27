@@ -2520,8 +2520,13 @@ function parseExcel(data, filename) {
       }
     }
     if(headerIdx < 0) {
-      headerIdx = 0;
-      headers = jsonRows[0].map(function(c){ return String(c).trim(); });
+      // 디버그: 첫 5행 내용 출력
+      var debugRows = jsonRows.slice(0, 5).map(function(r, i) {
+        return 'row'+i+': [' + r.map(function(c){ return '"'+String(c).trim()+'"'; }).join(', ') + ']';
+      }).join('<br/>');
+      document.getElementById('excel-preview').innerHTML =
+        '<div style="color:var(--danger);padding:1.5rem;font-size:.8rem">⚠️ 헤더를 찾지 못했어요.<br/><br/>'+debugRows+'</div>';
+      return;
     }
 
     var dateIdx = headers.findIndex(function(h){ return /날짜|일자|거래.?일/.test(h); });
