@@ -125,8 +125,20 @@ module.exports = async function(req, res) {
          ['적금', parsed.savings_u], ['개인주식', parsed.stock_u]]
       : [['코인', parsed.coin_y], ['적금', parsed.savings_y], ['퇴직연금', parsed.ret_y]];
 
-    var insightPrompt = '아래는 ' + (isYujin ? '유진' : '윤식') + '의 투자 포트폴리오야:\n'
-      + rows.filter(function(r) { return r[1] > 0; }).map(function(r) { return r[0] + ': ' + Number(r[1]).toLocaleString() + '원'; }).join('\n')
+    var activeRows = rows.filter(function(r) { return r[1] > 0; });
+    var personName = isYujin ? '유진' : '윤식';
+
+    // 추출된 값이 없으면 insight 생략 (잘못된 사람 선택 등)
+    if (!activeRows.length) {
+      return res.json({
+        parsed: parsed,
+        insight: '⚠️ ' + personName + ' 계좌 데이터를 읽지 못했어요.\n상단의 "누가 올리나요?" 선택이 올바른지 확인하고 다시 시도해 주세요.',
+        rows: []
+      });
+    }
+
+    var insightPrompt = '아래는 ' + personName + '의 투자 포트폴리오야 (이 사람 데이터만 분석해줘. 다른 사람 언급 금지):\n'
+      + activeRows.map(function(r) { return r[0] + ': ' + Number(r[1]).toLocaleString() + '원'; }).join('\n')
       + '\n\n이 포트폴리오에 대해 아래 형식으로 한국어로 간결하게 분석해줘:\n'
       + '📊 포트폴리오 구성: (자산 분산 평가, 1줄)\n'
       + '💡 긍정적인 점: (1~2줄)\n'
@@ -146,7 +158,7 @@ module.exports = async function(req, res) {
       insight = d2.content?.[0]?.text || '';
     }
 
-    res.json({ parsed: parsed, insight: insight, rows: rows.filter(function(r) { return r[1] > 0; }) });
+    res.json({ parsed: parsed, insight: insight, rows: activeRows });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
