@@ -2513,20 +2513,15 @@ function parseExcel(data, filename) {
     // 헤더 행 찾기
     var headerIdx = -1;
     var headers   = [];
-    for(var i = 0; i < Math.min(15, jsonRows.length); i++) {
+    for(var i = 0; i < Math.min(20, jsonRows.length); i++) {
       var cols = jsonRows[i].map(function(c){ return String(c).trim(); });
-      if(cols.some(function(c){ return /날짜|일자|거래.?일/.test(c); })) {
+      if(cols.some(function(c){ return /날짜|일자|거래.?일|적요|거래.?금액/.test(c); })) {
         headerIdx = i; headers = cols; break;
       }
     }
     if(headerIdx < 0) {
-      // 디버그: 첫 5행 내용 출력
-      var debugRows = jsonRows.slice(0, 5).map(function(r, i) {
-        return 'row'+i+': [' + r.map(function(c){ return '"'+String(c).trim()+'"'; }).join(', ') + ']';
-      }).join('<br/>');
-      document.getElementById('excel-preview').innerHTML =
-        '<div style="color:var(--danger);padding:1.5rem;font-size:.8rem">⚠️ 헤더를 찾지 못했어요.<br/><br/>'+debugRows+'</div>';
-      return;
+      headerIdx = 0;
+      headers = jsonRows[0].map(function(c){ return String(c).trim(); });
     }
 
     var dateIdx = headers.findIndex(function(h){ return /날짜|일자|거래.?일/.test(h); });
