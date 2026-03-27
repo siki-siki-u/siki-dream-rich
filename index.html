@@ -2515,7 +2515,7 @@ function parseExcel(data, filename) {
     var headers   = [];
     for(var i = 0; i < Math.min(15, jsonRows.length); i++) {
       var cols = jsonRows[i].map(function(c){ return String(c).trim(); });
-      if(cols.some(function(c){ return /날짜|일자|거래일/.test(c); })) {
+      if(cols.some(function(c){ return /날짜|일자|거래.?일/.test(c); })) {
         headerIdx = i; headers = cols; break;
       }
     }
