@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/gh/webfontworld/SCoreDream/SCoreDream.css" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -2495,12 +2496,43 @@ function parseExcel(data, filename) {
       }
     }
   } else {
-    // XLSX - SheetJS 없으면 안내
-    document.getElementById('excel-preview').innerHTML =
-      '<div style="color:var(--accent4);padding:1.5rem;font-size:.88rem;line-height:1.8">'+
-      '💡 xlsx 파일은 토스에서 <b>CSV 형식</b>으로 다운받으시면 바로 읽을 수 있어요!<br/>'+
-      '토스 앱 → 거래내역 → 내보내기 → CSV 선택</div>';
-    return;
+    // XLSX / XLS — SheetJS로 파싱
+    if(typeof XLSX === 'undefined') {
+      document.getElementById('excel-preview').innerHTML =
+        '<div style="color:var(--danger);padding:1.5rem;font-size:.88rem">⚠️ xlsx 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</div>';
+      return;
+    }
+    var workbook = XLSX.read(data, { type: 'binary' });
+    var sheet    = workbook.Sheets[workbook.SheetNames[0]];
+    var jsonRows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+
+    // 헤더 행 찾기
+    var headerIdx = -1;
+    var headers   = [];
+    for(var i = 0; i < Math.min(15, jsonRows.length); i++) {
+      var cols = jsonRows[i].map(function(c){ return String(c).trim(); });
+      if(cols.some(function(c){ return /날짜|일자|거래일/.test(c); })) {
+        headerIdx = i; headers = cols; break;
+      }
+    }
+    if(headerIdx < 0) {
+      headerIdx = 0;
+      headers = jsonRows[0].map(function(c){ return String(c).trim(); });
+    }
+
+    var dateIdx = headers.findIndex(function(h){ return /날짜|일자|거래일/.test(h); });
+    var descIdx = headers.findIndex(function(h){ return /내용|적요|거래|설명/.test(h); });
+    var amtIdx  = headers.findIndex(function(h){ return /출금|지출|금액/.test(h); });
+    if(amtIdx < 0) amtIdx = headers.findIndex(function(h){ return /금액/.test(h); });
+
+    for(var j = headerIdx + 1; j < jsonRows.length; j++) {
+      var c   = jsonRows[j].map(function(x){ return String(x).trim(); });
+      var amt = parseFloat((c[amtIdx] || '0').replace(/[^0-9.-]/g, ''));
+      if(amt > 0 && c[dateIdx]) {
+        var dateStr = c[dateIdx].replace(/\./g, '-').replace(/\//g, '-').substring(0, 10);
+        rows.push({ date: dateStr, desc: c[descIdx] || '', amount: amt, cat: classifyTx(c[descIdx] || '') });
+      }
+    }
   }
 
   parsedExcelRows = rows;
@@ -2510,7 +2542,7 @@ function parseExcel(data, filename) {
 function renderExcelPreview() {
   var el = document.getElementById('excel-preview');
   if(!parsedExcelRows.length) {
-    el.innerHTML='<div style="color:var(--muted);padding:1.5rem;font-size:.88rem;text-align:center">거래내역을 찾지 못했어요.<br/>토스에서 CSV로 내보내기 해주세요</div>';
+    el.innerHTML='<div style="color:var(--muted);padding:1.5rem;font-size:.88rem;text-align:center">거래내역을 찾지 못했어요.<br/>토스에서 CSV 또는 Excel로 내보내기 해주세요</div>';
     return;
   }
   var catColors = {
