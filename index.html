@@ -2279,12 +2279,15 @@ function handleAiShotDrop(e) {
 }
 
 async function analyzeScreenshot() {
-  if(!pendingAiImg) { alert('먼저 스크린샷을 업로드해 주세요!'); return; }
-
-  const person = document.getElementById('shot-person').value;
-  const isYujin = person === 'yujin';
   const resultBox = document.getElementById('ai-result-box');
-  resultBox.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted)"><div style="font-size:2rem;margin-bottom:.8rem">⏳</div>AI가 분석 중이에요...</div>';
+  console.log('[AI분석] pendingAiImg:', pendingAiImg ? '있음('+pendingAiImg.length+')' : '없음');
+  if(!pendingAiImg) {
+    if(resultBox) resultBox.innerHTML = '<div style="color:var(--danger);padding:1.5rem;font-size:.9rem;text-align:center">📸 먼저 스크린샷을 업로드해 주세요!</div>';
+    return;
+  }
+  const person = (document.getElementById('shot-person') || {}).value || 'yujin';
+  const isYujin = person === 'yujin';
+  if(resultBox) resultBox.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted)"><div style="font-size:2rem;margin-bottom:.8rem">⏳</div>AI가 분석 중이에요...</div>';
 
   const base64 = pendingAiImg.split(',')[1];
   const mediaType = pendingAiImg.split(';')[0].split(':')[1];
@@ -2325,7 +2328,8 @@ async function analyzeScreenshot() {
     renderTossGallery();
 
   } catch(err) {
-    resultBox.innerHTML = '<div style="color:var(--danger);padding:1.5rem;font-size:.88rem">⚠️ 분석 실패: '+err.message+'<br/><span style="color:var(--muted);font-size:.8rem">API 키를 확인하거나 다시 시도해 주세요</span></div>';
+    console.error('[AI분석 실패]', err.message, err);
+    if(resultBox) resultBox.innerHTML = '<div style="color:var(--danger);padding:1.5rem;font-size:.88rem">⚠️ 분석 실패: '+err.message+'</div>';
   }
 }
 
