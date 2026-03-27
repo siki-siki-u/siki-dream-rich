@@ -2536,13 +2536,16 @@ function parseExcel(data, filename) {
   }
 
   parsedExcelRows = rows;
-  renderExcelPreview();
+  renderExcelPreview(headers);
 }
 
-function renderExcelPreview() {
+function renderExcelPreview(detectedHeaders) {
   var el = document.getElementById('excel-preview');
   if(!parsedExcelRows.length) {
-    el.innerHTML='<div style="color:var(--muted);padding:1.5rem;font-size:.88rem;text-align:center">거래내역을 찾지 못했어요.<br/>토스에서 CSV 또는 Excel로 내보내기 해주세요</div>';
+    var hint = detectedHeaders && detectedHeaders.filter(Boolean).length
+      ? '<br/><span style="font-size:.75rem;color:rgba(123,130,168,.5)">감지된 컬럼: '+detectedHeaders.filter(Boolean).join(', ')+'</span>'
+      : '<br/>토스에서 엑셀(xlsx) 또는 CSV로 내보내기 해주세요';
+    el.innerHTML='<div style="color:var(--muted);padding:1.5rem;font-size:.88rem;text-align:center">거래내역을 찾지 못했어요.'+hint+'</div>';
     return;
   }
   var catColors = {
