@@ -2484,15 +2484,19 @@ function parseExcel(data, filename) {
       }
     }
     if(headerIdx<0){ headerIdx=0; headers=lines[0].split(',').map(function(c){return c.trim().replace(/"/g,'');}); }
-    var dateIdx   = headers.findIndex(function(h){return /날짜|일자|거래일/.test(h);});
-    var descIdx   = headers.findIndex(function(h){return /내용|적요|거래|설명/.test(h);});
-    var amtIdx    = headers.findIndex(function(h){return /출금|지출|금액/.test(h);});
+    var dateIdx   = headers.findIndex(function(h){return /날짜|일자|거래.?일/.test(h);});
+    var descIdx   = headers.findIndex(function(h){return /적요|내용|설명/.test(h);});
+    if(descIdx<0) descIdx = headers.findIndex(function(h){return /기관|메모|거래처/.test(h);});
+    var amtIdx    = headers.findIndex(function(h){return /거래.?금액|출금|지출/.test(h);});
     if(amtIdx<0) amtIdx = headers.findIndex(function(h){return /금액/.test(h);});
+    var typeIdx   = headers.findIndex(function(h){return /거래.?유형|구분|유형/.test(h);});
     for(var j=headerIdx+1;j<lines.length;j++){
       var c = lines[j].split(',').map(function(x){return x.trim().replace(/"/g,'');});
+      if(typeIdx>=0 && !/출금|지출|출/i.test(c[typeIdx]||'')) continue;
       var amt = parseFloat((c[amtIdx]||'0').replace(/[^0-9.-]/g,''));
       if(amt>0 && c[dateIdx]) {
-        rows.push({ date: c[dateIdx].replace(/\./g,'-').substring(0,10), desc: c[descIdx]||'', amount: amt, cat: classifyTx(c[descIdx]||'') });
+        var desc = c[descIdx]||'';
+        rows.push({ date: c[dateIdx].replace(/\./g,'-').replace(/\//g,'-').substring(0,10), desc: desc, amount: amt, cat: classifyTx(desc) });
       }
     }
   } else {
@@ -2520,17 +2524,22 @@ function parseExcel(data, filename) {
       headers = jsonRows[0].map(function(c){ return String(c).trim(); });
     }
 
-    var dateIdx = headers.findIndex(function(h){ return /날짜|일자|거래일/.test(h); });
-    var descIdx = headers.findIndex(function(h){ return /내용|적요|거래|설명/.test(h); });
-    var amtIdx  = headers.findIndex(function(h){ return /출금|지출|금액/.test(h); });
+    var dateIdx = headers.findIndex(function(h){ return /날짜|일자|거래.?일/.test(h); });
+    var descIdx = headers.findIndex(function(h){ return /적요|내용|설명/.test(h); });
+    if(descIdx < 0) descIdx = headers.findIndex(function(h){ return /기관|메모|거래처/.test(h); });
+    var amtIdx  = headers.findIndex(function(h){ return /거래.?금액|출금|지출/.test(h); });
     if(amtIdx < 0) amtIdx = headers.findIndex(function(h){ return /금액/.test(h); });
+    var typeIdx = headers.findIndex(function(h){ return /거래.?유형|구분|유형/.test(h); });
 
     for(var j = headerIdx + 1; j < jsonRows.length; j++) {
       var c   = jsonRows[j].map(function(x){ return String(x).trim(); });
+      // 거래유형이 있으면 출금/지출만, 없으면 금액 양수인 것만
+      if(typeIdx >= 0 && !/출금|지출|출/i.test(c[typeIdx] || '')) continue;
       var amt = parseFloat((c[amtIdx] || '0').replace(/[^0-9.-]/g, ''));
       if(amt > 0 && c[dateIdx]) {
         var dateStr = c[dateIdx].replace(/\./g, '-').replace(/\//g, '-').substring(0, 10);
-        rows.push({ date: dateStr, desc: c[descIdx] || '', amount: amt, cat: classifyTx(c[descIdx] || '') });
+        var desc = c[descIdx] || '';
+        rows.push({ date: dateStr, desc: desc, amount: amt, cat: classifyTx(desc) });
       }
     }
   }
