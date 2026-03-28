@@ -2492,12 +2492,15 @@ function parseExcel(data, filename) {
     var typeIdx   = headers.findIndex(function(h){return /거래.?유형|구분|유형/.test(h);});
     for(var j=headerIdx+1;j<lines.length;j++){
       var c = lines[j].split(',').map(function(x){return x.trim().replace(/"/g,'');});
-      if(typeIdx>=0 && !/출금|지출|출/i.test(c[typeIdx]||'')) continue;
-      var amt = parseFloat((c[amtIdx]||'0').replace(/[^0-9.-]/g,''));
-      if(amt>0 && c[dateIdx]) {
-        var desc = c[descIdx]||'';
-        rows.push({ date: c[dateIdx].replace(/\./g,'-').replace(/\//g,'-').substring(0,10), desc: desc, amount: amt, cat: classifyTx(desc) });
-      }
+      if(!c[dateIdx]) continue;
+      var rawAmt = parseFloat((c[amtIdx]||'0').replace(/[^0-9\-\.]/g,''));
+      if(isNaN(rawAmt)||rawAmt===0) continue;
+      var txType = typeIdx>=0?(c[typeIdx]||''):'';
+      var isIncome = rawAmt>0||/^입금$|이자입금|프로모션입금|캐시백/.test(txType);
+      if(isIncome) continue;
+      var amt = Math.abs(rawAmt);
+      var desc = c[descIdx]||txType||'';
+      rows.push({ date: c[dateIdx].replace(/\./g,'-').replace(/\//g,'-').substring(0,10), desc: desc, amount: amt, cat: classifyTx(desc) });
     }
   } else {
     // XLSX / XLS — SheetJS로 파싱
@@ -2533,14 +2536,17 @@ function parseExcel(data, filename) {
 
     for(var j = headerIdx + 1; j < jsonRows.length; j++) {
       var c   = jsonRows[j].map(function(x){ return String(x).trim(); });
-      // 거래유형이 있으면 출금/지출만, 없으면 금액 양수인 것만
-      if(typeIdx >= 0 && !/출금|지출|출/i.test(c[typeIdx] || '')) continue;
-      var amt = parseFloat((c[amtIdx] || '0').replace(/[^0-9.-]/g, ''));
-      if(amt > 0 && c[dateIdx]) {
-        var dateStr = c[dateIdx].replace(/\./g, '-').replace(/\//g, '-').substring(0, 10);
-        var desc = c[descIdx] || '';
-        rows.push({ date: dateStr, desc: desc, amount: amt, cat: classifyTx(desc) });
-      }
+      if(!c[dateIdx]) continue;
+      var rawAmt = parseFloat((c[amtIdx] || '0').replace(/[^0-9\-\.]/g, ''));
+      if(isNaN(rawAmt) || rawAmt === 0) continue;
+      // 토스: 음수=지출, 양수=입금. 입금 유형 명시된 것도 제외
+      var txType = typeIdx >= 0 ? (c[typeIdx] || '') : '';
+      var isIncome = rawAmt > 0 || /^입금$|이자입금|프로모션입금|캐시백/.test(txType);
+      if(isIncome) continue;
+      var amt = Math.abs(rawAmt);
+      var dateStr = c[dateIdx].replace(/\./g, '-').replace(/\//g, '-').substring(0, 10);
+      var desc = c[descIdx] || txType || '';
+      rows.push({ date: dateStr, desc: desc, amount: amt, cat: classifyTx(desc) });
     }
   }
 
