@@ -2738,10 +2738,14 @@ function renderExcelPreview(detectedHeaders) {
       '<th style="text-align:left;color:var(--muted);padding:.4rem .3rem;border-bottom:1px solid var(--border)">내용</th>'+
       '<th style="text-align:left;color:var(--muted);padding:.4rem .3rem;border-bottom:1px solid var(--border)">분류</th>'+
       '<th style="text-align:right;color:var(--muted);padding:.4rem .3rem;border-bottom:1px solid var(--border)">금액</th>'+
+      '<th style="padding:.4rem .3rem;border-bottom:1px solid var(--border)"></th>'+
     '</tr></thead><tbody>'+
     parsedExcelRows.map(function(r,i){
       var clr = catColors[r.cat]||'var(--muted)';
       var catOpts = ['식료품','식비','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
+      var isIncome = r.amount < 0;
+      var amtClr = isIncome ? 'var(--success)' : 'var(--danger)';
+      var amtTxt = (isIncome ? '+' : '-') + fmtMoney(Math.abs(r.amount));
       return '<tr>'+
         '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4);color:var(--muted);font-family:JetBrains Mono,monospace;font-size:.75rem">'+r.date+'</td>'+
         '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.desc+'</td>'+
@@ -2750,10 +2754,18 @@ function renderExcelPreview(detectedHeaders) {
           catOpts.map(function(o){return '<option value="'+o+'"'+(o===r.cat?' selected':'')+'>'+o+'</option>';}).join('')+
           '</select>'+
         '</td>'+
-        '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4);text-align:right;font-family:JetBrains Mono,monospace;color:var(--danger)">-'+fmtMoney(r.amount)+'</td>'+
+        '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4);text-align:right;font-family:JetBrains Mono,monospace;color:'+amtClr+'">'+amtTxt+'</td>'+
+        '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4)">'+
+          '<button onclick="removePreviewRow('+i+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.85rem;padding:.1rem .3rem" title="제거">✕</button>'+
+        '</td>'+
       '</tr>';
     }).join('')+
     '</tbody></table>';
+}
+
+function removePreviewRow(i) {
+  parsedExcelRows.splice(i, 1);
+  renderExcelPreview();
 }
 
 function importExcelToBudget() {
