@@ -631,6 +631,17 @@ tr:hover td{background:rgba(108,138,255,.03)}
         </div>
       </div>
     </div>
+
+    <!-- AI 지출 분석 -->
+    <div class="card" style="margin-top:1.5rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <div class="sec-title" style="margin:0">🤖 AI 지출 분석</div>
+        <button class="btn btn-primary" onclick="analyzeBudgetAI()" id="ai-budget-btn">✨ 분석하기</button>
+      </div>
+      <div id="ai-budget-result" style="font-size:.88rem;line-height:1.8;color:var(--muted);text-align:center;padding:1.5rem">
+        분석하기 버튼을 누르면 이번 달과 전월 지출을 비교 분석해줘요
+      </div>
+    </div>
   </div>
 
   <!-- 자산 현황 -->
@@ -1550,6 +1561,74 @@ function deleteTx(id) {
   dbDelete('transactions', id);
   recalcBudget();
   renderTransactions();
+}
+
+async function analyzeBudgetAI() {
+  const btn = document.getElementById('ai-budget-btn');
+  const result = document.getElementById('ai-budget-result');
+  btn.disabled = true; btn.textContent = '⏳ 분석 중...';
+  result.style.color = 'var(--muted)';
+  result.textContent = 'AI가 지출 패턴을 분석하고 있어요...';
+
+  // 이번 달 데이터
+  const key = budgetKey();
+  const txs = S.get('txs_'+key) || [];
+
+  // 전월 데이터
+  var prevYear = budgetMonth === 1 ? budgetYear - 1 : budgetYear;
+  var prevMonth = budgetMonth === 1 ? 12 : budgetMonth - 1;
+  var prevKey = prevYear + '-' + String(prevMonth).padStart(2, '0');
+  const prevTxs = S.get('txs_'+prevKey) || [];
+
+  // 카테고리 집계
+  function sumByCat(list) {
+    var m = {};
+    list.forEach(function(t){ m[t.cat] = (m[t.cat]||0) + t.amount; });
+    return m;
+  }
+  const cur = sumByCat(txs);
+  const prev = sumByCat(prevTxs);
+  const curTotal = txs.reduce(function(s,t){return s+t.amount;},0);
+  const prevTotal = prevTxs.reduce(function(s,t){return s+t.amount;},0);
+
+  // 수입 데이터
+  const income = S.get('income_'+key) || {};
+  const totalIn = (income.yoonsik||0)+(income.yujin||0)+(income.bonusY||0)+(income.bonusU||0)+(income.etc||0);
+
+  const allCats = Array.from(new Set([...Object.keys(cur), ...Object.keys(prev)]));
+  const catSummary = allCats.map(function(c){
+    var diff = (cur[c]||0) - (prev[c]||0);
+    return c+': 이번달 '+fmtMoney(cur[c]||0)+', 전월 '+fmtMoney(prev[c]||0)+(diff!==0?' ('+( diff>0?'+':'')+fmtMoney(diff)+')':'');
+  }).join('\n');
+
+  const prompt = budgetYear+'년 '+budgetMonth+'월 가계부 AI 분석을 해주세요.\n\n'+
+    '【이번 달 총 지출】 '+fmtMoney(curTotal)+'\n'+
+    '【전월 총 지출】 '+fmtMoney(prevTotal)+'\n'+
+    '【이번 달 총 수입】 '+fmtMoney(totalIn)+'\n'+
+    '【카테고리별 비교】\n'+catSummary+'\n\n'+
+    '위 데이터를 바탕으로 3~5줄의 한국어 지출 인사이트를 작성해주세요. '+
+    '전월 대비 눈에 띄는 변화, 절약 가능한 항목, 긍정적인 부분을 구체적 금액으로 언급해주세요. '+
+    '딱딱하지 않고 친근한 어투로, 숫자는 만원 단위로 표기해주세요.';
+
+  try {
+    const apiKey = S.get('settings')?.claudeKey || S.get('claude_api_key') || '';
+    const res = await fetch('/api/claude', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ key: apiKey, prompt, max_tokens: 600 })
+    });
+    const data = await res.json();
+    if(data.error) throw new Error(data.error.message || data.error);
+    const text = data.content?.[0]?.text || '';
+    if(!text) throw new Error('응답 없음');
+    result.style.color = 'var(--text)';
+    result.innerHTML = text.replace(/\n/g,'<br/>');
+  } catch(err) {
+    checkCreditError(err.message);
+    result.style.color = 'var(--danger)';
+    result.textContent = '⚠️ 분석 실패: ' + err.message;
+  }
+  btn.disabled = false; btn.textContent = '✨ 분석하기';
 }
 
 try { document.getElementById('tx-date').value = today(); } catch(e){}
