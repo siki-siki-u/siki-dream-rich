@@ -1525,7 +1525,7 @@ function recalcBudget() {
 
   const key = budgetKey();
   const txs = S.get('txs_'+key) || [];
-  const totalExp = txs.reduce(function(s,t){return s+t.amount;},0);
+  const totalExp = txs.reduce(function(s,t){return s+(t.amount>0?t.amount:0);},0);
   const investable = totalIn - FIXED_COST - totalExp;
 
   document.getElementById('b-income').textContent    = fmtMoney(totalIn);
@@ -1589,7 +1589,8 @@ function renderTransactions() {
     '식료품':'var(--accent)','식비':'var(--accent2)','취미여가':'var(--accent3)',
     '교통/자동차':'var(--accent4)','편의점':'#a78bfa','의료':'#f87171',
     '구독비':'#34d399','관리비':'#60a5fa','경조사':'#f472b6',
-    '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'var(--muted)'
+    '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'var(--muted)',
+    '입금/환급':'var(--success)'
   };
 
   const chartEl = document.getElementById('b-cat-chart');
@@ -1621,7 +1622,7 @@ function renderTransactions() {
         '<td style="font-family:JetBrains Mono,monospace;font-size:.78rem">'+t.date+'</td>'+
         '<td><span class="badge" style="background:'+clr+'22;color:'+clr+'">'+t.cat+'</span></td>'+
         '<td style="color:var(--muted);font-size:.82rem">'+t.desc+'</td>'+
-        '<td style="font-family:JetBrains Mono,monospace;color:var(--danger);font-weight:600">-'+fmtMoney(t.amount)+'</td>'+
+        '<td style="font-family:JetBrains Mono,monospace;color:'+(t.amount<0?'var(--success)':'var(--danger)')+';font-weight:600">'+(t.amount<0?'+':'-')+fmtMoney(Math.abs(t.amount))+'</td>'+
         '<td><button onclick="deleteTx('+t.id+')" class="btn btn-danger" style="padding:.2rem .45rem;font-size:.72rem">삭제</button></td>'+
       '</tr>';
     }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:2rem">지출 내역이 없어요</td></tr>';
@@ -2571,9 +2572,10 @@ try {
   for(var i=0; i<12; i++){
     var y = d.getFullYear(); var m = d.getMonth()+1;
     var key = y+'-'+String(m).padStart(2,'0');
+    var endM = m===12?1:m+1; var endY = m===12?y+1:y;
     var opt = document.createElement('option');
     opt.value = key;
-    opt.textContent = y+'년 '+m+'월';
+    opt.textContent = y+'년 '+m+'월 ('+m+'.21~'+endM+'.20)';
     if(i===0) opt.selected = true;
     sel.appendChild(opt);
     d.setMonth(d.getMonth()-1);
@@ -2638,21 +2640,24 @@ function parseExcel(data, filename) {
     if(headerIdx<0){ headerIdx=0; headers=lines[0].split(',').map(function(c){return c.trim().replace(/"/g,'');}); }
     var dateIdx   = headers.findIndex(function(h){return /날짜|일자|거래.?일/.test(h);});
     var descIdx   = headers.findIndex(function(h){return /적요|내용|설명/.test(h);});
-    if(descIdx<0) descIdx = headers.findIndex(function(h){return /기관|메모|거래처/.test(h);});
+    if(descIdx<0) descIdx = headers.findIndex(function(h){return /기관|거래처/.test(h);});
     var amtIdx    = headers.findIndex(function(h){return /거래.?금액|출금|지출/.test(h);});
     if(amtIdx<0) amtIdx = headers.findIndex(function(h){return /금액/.test(h);});
     var typeIdx   = headers.findIndex(function(h){return /거래.?유형|구분|유형/.test(h);});
+    var memoIdx   = headers.findIndex(function(h){return /^메모$/.test(h);});
     for(var j=headerIdx+1;j<lines.length;j++){
       var c = lines[j].split(',').map(function(x){return x.trim().replace(/"/g,'');});
       if(!c[dateIdx]) continue;
       var rawAmt = parseFloat((c[amtIdx]||'0').replace(/[^0-9\-\.]/g,''));
       if(isNaN(rawAmt)||rawAmt===0) continue;
       var txType = typeIdx>=0?(c[typeIdx]||''):'';
-      var isIncome = rawAmt>0||/^입금$|이자입금|프로모션입금|캐시백/.test(txType);
-      if(isIncome) continue;
-      var amt = Math.abs(rawAmt);
-      var desc = c[descIdx]||txType||'';
-      rows.push({ date: c[dateIdx].replace(/\./g,'-').replace(/\//g,'-').substring(0,10), desc: desc, amount: amt, cat: classifyTx(desc) });
+      var memo = memoIdx>=0?(c[memoIdx]||''):'';
+      var baseDesc = c[descIdx]||txType||'';
+      var desc = memo ? baseDesc+' ('+memo+')' : baseDesc;
+      var isIncome = rawAmt > 0;
+      var amt = isIncome ? -Math.abs(rawAmt) : Math.abs(rawAmt);
+      var cat = isIncome ? '입금/환급' : classifyTx(desc);
+      rows.push({ date: c[dateIdx].replace(/\./g,'-').replace(/\//g,'-').substring(0,10), desc: desc, amount: amt, cat: cat });
     }
   } else {
     // XLSX / XLS — SheetJS로 파싱
@@ -2681,24 +2686,26 @@ function parseExcel(data, filename) {
 
     var dateIdx = headers.findIndex(function(h){ return /날짜|일자|거래.?일/.test(h); });
     var descIdx = headers.findIndex(function(h){ return /적요|내용|설명/.test(h); });
-    if(descIdx < 0) descIdx = headers.findIndex(function(h){ return /기관|메모|거래처/.test(h); });
+    if(descIdx < 0) descIdx = headers.findIndex(function(h){ return /기관|거래처/.test(h); });
     var amtIdx  = headers.findIndex(function(h){ return /거래.?금액|출금|지출/.test(h); });
     if(amtIdx < 0) amtIdx = headers.findIndex(function(h){ return /금액/.test(h); });
     var typeIdx = headers.findIndex(function(h){ return /거래.?유형|구분|유형/.test(h); });
+    var memoIdx = headers.findIndex(function(h){ return /^메모$/.test(h); });
 
     for(var j = headerIdx + 1; j < jsonRows.length; j++) {
       var c   = jsonRows[j].map(function(x){ return String(x).trim(); });
       if(!c[dateIdx]) continue;
       var rawAmt = parseFloat((c[amtIdx] || '0').replace(/[^0-9\-\.]/g, ''));
       if(isNaN(rawAmt) || rawAmt === 0) continue;
-      // 토스: 음수=지출, 양수=입금. 입금 유형 명시된 것도 제외
       var txType = typeIdx >= 0 ? (c[typeIdx] || '') : '';
-      var isIncome = rawAmt > 0 || /^입금$|이자입금|프로모션입금|캐시백/.test(txType);
-      if(isIncome) continue;
-      var amt = Math.abs(rawAmt);
+      var memo   = memoIdx >= 0 ? (c[memoIdx] || '') : '';
+      var baseDesc = c[descIdx] || txType || '';
+      var desc = memo ? baseDesc + ' (' + memo + ')' : baseDesc;
+      var isIncome = rawAmt > 0;
+      var amt = isIncome ? -Math.abs(rawAmt) : Math.abs(rawAmt);
+      var cat = isIncome ? '입금/환급' : classifyTx(desc);
       var dateStr = c[dateIdx].replace(/\./g, '-').replace(/\//g, '-').substring(0, 10);
-      var desc = c[descIdx] || txType || '';
-      rows.push({ date: dateStr, desc: desc, amount: amt, cat: classifyTx(desc) });
+      rows.push({ date: dateStr, desc: desc, amount: amt, cat: cat });
     }
   }
 
@@ -2719,10 +2726,12 @@ function renderExcelPreview(detectedHeaders) {
     '식료품':'var(--accent)','식비':'var(--accent2)','취미여가':'var(--accent3)',
     '교통/자동차':'var(--accent4)','편의점':'#a78bfa','의료':'#f87171',
     '구독비':'#34d399','관리비':'#60a5fa','경조사':'#f472b6',
-    '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'var(--muted)'
+    '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'var(--muted)','입금/환급':'var(--success)'
   };
+  var expCnt = parsedExcelRows.filter(function(r){return r.amount>0;}).length;
+  var incCnt = parsedExcelRows.filter(function(r){return r.amount<0;}).length;
   el.innerHTML =
-    '<div style="font-size:.82rem;color:var(--accent3);margin-bottom:.8rem">✅ '+parsedExcelRows.length+'건 인식됨 — 분류를 확인하고 가져오기 버튼을 눌러주세요</div>'+
+    '<div style="font-size:.82rem;color:var(--accent3);margin-bottom:.8rem">✅ '+parsedExcelRows.length+'건 인식됨 (지출 '+expCnt+'건 · 입금/환급 '+incCnt+'건) — 분류를 확인하고 가져오기 버튼을 눌러주세요</div>'+
     '<table style="width:100%;border-collapse:collapse;font-size:.8rem">'+
     '<thead><tr>'+
       '<th style="text-align:left;color:var(--muted);padding:.4rem .3rem;border-bottom:1px solid var(--border)">날짜</th>'+
@@ -2732,7 +2741,7 @@ function renderExcelPreview(detectedHeaders) {
     '</tr></thead><tbody>'+
     parsedExcelRows.map(function(r,i){
       var clr = catColors[r.cat]||'var(--muted)';
-      var catOpts = ['식료품','식비','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타'];
+      var catOpts = ['식료품','식비','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
       return '<tr>'+
         '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4);color:var(--muted);font-family:JetBrains Mono,monospace;font-size:.75rem">'+r.date+'</td>'+
         '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.desc+'</td>'+
