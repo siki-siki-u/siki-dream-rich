@@ -359,6 +359,10 @@ tr:hover td{background:rgba(108,138,255,.03)}
     <div class="nav-label">내집마련</div>
     <div class="nav-item" onclick="showPage('realty',this);closeSidebar()"><span class="icon">🏠</span> 부동산 관리</div>
   </div>
+  <div class="nav-section">
+    <div class="nav-label">경조사</div>
+    <div class="nav-item" onclick="showPage('gifts',this);closeSidebar()"><span class="icon">🎁</span> 축의금 장부</div>
+  </div>
 
   <div class="sidebar-footer">
     <button class="settings-btn" onclick="openSettings()">⚙️ 설정</button>
@@ -1160,6 +1164,74 @@ tr:hover td{background:rgba(108,138,255,.03)}
     <div id="apt-list"></div>
   </div>
 
+  <!-- 축의금 장부 -->
+  <div class="page" id="page-gifts">
+    <div class="page-header">
+      <h2>🎁 축의금 장부</h2>
+      <p>받은 축의금을 조회하고 답례 금액을 확인해요</p>
+    </div>
+
+    <!-- 검색 -->
+    <div class="card" style="margin-bottom:1.5rem">
+      <div class="sec-title">🔍 이름 검색</div>
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+        <select id="gift-search-person" style="min-width:90px">
+          <option value="">전체</option>
+          <option value="윤식">윤식</option>
+          <option value="유진">유진</option>
+        </select>
+        <input type="text" id="gift-search-name" placeholder="이름 입력 (예: 홍길동)" style="flex:1;min-width:150px"
+          onkeydown="if(event.key==='Enter') searchGifts()"/>
+        <button class="btn btn-primary" onclick="searchGifts()">검색</button>
+        <button class="btn btn-ghost" onclick="clearGiftSearch()">전체 보기</button>
+      </div>
+      <div id="gift-search-result" style="margin-top:1rem"></div>
+    </div>
+
+    <div class="grid2" style="align-items:start">
+      <!-- 새 항목 추가 -->
+      <div class="card">
+        <div class="sec-title">➕ 내역 추가</div>
+        <div style="display:flex;flex-direction:column;gap:.6rem">
+          <div style="display:flex;gap:.5rem">
+            <select id="gift-person" style="flex:1">
+              <option value="윤식">윤식</option>
+              <option value="유진">유진</option>
+            </select>
+            <input type="text" id="gift-name" placeholder="이름" style="flex:2"/>
+          </div>
+          <div style="display:flex;gap:.5rem">
+            <input type="number" id="gift-amount" placeholder="금액 (만원)" style="flex:1"/>
+            <select id="gift-type" style="flex:1">
+              <option value="결혼">결혼</option>
+              <option value="돌잔치">돌잔치</option>
+              <option value="장례">장례</option>
+              <option value="기타">기타</option>
+            </select>
+          </div>
+          <input type="date" id="gift-date"/>
+          <input type="text" id="gift-memo" placeholder="메모 (선택)"/>
+          <button class="btn btn-success" onclick="addGift()">추가하기 ➕</button>
+        </div>
+      </div>
+
+      <!-- 전체 목록 -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
+          <div class="sec-title" style="margin:0">📋 전체 내역</div>
+          <div style="display:flex;gap:.4rem;align-items:center">
+            <select id="gift-filter-person" onchange="renderGiftList()" style="font-size:.8rem;padding:.25rem .4rem">
+              <option value="">전체</option>
+              <option value="윤식">윤식</option>
+              <option value="유진">유진</option>
+            </select>
+          </div>
+        </div>
+        <div id="gift-list" style="max-height:400px;overflow-y:auto"></div>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <!-- SETTINGS MODAL -->
@@ -1266,6 +1338,7 @@ function showPage(id, el) {
   if(id==='youtube') { renderYtLibrary(); }
   if(id==='journal') { renderJournal(); fetchFearGreed(); }
   if(id==='realty')  { renderRealty(); }
+  if(id==='gifts')   { renderGiftList(); }
   if(id==='market')  { /* TradingView widgets load automatically */ }
 }
 
@@ -1388,6 +1461,119 @@ function renderGoalWidget() {
       (predText ? '<div style="font-size:.83rem;color:var(--muted);text-align:center;padding:.4rem 0;border-top:1px solid var(--border);margin-top:.4rem">'+predText+'</div>' : '') +
     '</div>';
 }
+
+// ── GIFTS (축의금 장부) ──
+var giftsCache = [];
+
+async function loadGifts() {
+  if(!supa) return;
+  const { data, error } = await supa.from('gifts').select('*').order('event_date', {ascending: false});
+  if(!error && data) giftsCache = data;
+}
+
+async function addGift() {
+  const person = document.getElementById('gift-person').value;
+  const name   = document.getElementById('gift-name').value.trim();
+  const amount = parseInt(document.getElementById('gift-amount').value) || 0;
+  const type   = document.getElementById('gift-type').value;
+  const date   = document.getElementById('gift-date').value || null;
+  const memo   = document.getElementById('gift-memo').value.trim();
+  if(!name || !amount) { alert('이름과 금액을 입력해주세요.'); return; }
+  const row = { person, name, amount, event_type: type, event_date: date, memo: memo || null };
+  if(supa) {
+    const { data, error } = await supa.from('gifts').insert(row).select().single();
+    if(error) { alert('저장 실패: ' + error.message); return; }
+    giftsCache.unshift(data);
+  } else {
+    giftsCache.unshift({ ...row, id: Date.now() });
+  }
+  document.getElementById('gift-name').value = '';
+  document.getElementById('gift-amount').value = '';
+  document.getElementById('gift-memo').value = '';
+  document.getElementById('gift-date').value = '';
+  renderGiftList();
+  alert('✅ 추가됐어요!');
+}
+
+async function deleteGift(id) {
+  if(!confirm('삭제할까요?')) return;
+  if(supa) await supa.from('gifts').delete().eq('id', id);
+  giftsCache = giftsCache.filter(function(g){ return g.id !== id; });
+  renderGiftList();
+}
+
+function searchGifts() {
+  const person = document.getElementById('gift-search-person').value;
+  const name   = document.getElementById('gift-search-name').value.trim();
+  const el     = document.getElementById('gift-search-result');
+  if(!name) { el.innerHTML = '<div style="color:var(--muted);font-size:.85rem">이름을 입력해주세요.</div>'; return; }
+
+  const results = giftsCache.filter(function(g) {
+    var nameMatch = g.name.includes(name);
+    var personMatch = !person || g.person === person;
+    return nameMatch && personMatch;
+  });
+
+  if(!results.length) {
+    el.innerHTML = '<div style="background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.2);border-radius:10px;padding:1.2rem;text-align:center;color:var(--muted);font-size:.88rem">' +
+      '😔 <b style="color:var(--text)">'+name+'</b>님의 데이터가 없어요.<br/><span style="font-size:.78rem">아직 등록되지 않은 분이에요.</span></div>';
+    return;
+  }
+
+  const total = results.reduce(function(s,g){ return s + g.amount; }, 0);
+  el.innerHTML = '<div style="background:rgba(108,138,255,.08);border:1px solid rgba(108,138,255,.2);border-radius:10px;padding:1rem">' +
+    '<div style="font-size:.9rem;margin-bottom:.8rem"><b style="color:var(--text)">'+name+'</b>님 검색 결과 — '+results.length+'건 · 합계 <b style="color:var(--accent)">'+total.toLocaleString()+'만원</b></div>' +
+    results.map(function(g) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem .6rem;background:var(--surface2);border-radius:8px;margin-bottom:.4rem;font-size:.83rem">' +
+        '<div>' +
+          '<span style="background:var(--accent)22;color:var(--accent);padding:.1rem .4rem;border-radius:4px;font-size:.75rem;margin-right:.4rem">'+g.person+'</span>' +
+          '<b style="color:var(--text)">'+g.name+'</b>' +
+          (g.event_date ? ' <span style="color:var(--muted)">· '+g.event_date.substring(0,10)+'</span>' : '') +
+          (g.event_type ? ' <span style="color:var(--muted)">· '+g.event_type+'</span>' : '') +
+          (g.memo ? '<br/><span style="color:var(--muted);font-size:.78rem">📝 '+g.memo+'</span>' : '') +
+        '</div>' +
+        '<b style="color:var(--accent3);font-family:JetBrains Mono,monospace">'+g.amount.toLocaleString()+'만원</b>' +
+      '</div>';
+    }).join('') +
+  '</div>';
+}
+
+function clearGiftSearch() {
+  document.getElementById('gift-search-name').value = '';
+  document.getElementById('gift-search-person').value = '';
+  document.getElementById('gift-search-result').innerHTML = '';
+  renderGiftList();
+}
+
+function renderGiftList() {
+  const el = document.getElementById('gift-list');
+  if(!el) return;
+  const filterPerson = document.getElementById('gift-filter-person')?.value || '';
+  const list = giftsCache.filter(function(g){ return !filterPerson || g.person === filterPerson; });
+
+  if(!list.length) {
+    el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:2rem;font-size:.85rem">내역이 없어요.<br/>왼쪽에서 추가해주세요.</div>';
+    return;
+  }
+  el.innerHTML = list.map(function(g) {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.6rem .5rem;border-bottom:1px solid var(--border);font-size:.82rem">' +
+      '<div>' +
+        '<span style="background:var(--accent)22;color:var(--accent);padding:.1rem .35rem;border-radius:4px;font-size:.72rem;margin-right:.35rem">'+g.person+'</span>' +
+        '<b style="color:var(--text)">'+g.name+'</b>' +
+        ' <span style="color:var(--muted);font-size:.75rem">'+g.event_type+'</span>' +
+        (g.event_date ? '<br/><span style="color:var(--muted);font-size:.75rem">'+g.event_date.substring(0,10)+'</span>' : '') +
+        (g.memo ? ' <span style="color:var(--muted);font-size:.75rem">· '+g.memo+'</span>' : '') +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:.5rem">' +
+        '<b style="color:var(--accent4);font-family:JetBrains Mono,monospace">'+g.amount.toLocaleString()+'만원</b>' +
+        '<button onclick="deleteGift('+g.id+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem" title="삭제">✕</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// 앱 시작 시 gifts 로드
+loadGifts();
 
 // ── CALENDAR ──
 let calYear = new Date().getFullYear();
