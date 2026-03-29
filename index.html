@@ -1471,12 +1471,6 @@ async function addGift() {
   alert('✅ 추가됐어요!');
 }
 
-async function deleteGift(id) {
-  if(!confirm('삭제할까요?')) return;
-  if(supa) await supa.from('gifts').delete().eq('id', id);
-  giftsCache = giftsCache.filter(function(g){ return g.id !== id; });
-  renderGiftList();
-}
 
 function searchGifts() {
   const person = document.getElementById('gift-search-person').value;
@@ -1542,7 +1536,6 @@ function renderGiftList() {
       '</div>' +
       '<div style="display:flex;align-items:center;gap:.5rem">' +
         '<b style="color:var(--accent4);font-family:JetBrains Mono,monospace">'+g.amount.toLocaleString()+'만원</b>' +
-        '<button onclick="deleteGift('+g.id+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem" title="삭제">✕</button>' +
       '</div>' +
     '</div>';
   }).join('');
