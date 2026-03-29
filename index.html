@@ -341,27 +341,29 @@ tr:hover td{background:rgba(108,138,255,.03)}
     <h1>🏠 식식이와징구</h1>
     <p>나만의 개인 대시보드</p>
   </div>
-  <div class="nav-section">
-    <div class="nav-label">메인</div>
-    <div class="nav-item active" onclick="showPage('dashboard',this);closeSidebar()"><span class="icon">🏠</span> 대시보드</div>
-    <div class="nav-item" onclick="showPage('calendar',this);closeSidebar()"><span class="icon">📅</span> 캘린더</div>
-  </div>
-  <div class="nav-section">
-    <div class="nav-label">재정</div>
-    <div class="nav-item" onclick="showPage('budget',this);closeSidebar()"><span class="icon">💰</span> 가계부</div>
-    <div class="nav-item" onclick="showPage('assets',this);closeSidebar()"><span class="icon">🏦</span> 자산 현황</div>
-    <div class="nav-item" onclick="showPage('stocks',this);closeSidebar()"><span class="icon">💼</span> 투자현황</div>
-    <div class="nav-item" onclick="showPage('market',this);closeSidebar()"><span class="icon">📊</span> 마켓 현황</div>
-    <div class="nav-item" onclick="showPage('youtube',this);closeSidebar()"><span class="icon">▶️</span> 올랜도킴 분석</div>
-    <div class="nav-item" onclick="showPage('journal',this);closeSidebar()"><span class="icon">📝</span> 투자 일지</div>
-  </div>
-  <div class="nav-section">
-    <div class="nav-label">내집마련</div>
-    <div class="nav-item" onclick="showPage('realty',this);closeSidebar()"><span class="icon">🏠</span> 부동산 관리</div>
-  </div>
-  <div class="nav-section">
-    <div class="nav-label">경조사</div>
-    <div class="nav-item" onclick="showPage('gifts',this);closeSidebar()"><span class="icon">🎁</span> 축의금 장부</div>
+  <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch">
+    <div class="nav-section">
+      <div class="nav-label">메인</div>
+      <div class="nav-item active" onclick="showPage('dashboard',this);closeSidebar()"><span class="icon">🏠</span> 대시보드</div>
+      <div class="nav-item" onclick="showPage('calendar',this);closeSidebar()"><span class="icon">📅</span> 캘린더</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">재정</div>
+      <div class="nav-item" onclick="showPage('budget',this);closeSidebar()"><span class="icon">💰</span> 가계부</div>
+      <div class="nav-item" onclick="showPage('assets',this);closeSidebar()"><span class="icon">🏦</span> 자산 현황</div>
+      <div class="nav-item" onclick="showPage('stocks',this);closeSidebar()"><span class="icon">💼</span> 투자현황</div>
+      <div class="nav-item" onclick="showPage('market',this);closeSidebar()"><span class="icon">📊</span> 마켓 현황</div>
+      <div class="nav-item" onclick="showPage('youtube',this);closeSidebar()"><span class="icon">▶️</span> 올랜도킴 분석</div>
+      <div class="nav-item" onclick="showPage('journal',this);closeSidebar()"><span class="icon">📝</span> 투자 일지</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">내집마련</div>
+      <div class="nav-item" onclick="showPage('realty',this);closeSidebar()"><span class="icon">🏠</span> 부동산 관리</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">경조사</div>
+      <div class="nav-item" onclick="showPage('gifts',this);closeSidebar()"><span class="icon">🎁</span> 축의금 장부</div>
+    </div>
   </div>
 
   <div class="sidebar-footer">
