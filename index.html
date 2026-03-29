@@ -1188,34 +1188,8 @@ tr:hover td{background:rgba(108,138,255,.03)}
       <div id="gift-search-result" style="margin-top:1rem"></div>
     </div>
 
-    <div class="grid2" style="align-items:start">
-      <!-- 새 항목 추가 -->
-      <div class="card">
-        <div class="sec-title">➕ 내역 추가</div>
-        <div style="display:flex;flex-direction:column;gap:.6rem">
-          <div style="display:flex;gap:.5rem">
-            <select id="gift-person" style="flex:1">
-              <option value="윤식">윤식</option>
-              <option value="유진">유진</option>
-            </select>
-            <input type="text" id="gift-name" placeholder="이름" style="flex:2"/>
-          </div>
-          <div style="display:flex;gap:.5rem">
-            <input type="number" id="gift-amount" placeholder="금액 (만원)" style="flex:1"/>
-            <select id="gift-type" style="flex:1">
-              <option value="결혼">결혼</option>
-              <option value="돌잔치">돌잔치</option>
-              <option value="장례">장례</option>
-              <option value="기타">기타</option>
-            </select>
-          </div>
-          <input type="date" id="gift-date"/>
-          <input type="text" id="gift-memo" placeholder="메모 (선택)"/>
-          <button class="btn btn-success" onclick="addGift()">추가하기 ➕</button>
-        </div>
-      </div>
-
-      <!-- 전체 목록 -->
+    <!-- 전체 목록 -->
+    <div>
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
           <div class="sec-title" style="margin:0">📋 전체 내역</div>
@@ -1227,7 +1201,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
             </select>
           </div>
         </div>
-        <div id="gift-list" style="max-height:400px;overflow-y:auto"></div>
+        <div id="gift-list" style="max-height:600px;overflow-y:auto"></div>
       </div>
     </div>
   </div>
