@@ -678,44 +678,17 @@ tr:hover td{background:rgba(108,138,255,.03)}
       </div>
     </div>
 
-    <!-- 입력 + breakdown -->
+    <!-- 최신 자산 현황 -->
     <div class="grid2" style="align-items:start;margin-bottom:1.5rem">
       <div class="card">
-        <div class="sec-title">💼 자산 입력</div>
-        <div style="display:flex;flex-direction:column;gap:.45rem;font-size:.86rem">
-
-          <div style="color:var(--accent);font-size:.72rem;letter-spacing:.08em;margin-top:.2rem">📈 투자</div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:120px">토스증권 (유진)</label><input type="number" id="a-toss" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:120px">ISA계좌 (유진)</label><input type="number" id="a-isa" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:120px">금계좌 (유진)</label><input type="number" id="a-gold" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:120px">코인 (유진)</label><input type="number" id="a-coin-u" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:120px">코인 (윤식)</label><input type="number" id="a-coin-y" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:120px">펀드 (유진)</label><input type="number" id="a-fund" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:120px">주택청약 (유진)</label><input type="number" id="a-cheongyak" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:120px">토스적금 (유진)</label><input type="number" id="a-savings-u" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:120px">토스적금 (윤식)</label><input type="number" id="a-savings-y" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:120px">개인주식 (유진)</label><input type="number" id="a-stock-u" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-
-          <div style="color:var(--accent2);font-size:.72rem;letter-spacing:.08em;margin-top:.4rem">🏠 부동산</div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:120px">전세금</label><input type="number" id="a-jeonse" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-
-          <div style="color:var(--accent3);font-size:.72rem;letter-spacing:.08em;margin-top:.4rem">🛡️ 비상금 / 노후</div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:120px">CMA (유진)</label><input type="number" id="a-cma" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:120px">퇴직연금 (유진)</label><input type="number" id="a-ret-u" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:120px">퇴직연금 (윤식)</label><input type="number" id="a-ret-y" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-
-          <button class="btn btn-primary" style="margin-top:.6rem" onclick="saveAssets()">자산 저장 💾</button>
+        <div class="sec-title">📊 최신 자산 구성</div>
+        <div id="a-breakdown" style="display:flex;flex-direction:column;gap:.5rem;font-size:.85rem">
+          <div style="color:var(--muted);text-align:center;padding:2rem;font-size:.83rem">캡처를 업로드하면 자동으로 분석돼요</div>
         </div>
       </div>
-      <div>
-        <div class="card" style="margin-bottom:1rem">
-          <div class="sec-title">📊 자산 구성</div>
-          <div id="a-breakdown" style="display:flex;flex-direction:column;gap:.5rem;font-size:.85rem"></div>
-        </div>
-        <div class="card">
-          <div class="sec-title">📅 월별 기록</div>
-          <div id="a-history" style="max-height:280px;overflow-y:auto"></div>
-        </div>
+      <div class="card">
+        <div class="sec-title">📅 월별 기록</div>
+        <div id="a-history" style="max-height:320px;overflow-y:auto"></div>
       </div>
     </div>
 
@@ -1460,7 +1433,7 @@ function showPage(id, el) {
   if(id==='dashboard') refreshDashboard();
   if(id==='calendar') renderCalendar();
   if(id==='budget') { renderBudget(); }
-  if(id==='assets') { loadAssetInputs(); renderAssetBreakdown(); renderAssetHistory(); renderGoalWidget(); renderAssetShotHistory(); renderAssetTrend(); }
+  if(id==='assets') { renderSnapshotStats(); renderAssetBreakdown(); renderAssetHistory(); renderGoalWidget(); renderAssetShotHistory(); renderAssetTrend(); }
   if(id==='stocks') { renderInvestStats(); }
   if(id==='youtube') { renderYtLibrary(); }
   if(id==='journal') { renderJournal(); fetchFearGreed(); }
@@ -1538,9 +1511,9 @@ function renderGoalWidget() {
   const goalYear = S.get('goal_year')   || 0;
   if(!goalAmt) { el.style.display='none'; return; }
 
-  // 현재 투자 자산 (전세 제외)
-  const latest = S.get('assets_latest') || {};
-  const investAmt = ASSET_FIELDS.filter(function(f){return f.group!=='realty';}).reduce(function(s,f){return s+(latest[f.id]||0);},0) / 10000;
+  // 현재 투자 자산 (스냅샷 기반)
+  const snapData = getLatestSnapshotData();
+  const investAmt = (snapData.invest + snapData.reserve) / 10000;
 
   // 월 저축액: 최근 3개월 평균
   var monthlySaving = 0;
@@ -2258,110 +2231,98 @@ function loadAssetInputs() {
   recalcAssets();
 }
 
-function recalcAssets() {
-  var vals = {};
-  ASSET_FIELDS.forEach(function(f){
-    var el = document.getElementById(f.id);
-    vals[f.id] = el ? (parseFloat(el.value)||0) : 0;
-  });
-  var invest  = ASSET_FIELDS.filter(function(f){return f.group==='invest';}).reduce(function(s,f){return s+vals[f.id];},0);
-  var realty  = ASSET_FIELDS.filter(function(f){return f.group==='realty';}).reduce(function(s,f){return s+vals[f.id];},0);
-  var reserve = ASSET_FIELDS.filter(function(f){return f.group==='reserve';}).reduce(function(s,f){return s+vals[f.id];},0);
-  var total   = invest + realty + reserve;
+function recalcAssets() { renderSnapshotStats(); }
 
+// 최신 스냅샷에서 통계 계산
+function getLatestSnapshotData() {
+  var snaps = S.get('asset_snapshots') || [];
+  var byPerson = {};
+  snaps.forEach(function(s) {
+    if(!byPerson[s.person] || s.date > byPerson[s.person].date) byPerson[s.person] = s;
+  });
+  var allItems = [];
+  Object.values(byPerson).forEach(function(s){ allItems = allItems.concat(s.items || []); });
+  var total   = Object.values(byPerson).reduce(function(sum,s){ return sum+(s.total||0); }, 0);
+  var invest  = allItems.filter(function(i){ return ['investment','fund','crypto'].includes(i.category); }).reduce(function(s,i){ return s+i.value; },0);
+  var reserve = allItems.filter(function(i){ return ['savings','pension'].includes(i.category); }).reduce(function(s,i){ return s+i.value; },0);
+  return { total: total, invest: invest, reserve: reserve, allItems: allItems, byPerson: byPerson };
+}
+
+function renderSnapshotStats() {
+  var d = getLatestSnapshotData();
   var at = document.getElementById('a-total');
   var ai = document.getElementById('a-invest');
   var ar = document.getElementById('a-reserve');
-  if(at) at.textContent = fmtMoney(total);
-  if(ai) ai.textContent = fmtMoney(invest);
-  if(ar) ar.textContent = fmtMoney(reserve);
-
-  renderAssetBreakdown(vals, invest, realty, reserve, total);
+  if(at) at.textContent = fmtMoney(d.total);
+  if(ai) ai.textContent = fmtMoney(d.invest);
+  if(ar) ar.textContent = fmtMoney(d.reserve);
 }
 
-function renderAssetBreakdown(vals, invest, realty, reserve, total) {
-  if(!vals) {
-    var data = S.get('assets_'+assetMonthKey()) || S.get('assets_latest') || {};
-    vals={};
-    ASSET_FIELDS.forEach(function(f){vals[f.id]=data[f.id]||0;});
-    invest  = ASSET_FIELDS.filter(function(f){return f.group==='invest';}).reduce(function(s,f){return s+vals[f.id];},0);
-    realty  = ASSET_FIELDS.filter(function(f){return f.group==='realty';}).reduce(function(s,f){return s+vals[f.id];},0);
-    reserve = ASSET_FIELDS.filter(function(f){return f.group==='reserve';}).reduce(function(s,f){return s+vals[f.id];},0);
-    total   = invest + realty + reserve;
-    var at = document.getElementById('a-total');
-    var ai = document.getElementById('a-invest');
-    var ar = document.getElementById('a-reserve');
-    if(at) at.textContent = fmtMoney(total);
-    if(ai) ai.textContent = fmtMoney(invest);
-    if(ar) ar.textContent = fmtMoney(reserve);
-  }
+function renderAssetBreakdown() {
   var el = document.getElementById('a-breakdown');
   if(!el) return;
-  if(!total){ el.innerHTML='<div style="color:var(--muted);text-align:center;padding:1.5rem;font-size:.85rem">자산을 입력하고 저장해 주세요</div>'; return; }
-  var groups = [
-    {label:'📈 투자',   val:invest,  clr:'var(--accent)'},
-    {label:'🏠 전세금', val:realty,  clr:'var(--accent2)'},
-    {label:'🛡️ 비상금', val:reserve, clr:'var(--accent3)'},
-  ];
-  el.innerHTML = groups.map(function(g){
-    var pct = total>0 ? Math.round(g.val/total*100) : 0;
-    return '<div style="margin-bottom:.7rem">'+
-      '<div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:.25rem">'+
-        '<span style="color:var(--text)">'+g.label+'</span>'+
-        '<span style="font-family:JetBrains Mono,monospace;color:'+g.clr+'">'+fmtMoney(g.val)+' ('+pct+'%)</span>'+
-      '</div>'+
-      '<div style="background:var(--border);border-radius:4px;height:7px">'+
-        '<div style="background:'+g.clr+';width:'+pct+'%;height:100%;border-radius:4px;transition:width .5s"></div>'+
-      '</div></div>';
-  }).join('') +
-  '<div style="border-top:1px solid var(--border);margin:.7rem 0;padding-top:.7rem;display:flex;justify-content:space-between;font-weight:700;font-size:.88rem">'+
-    '<span style="color:var(--text)">총 자산</span>'+
-    '<span style="font-family:JetBrains Mono,monospace;color:var(--accent4)">'+fmtMoney(total)+'</span>'+
-  '</div>'+
-  ASSET_FIELDS.filter(function(f){return vals[f.id]>0;}).map(function(f){
-    return '<div style="display:flex;justify-content:space-between;font-size:.79rem;padding:.2rem 0;border-bottom:1px solid rgba(42,48,72,.25)">'+
-      '<span style="color:var(--muted)">'+f.label+'</span>'+
-      '<span style="font-family:JetBrains Mono,monospace">'+fmtMoney(vals[f.id])+'</span>'+
-    '</div>';
-  }).join('');
+  var d = getLatestSnapshotData();
+  if(!d.total){ el.innerHTML='<div style="color:var(--muted);text-align:center;padding:2rem;font-size:.83rem">캡처를 업로드하면 자동으로 분석돼요</div>'; return; }
+
+  var catMap = { investment:'📈 주식/ETF', crypto:'🪙 코인', savings:'💰 예금/적금', pension:'🛡️ 연금/IRP', fund:'📂 펀드', etc:'📌 기타' };
+  var catClr = { investment:'var(--accent)', crypto:'var(--accent4)', savings:'var(--accent3)', pension:'var(--success)', fund:'var(--accent2)', etc:'var(--muted)' };
+
+  // 카테고리별 합산
+  var catTotals = {};
+  d.allItems.forEach(function(i){
+    catTotals[i.category] = (catTotals[i.category]||0) + i.value;
+  });
+
+  var groups = Object.entries(catTotals).sort(function(a,b){return b[1]-a[1];});
+  el.innerHTML =
+    groups.map(function(g){
+      var pct = Math.round(g[1]/d.total*100);
+      var lbl = catMap[g[0]] || g[0];
+      var clr = catClr[g[0]] || 'var(--muted)';
+      return '<div style="margin-bottom:.7rem">'+
+        '<div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:.25rem">'+
+          '<span>'+lbl+'</span>'+
+          '<span style="font-family:JetBrains Mono,monospace;color:'+clr+'">'+fmtMoney(g[1])+' ('+pct+'%)</span>'+
+        '</div>'+
+        '<div style="background:var(--border);border-radius:4px;height:7px">'+
+          '<div style="background:'+clr+';width:'+pct+'%;height:100%;border-radius:4px;transition:width .5s"></div>'+
+        '</div></div>';
+    }).join('') +
+    '<div style="border-top:1px solid var(--border);margin:.7rem 0;padding-top:.7rem;display:flex;justify-content:space-between;font-weight:700;font-size:.88rem">'+
+      '<span>총 자산</span><span style="font-family:JetBrains Mono,monospace;color:var(--accent4)">'+fmtMoney(d.total)+'</span>'+
+    '</div>'+
+    // 세부 항목
+    d.allItems.filter(function(i){return i.value>0;}).map(function(i){
+      return '<div style="display:flex;justify-content:space-between;font-size:.79rem;padding:.2rem 0;border-bottom:1px solid rgba(42,48,72,.25)">'+
+        '<span style="color:var(--muted)">'+i.name+'</span>'+
+        '<span style="font-family:JetBrains Mono,monospace">'+fmtMoney(i.value)+'</span>'+
+      '</div>';
+    }).join('');
 }
 
-function saveAssets() {
-  var key = assetMonthKey();
-  var data = {};
-  ASSET_FIELDS.forEach(function(f){
-    var el = document.getElementById(f.id);
-    data[f.id] = el ? (parseFloat(el.value)||0) : 0;
-  });
-  data.savedAt = today();
-  S.set('assets_'+key, data);
-  S.set('assets_latest', data);
-  dbUpsert('assets', {month_key: key, data: data, saved_at: data.savedAt});
-  renderAssetHistory();
-  renderInvestStats();
-  alert('✅ 자산이 저장됐어요!');
-}
+function saveAssets() { /* 스냅샷 방식으로 전환, 자동 저장 */ }
 
 function renderAssetHistory() {
   var el = document.getElementById('a-history');
   if(!el) return;
-  var entries = [];
-  for(var i=0; i<12; i++){
-    var d = new Date();
-    d.setMonth(d.getMonth()-i);
-    var k = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
-    var data = S.get('assets_'+k);
-    if(data){
-      var total = ASSET_FIELDS.reduce(function(s,f){return s+(data[f.id]||0);},0);
-      entries.push({month:k, total:total, savedAt:data.savedAt||k});
-    }
-  }
-  if(!entries.length){
-    el.innerHTML='<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:1.5rem">저장된 기록이 없어요</div>';
+  var snaps = S.get('asset_snapshots') || [];
+  if(!snaps.length){
+    el.innerHTML='<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:1.5rem">캡처 업로드 후 저장됩니다</div>';
     return;
   }
+  // 월별 합산 (각 사람별 최신값)
+  var monthMap = {};
+  snaps.forEach(function(s){
+    var m = s.date ? s.date.slice(0,7) : s.month || '';
+    if(!monthMap[m]) monthMap[m] = {};
+    if(!monthMap[m][s.person] || s.date > monthMap[m][s.person].date) monthMap[m][s.person] = s;
+  });
+  var entries = Object.entries(monthMap).sort(function(a,b){return b[0].localeCompare(a[0]);}).map(function(e){
+    var total = Object.values(e[1]).reduce(function(s,snap){return s+(snap.total||0);},0);
+    return { month: e[0], total: total };
+  });
   el.innerHTML = entries.map(function(e){
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--border);font-size:.85rem">'+
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--border);font-size:.83rem">'+
       '<span style="color:var(--muted);font-family:JetBrains Mono,monospace">'+e.month+'</span>'+
       '<span style="color:var(--accent4);font-family:JetBrains Mono,monospace;font-weight:600">'+fmtMoney(e.total)+'</span>'+
     '</div>';
@@ -3012,10 +2973,24 @@ async function analyzeAssetShotMain() {
       '<div style="margin-bottom:.6rem">'+rowsHtml+'</div>'+
       (result.insight ? '<div style="padding:.7rem;background:rgba(108,138,255,.07);border-radius:8px;font-size:.8rem;color:var(--text);line-height:1.75">'+result.insight.replace(/\n/g,'<br/>')+'</div>' : '');
 
-    // 히스토리 저장
+    // 스냅샷 저장
+    var snap = {
+      id: Date.now(), person: person, date: today(),
+      total: result.parsed.total || 0,
+      items: result.parsed.items || [],
+      summary: result.parsed.summary || result.summary || '',
+      img: img, rows: result.rows
+    };
     var shots = S.get('asset_shots') || [];
-    shots.unshift({ id:Date.now(), person:person, img:img, summary:result.parsed.summary, rows:result.rows, date:today() });
+    shots.unshift({ id:snap.id, person:person, img:img, summary:snap.summary, rows:result.rows, date:today() });
     S.set('asset_shots', shots.slice(0, 30));
+    var snaps = S.get('asset_snapshots') || [];
+    snaps.unshift(snap);
+    S.set('asset_snapshots', snaps.slice(0, 100));
+    renderSnapshotStats();
+    renderAssetBreakdown();
+    renderAssetHistory();
+    renderAssetTrend();
     renderAssetShotHistory();
 
   } catch(err) {
@@ -3088,19 +3063,23 @@ function renderAssetTrend(mode) {
     if(b) b.style.color = m===currentTrendMode ? 'var(--accent)' : '';
   });
 
-  var entries = [];
-  for(var i = 11; i >= 0; i--) {
-    var d = new Date(); d.setMonth(d.getMonth()-i);
-    var k = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
-    var data = S.get('assets_'+k);
-    if(data) {
-      var invest  = ASSET_FIELDS.filter(function(f){return f.group==='invest';}).reduce(function(s,f){return s+(data[f.id]||0);},0);
-      var realty  = ASSET_FIELDS.filter(function(f){return f.group==='realty';}).reduce(function(s,f){return s+(data[f.id]||0);},0);
-      var reserve = ASSET_FIELDS.filter(function(f){return f.group==='reserve';}).reduce(function(s,f){return s+(data[f.id]||0);},0);
-      var total   = invest + realty + reserve;
-      entries.push({ month: k.slice(5)+'월', total: total, invest: invest, reserve: reserve });
-    }
-  }
+  var snaps = S.get('asset_snapshots') || [];
+  // 월별 그룹 (각 사람 최신값 합산)
+  var monthMap = {};
+  snaps.forEach(function(s){
+    var m = (s.date||'').slice(0,7);
+    if(!m) return;
+    if(!monthMap[m]) monthMap[m] = {};
+    if(!monthMap[m][s.person] || s.date > monthMap[m][s.person].date) monthMap[m][s.person] = s;
+  });
+  var entries = Object.entries(monthMap).sort(function(a,b){return a[0].localeCompare(b[0]);}).map(function(e){
+    var monthSnaps = Object.values(e[1]);
+    var total = monthSnaps.reduce(function(s,snap){return s+(snap.total||0);},0);
+    var allItems = monthSnaps.reduce(function(arr,snap){return arr.concat(snap.items||[]);}, []);
+    var invest  = allItems.filter(function(i){return ['investment','fund','crypto'].includes(i.category);}).reduce(function(s,i){return s+i.value;},0);
+    var reserve = allItems.filter(function(i){return ['savings','pension'].includes(i.category);}).reduce(function(s,i){return s+i.value;},0);
+    return { month: e[0].slice(5)+'월', total: total, invest: invest, reserve: reserve };
+  });
 
   var el = document.getElementById('asset-trend-chart');
   if(!el) return;
