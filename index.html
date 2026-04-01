@@ -665,50 +665,110 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div class="stat-sub">전세 포함</div>
       </div>
       <div class="stat-card green">
-        <div class="stat-label">투자 자산</div>
-        <div class="stat-value green" id="a-invest">₩0</div>
-        <div class="stat-sub">전세 제외</div>
+        <div class="stat-label">👩 유진</div>
+        <div class="stat-value green" id="a-yujin-stat">₩0</div>
+        <div class="stat-sub">유진 자산 합계</div>
       </div>
       <div class="stat-card yellow">
-        <div class="stat-label">비상금/노후</div>
-        <div class="stat-value yellow" id="a-reserve">₩0</div>
-        <div class="stat-sub">CMA + 퇴직연금</div>
+        <div class="stat-label">👨 윤식</div>
+        <div class="stat-value yellow" id="a-yoonsik-stat">₩0</div>
+        <div class="stat-sub">윤식 자산 합계</div>
       </div>
     </div>
 
-    <div class="grid2" style="align-items:start">
+    <!-- 유진 / 윤식 자산 입력 -->
+    <div class="grid2" style="align-items:start;margin-bottom:1rem">
+
+      <!-- 👩 유진 -->
       <div class="card">
-        <div class="sec-title">💼 자산 입력 (월별 업데이트)</div>
-        <div style="display:flex;flex-direction:column;gap:.55rem;font-size:.88rem">
-          <div style="color:var(--accent);font-size:.75rem;letter-spacing:.1em;margin-top:.3rem">📈 투자</div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:130px">토스증권</label><input type="number" id="a-toss" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:130px">ISA계좌</label><input type="number" id="a-isa" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:130px">금계좌</label><input type="number" id="a-gold" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:130px">코인(유진)</label><input type="number" id="a-coin-u" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:130px">코인(윤식)</label><input type="number" id="a-coin-y" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:130px">펀드(유진)</label><input type="number" id="a-fund" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:130px">주택청약(유진)</label><input type="number" id="a-cheongyak" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:130px">토스적금(유진)</label><input type="number" id="a-savings-u" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:130px">토스적금(윤식)</label><input type="number" id="a-savings-y" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="color:var(--accent2);font-size:.75rem;letter-spacing:.1em;margin-top:.5rem">🏠 부동산</div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:130px">전세금</label><input type="number" id="a-jeonse" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="color:var(--accent3);font-size:.75rem;letter-spacing:.1em;margin-top:.5rem">🛡️ 비상금 / 노후</div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:130px">유진 CMA</label><input type="number" id="a-cma" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:130px">유진 퇴직연금</label><input type="number" id="a-ret-u" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:130px">윤식 퇴직연금</label><input type="number" id="a-ret-y" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:130px">유진 개인주식</label><input type="number" id="a-stock-u" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
-          <button class="btn btn-primary" style="margin-top:.5rem" onclick="saveAssets()">자산 저장 💾</button>
+        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.9rem">
+          <span style="font-size:1.1rem">👩</span>
+          <div class="sec-title" style="margin:0;font-size:.95rem">유진 자산</div>
+          <span id="a-yujin-card-total" style="margin-left:auto;font-family:JetBrains Mono,monospace;font-size:.85rem;color:var(--success);font-weight:700">₩0</span>
+        </div>
+        <!-- 캡처 업로드 -->
+        <div class="toss-drop" id="asset-drop-yujin" style="padding:.9rem;margin-bottom:.6rem"
+          ondragover="event.preventDefault();this.classList.add('drag-over')"
+          ondragleave="this.classList.remove('drag-over')"
+          ondrop="handleAssetDrop(event,'yujin')">
+          <input type="file" accept="image/*" onchange="handleAssetShotFile(this.files[0],'yujin')"/>
+          <div id="asset-shot-inner-yujin" style="pointer-events:none">
+            <div style="font-size:1.8rem">📲</div>
+            <div style="font-size:.75rem;color:var(--muted);margin-top:.25rem">캡처 업로드 (클릭 or 드래그)</div>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;font-size:.8rem;padding:.4rem;margin-bottom:1rem" onclick="analyzeAssetShot('yujin')">🤖 AI 자동입력</button>
+
+        <div style="color:var(--accent);font-size:.72rem;letter-spacing:.08em;margin-bottom:.4rem">📈 투자</div>
+        <div style="display:flex;flex-direction:column;gap:.38rem;font-size:.85rem;margin-bottom:.8rem">
+          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:100px">토스증권</label><input type="number" id="a-toss" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
+          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:100px">ISA계좌</label><input type="number" id="a-isa" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
+          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:100px">금계좌</label><input type="number" id="a-gold" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
+          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:100px">코인</label><input type="number" id="a-coin-u" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
+          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:100px">펀드</label><input type="number" id="a-fund" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
+          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:100px">주택청약</label><input type="number" id="a-cheongyak" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
+          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:100px">토스적금</label><input type="number" id="a-savings-u" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
+          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:100px">개인주식</label><input type="number" id="a-stock-u" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
+        </div>
+        <div style="color:var(--accent3);font-size:.72rem;letter-spacing:.08em;margin-bottom:.4rem">🛡️ 비상금 / 노후</div>
+        <div style="display:flex;flex-direction:column;gap:.38rem;font-size:.85rem">
+          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:100px">CMA</label><input type="number" id="a-cma" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
+          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:100px">퇴직연금</label><input type="number" id="a-ret-u" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
         </div>
       </div>
-      <div>
-        <div class="card" style="margin-bottom:1rem">
-          <div class="sec-title">📊 자산 breakdown</div>
-          <div id="a-breakdown" style="display:flex;flex-direction:column;gap:.5rem;font-size:.85rem"></div>
+
+      <!-- 👨 윤식 -->
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.9rem">
+          <span style="font-size:1.1rem">👨</span>
+          <div class="sec-title" style="margin:0;font-size:.95rem">윤식 자산</div>
+          <span id="a-yoonsik-card-total" style="margin-left:auto;font-family:JetBrains Mono,monospace;font-size:.85rem;color:var(--accent4);font-weight:700">₩0</span>
         </div>
-        <div class="card">
-          <div class="sec-title">📅 월별 자산 기록</div>
-          <div id="a-history" style="max-height:300px;overflow-y:auto"></div>
+        <!-- 캡처 업로드 -->
+        <div class="toss-drop" id="asset-drop-yoonsik" style="padding:.9rem;margin-bottom:.6rem"
+          ondragover="event.preventDefault();this.classList.add('drag-over')"
+          ondragleave="this.classList.remove('drag-over')"
+          ondrop="handleAssetDrop(event,'yoonsik')">
+          <input type="file" accept="image/*" onchange="handleAssetShotFile(this.files[0],'yoonsik')"/>
+          <div id="asset-shot-inner-yoonsik" style="pointer-events:none">
+            <div style="font-size:1.8rem">📲</div>
+            <div style="font-size:.75rem;color:var(--muted);margin-top:.25rem">캡처 업로드 (클릭 or 드래그)</div>
+          </div>
         </div>
+        <button class="btn btn-primary" style="width:100%;font-size:.8rem;padding:.4rem;margin-bottom:1rem" onclick="analyzeAssetShot('yoonsik')">🤖 AI 자동입력</button>
+
+        <div style="color:var(--accent);font-size:.72rem;letter-spacing:.08em;margin-bottom:.4rem">📈 투자</div>
+        <div style="display:flex;flex-direction:column;gap:.38rem;font-size:.85rem;margin-bottom:.8rem">
+          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:100px">코인</label><input type="number" id="a-coin-y" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
+          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:100px">토스적금</label><input type="number" id="a-savings-y" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
+        </div>
+        <div style="color:var(--accent3);font-size:.72rem;letter-spacing:.08em;margin-bottom:.4rem">🛡️ 비상금 / 노후</div>
+        <div style="display:flex;flex-direction:column;gap:.38rem;font-size:.85rem">
+          <div style="display:flex;gap:.5rem;align-items:center"><label style="color:var(--muted);min-width:100px">퇴직연금</label><input type="number" id="a-ret-y" placeholder="0" style="flex:1" oninput="recalcAssets()"/></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 공동: 전세금 -->
+    <div class="card" style="margin-bottom:1rem">
+      <div style="display:flex;gap:.7rem;align-items:center;font-size:.88rem">
+        <span>🏠</span>
+        <label style="color:var(--muted);white-space:nowrap">전세금 (공동)</label>
+        <input type="number" id="a-jeonse" placeholder="0" style="flex:1" oninput="recalcAssets()"/>
+        <span style="color:var(--muted);font-size:.78rem;white-space:nowrap">원</span>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" style="width:100%;margin-bottom:1.5rem" onclick="saveAssets()">자산 저장 💾</button>
+
+    <div class="grid2" style="align-items:start">
+      <div class="card">
+        <div class="sec-title">📊 자산 breakdown</div>
+        <div id="a-breakdown" style="display:flex;flex-direction:column;gap:.5rem;font-size:.85rem"></div>
+      </div>
+      <div class="card">
+        <div class="sec-title">📅 월별 자산 기록</div>
+        <div id="a-history" style="max-height:300px;overflow-y:auto"></div>
       </div>
     </div>
 
@@ -1483,11 +1543,8 @@ function renderGoalWidget() {
   if(!goalAmt) { el.style.display='none'; return; }
 
   // 현재 투자 자산 (전세 제외)
-  const curAssets = S.get('assets') || {};
-  const assetMonths = Object.keys(curAssets).sort();
-  const latestKey = assetMonths[assetMonths.length - 1];
-  const latest = latestKey ? curAssets[latestKey] : null;
-  const investAmt = latest ? ((latest.toss||0)+(latest.stock_k||0)+(latest.stock_u||0)+(latest.coin||0)+(latest.cma||0)+(latest.pension||0)) / 10000 : 0;
+  const latest = S.get('assets_latest') || {};
+  const investAmt = ASSET_FIELDS.filter(function(f){return f.group!=='realty';}).reduce(function(s,f){return s+(latest[f.id]||0);},0) / 10000;
 
   // 월 저축액: 최근 3개월 평균
   var monthlySaving = 0;
@@ -2175,20 +2232,20 @@ try { renderBudget(); } catch(e){}
 
 // ── ASSETS (자산 현황) ──
 var ASSET_FIELDS = [
-  {id:'a-toss',      label:'토스증권',     group:'invest'},
-  {id:'a-isa',       label:'ISA계좌',      group:'invest'},
-  {id:'a-gold',      label:'금계좌',       group:'invest'},
-  {id:'a-coin-u',    label:'코인(유진)',    group:'invest'},
-  {id:'a-coin-y',    label:'코인(윤식)',   group:'invest'},
-  {id:'a-fund',      label:'펀드(유진)',    group:'invest'},
-  {id:'a-cheongyak', label:'주택청약',     group:'invest'},
-  {id:'a-savings-u', label:'토스적금(유진)',group:'invest'},
-  {id:'a-savings-y', label:'토스적금(윤식)',group:'invest'},
-  {id:'a-jeonse',    label:'전세금',       group:'realty'},
-  {id:'a-cma',       label:'유진 CMA',     group:'reserve'},
-  {id:'a-ret-u',     label:'유진 퇴직연금',group:'reserve'},
-  {id:'a-ret-y',     label:'윤식 퇴직연금',group:'reserve'},
-  {id:'a-stock-u',   label:'유진 개인주식',group:'reserve'},
+  {id:'a-toss',      label:'토스증권',      group:'invest', person:'yujin'},
+  {id:'a-isa',       label:'ISA계좌',       group:'invest', person:'yujin'},
+  {id:'a-gold',      label:'금계좌',        group:'invest', person:'yujin'},
+  {id:'a-coin-u',    label:'코인',          group:'invest', person:'yujin'},
+  {id:'a-fund',      label:'펀드',          group:'invest', person:'yujin'},
+  {id:'a-cheongyak', label:'주택청약',      group:'invest', person:'yujin'},
+  {id:'a-savings-u', label:'토스적금',      group:'invest', person:'yujin'},
+  {id:'a-stock-u',   label:'개인주식',      group:'invest', person:'yujin'},
+  {id:'a-cma',       label:'CMA',           group:'reserve',person:'yujin'},
+  {id:'a-ret-u',     label:'퇴직연금',      group:'reserve',person:'yujin'},
+  {id:'a-coin-y',    label:'코인',          group:'invest', person:'yoonsik'},
+  {id:'a-savings-y', label:'토스적금',      group:'invest', person:'yoonsik'},
+  {id:'a-ret-y',     label:'퇴직연금',      group:'reserve',person:'yoonsik'},
+  {id:'a-jeonse',    label:'전세금',        group:'realty', person:'shared'},
 ];
 
 function assetMonthKey() {
@@ -2211,44 +2268,48 @@ function recalcAssets() {
     var el = document.getElementById(f.id);
     vals[f.id] = el ? (parseFloat(el.value)||0) : 0;
   });
-  var invest  = ASSET_FIELDS.filter(function(f){return f.group==='invest';}).reduce(function(s,f){return s+vals[f.id];},0);
+  var yujin   = ASSET_FIELDS.filter(function(f){return f.person==='yujin';}).reduce(function(s,f){return s+vals[f.id];},0);
+  var yoonsik = ASSET_FIELDS.filter(function(f){return f.person==='yoonsik';}).reduce(function(s,f){return s+vals[f.id];},0);
   var realty  = ASSET_FIELDS.filter(function(f){return f.group==='realty';}).reduce(function(s,f){return s+vals[f.id];},0);
-  var reserve = ASSET_FIELDS.filter(function(f){return f.group==='reserve';}).reduce(function(s,f){return s+vals[f.id];},0);
-  var total   = invest+realty+reserve;
+  var total   = yujin + yoonsik + realty;
 
   var at = document.getElementById('a-total');
-  var ai = document.getElementById('a-invest');
-  var ar = document.getElementById('a-reserve');
-  if(at) at.textContent = fmtMoney(total);
-  if(ai) ai.textContent = fmtMoney(invest);
-  if(ar) ar.textContent = fmtMoney(reserve);
+  var ayu = document.getElementById('a-yujin-stat');
+  var ayo = document.getElementById('a-yoonsik-stat');
+  var ayu2 = document.getElementById('a-yujin-card-total');
+  var ayo2 = document.getElementById('a-yoonsik-card-total');
+  if(at)   at.textContent   = fmtMoney(total);
+  if(ayu)  ayu.textContent  = fmtMoney(yujin);
+  if(ayo)  ayo.textContent  = fmtMoney(yoonsik);
+  if(ayu2) ayu2.textContent = fmtMoney(yujin);
+  if(ayo2) ayo2.textContent = fmtMoney(yoonsik);
 
-  renderAssetBreakdown(vals, invest, realty, reserve, total);
+  renderAssetBreakdown(vals, yujin, yoonsik, realty, total);
 }
 
-function renderAssetBreakdown(vals, invest, realty, reserve, total) {
+function renderAssetBreakdown(vals, yujin, yoonsik, realty, total) {
   if(!vals) {
     var data = S.get('assets_'+assetMonthKey()) || S.get('assets_latest') || {};
     vals={};
     ASSET_FIELDS.forEach(function(f){vals[f.id]=data[f.id]||0;});
-    invest  = ASSET_FIELDS.filter(function(f){return f.group==='invest';}).reduce(function(s,f){return s+vals[f.id];},0);
+    yujin   = ASSET_FIELDS.filter(function(f){return f.person==='yujin';}).reduce(function(s,f){return s+vals[f.id];},0);
+    yoonsik = ASSET_FIELDS.filter(function(f){return f.person==='yoonsik';}).reduce(function(s,f){return s+vals[f.id];},0);
     realty  = ASSET_FIELDS.filter(function(f){return f.group==='realty';}).reduce(function(s,f){return s+vals[f.id];},0);
-    reserve = ASSET_FIELDS.filter(function(f){return f.group==='reserve';}).reduce(function(s,f){return s+vals[f.id];},0);
-    total   = invest+realty+reserve;
+    total   = yujin + yoonsik + realty;
     var at = document.getElementById('a-total');
-    var ai = document.getElementById('a-invest');
-    var ar = document.getElementById('a-reserve');
-    if(at) at.textContent = fmtMoney(total);
-    if(ai) ai.textContent = fmtMoney(invest);
-    if(ar) ar.textContent = fmtMoney(reserve);
+    var ayu = document.getElementById('a-yujin-stat');
+    var ayo = document.getElementById('a-yoonsik-stat');
+    if(at)  at.textContent  = fmtMoney(total);
+    if(ayu) ayu.textContent = fmtMoney(yujin);
+    if(ayo) ayo.textContent = fmtMoney(yoonsik);
   }
   var el = document.getElementById('a-breakdown');
   if(!el) return;
   if(!total){ el.innerHTML='<div style="color:var(--muted);text-align:center;padding:1.5rem;font-size:.85rem">자산을 입력하고 저장해 주세요</div>'; return; }
   var groups = [
-    {label:'📈 투자 자산', val:invest, clr:'var(--accent)'},
-    {label:'🏠 전세금',   val:realty,  clr:'var(--accent2)'},
-    {label:'🛡️ 비상금/노후', val:reserve, clr:'var(--accent3)'},
+    {label:'👩 유진',   val:yujin,   clr:'var(--success)'},
+    {label:'👨 윤식',   val:yoonsik, clr:'var(--accent4)'},
+    {label:'🏠 전세금', val:realty,  clr:'var(--accent2)'},
   ];
   el.innerHTML = groups.map(function(g){
     var pct = total>0 ? Math.round(g.val/total*100) : 0;
@@ -2266,13 +2327,21 @@ function renderAssetBreakdown(vals, invest, realty, reserve, total) {
     '<span style="color:var(--text)">총 자산</span>'+
     '<span style="font-family:JetBrains Mono,monospace;color:var(--accent4)">'+fmtMoney(total)+'</span>'+
   '</div>'+
-  '<div style="font-size:.8rem;color:var(--muted)">세부 내역</div>'+
-  ASSET_FIELDS.map(function(f){
-    return vals[f.id]>0 ?
-      '<div style="display:flex;justify-content:space-between;font-size:.8rem;padding:.25rem 0;border-bottom:1px solid rgba(42,48,72,.3)">'+
-        '<span style="color:var(--muted)">'+f.label+'</span>'+
-        '<span style="font-family:JetBrains Mono,monospace">'+fmtMoney(vals[f.id])+'</span>'+
-      '</div>' : '';
+  // 유진 세부
+  '<div style="font-size:.75rem;color:var(--success);margin-top:.4rem;margin-bottom:.2rem">👩 유진</div>'+
+  ASSET_FIELDS.filter(function(f){return f.person==='yujin' && vals[f.id]>0;}).map(function(f){
+    return '<div style="display:flex;justify-content:space-between;font-size:.8rem;padding:.22rem 0;border-bottom:1px solid rgba(42,48,72,.3)">'+
+      '<span style="color:var(--muted)">'+f.label+'</span>'+
+      '<span style="font-family:JetBrains Mono,monospace">'+fmtMoney(vals[f.id])+'</span>'+
+    '</div>';
+  }).join('') +
+  // 윤식 세부
+  '<div style="font-size:.75rem;color:var(--accent4);margin-top:.6rem;margin-bottom:.2rem">👨 윤식</div>'+
+  ASSET_FIELDS.filter(function(f){return f.person==='yoonsik' && vals[f.id]>0;}).map(function(f){
+    return '<div style="display:flex;justify-content:space-between;font-size:.8rem;padding:.22rem 0;border-bottom:1px solid rgba(42,48,72,.3)">'+
+      '<span style="color:var(--muted)">'+f.label+'</span>'+
+      '<span style="font-family:JetBrains Mono,monospace">'+fmtMoney(vals[f.id])+'</span>'+
+    '</div>';
   }).join('');
 }
 
@@ -2360,8 +2429,8 @@ async function fetchWithProxy(url) {
 
 // ── 종목 검색 자동완성 ──
 // ── 투자현황 ──
-var YUJIN_INVEST_KEYS  = ['a-toss','a-isa','a-gold','a-coin-u','a-fund','a-cheongyak','a-savings-u','a-cma','a-ret-u','a-stock-u'];
-var YOONSIK_INVEST_KEYS = ['a-coin-y','a-savings-y','a-ret-y'];
+var YUJIN_INVEST_KEYS   = ASSET_FIELDS.filter(function(f){return f.person==='yujin';}).map(function(f){return f.id;});
+var YOONSIK_INVEST_KEYS = ASSET_FIELDS.filter(function(f){return f.person==='yoonsik';}).map(function(f){return f.id;});
 
 function renderInvestStats() {
   var data = S.get('assets_'+assetMonthKey()) || S.get('assets_latest') || {};
@@ -2891,6 +2960,59 @@ async function fetchFearGreed() {
 // ── 스크린샷 AI 분석 ──
 var pendingAiImg = null;
 var aiParsedData = null;
+
+// 자산현황 탭 개인별 캡처 업로드
+var pendingAssetImg = { yujin: null, yoonsik: null };
+
+function handleAssetShotFile(file, person) {
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    pendingAssetImg[person] = e.target.result;
+    var inner = document.getElementById('asset-shot-inner-' + person);
+    if(inner) inner.innerHTML =
+      '<img src="'+e.target.result+'" style="max-width:100%;max-height:160px;border-radius:8px;margin-bottom:.3rem"/>'+
+      '<div style="color:var(--accent3);font-size:.75rem">✅ 이미지 선택됨</div>';
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleAssetDrop(e, person) {
+  e.preventDefault();
+  document.getElementById('asset-drop-' + person).classList.remove('drag-over');
+  var file = e.dataTransfer.files[0];
+  if(file && file.type.startsWith('image/')) handleAssetShotFile(file, person);
+}
+
+async function analyzeAssetShot(person) {
+  var img = pendingAssetImg[person];
+  var inner = document.getElementById('asset-shot-inner-' + person);
+  if(!img) {
+    if(inner) inner.innerHTML = '<div style="color:var(--danger);font-size:.78rem">📸 먼저 캡처를 올려주세요</div>';
+    return;
+  }
+  if(inner) inner.innerHTML = '<div style="font-size:.85rem;color:var(--muted);padding:.5rem">⏳ AI 분석 중...</div>';
+
+  const base64 = img.split(',')[1];
+  const mediaType = img.split(';')[0].split(':')[1];
+  try {
+    const res = await fetchWithTimeout('/api/analyze-image', 35000, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ person, image: base64, mediaType }),
+    });
+    if(!res || !res.ok) { const err = await res.json().catch(function(){return {};}); throw new Error(err.error || 'HTTP '+res.status); }
+    const result = await res.json();
+    if(checkCreditError(result)) throw new Error('크레딧 부족');
+    aiParsedData = result.parsed;
+    applyAiToAssets();
+    if(inner) inner.innerHTML =
+      '<img src="'+img+'" style="max-width:100%;max-height:120px;border-radius:8px;margin-bottom:.3rem"/>'+
+      '<div style="color:var(--accent3);font-size:.75rem">✅ '+result.parsed.summary+'</div>';
+  } catch(err) {
+    if(inner) inner.innerHTML = '<div style="color:var(--danger);font-size:.78rem">⚠️ 실패: '+err.message+'</div>';
+  }
+}
 
 function handleAiShotFile(file) {
   if(!file) return;
