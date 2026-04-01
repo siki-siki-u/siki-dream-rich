@@ -1115,6 +1115,101 @@ tr:hover td{background:rgba(108,138,255,.03)}
       <p>관심 아파트를 저장하고 실거래가 & AI 분석을 받아요</p>
     </div>
 
+    <!-- 청약 가점 계산기 -->
+    <div class="card" style="margin-bottom:1.5rem;background:linear-gradient(135deg,rgba(108,138,255,.07),rgba(255,180,80,.05));border:1px solid rgba(108,138,255,.2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <div class="sec-title" style="margin:0">🏷️ 청약 가점 계산기</div>
+        <span id="cq-total-badge" style="font-family:JetBrains Mono,monospace;font-size:1.3rem;font-weight:700;color:var(--accent)">0 <span style="font-size:.8rem;color:var(--muted)">/ 84점</span></span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;margin-bottom:1rem">
+        <!-- 무주택 기간 -->
+        <div>
+          <div style="font-size:.75rem;color:var(--muted);margin-bottom:.35rem">🏠 무주택 기간 <span style="color:var(--accent4)">(최대 32점)</span></div>
+          <select id="cq-homeless" onchange="calcCheongak()" style="width:100%;font-size:.82rem">
+            <option value="2">1년 미만 (2점)</option>
+            <option value="4">1년↑ (4점)</option>
+            <option value="6">2년↑ (6점)</option>
+            <option value="8">3년↑ (8점)</option>
+            <option value="10">4년↑ (10점)</option>
+            <option value="12">5년↑ (12점)</option>
+            <option value="14">6년↑ (14점)</option>
+            <option value="16">7년↑ (16점)</option>
+            <option value="18">8년↑ (18점)</option>
+            <option value="20">9년↑ (20점)</option>
+            <option value="22">10년↑ (22점)</option>
+            <option value="24">11년↑ (24점)</option>
+            <option value="26">12년↑ (26점)</option>
+            <option value="28">13년↑ (28점)</option>
+            <option value="30">14년↑ (30점)</option>
+            <option value="32">15년↑ (32점)</option>
+          </select>
+        </div>
+        <!-- 부양가족 -->
+        <div>
+          <div style="font-size:.75rem;color:var(--muted);margin-bottom:.35rem">👨‍👩‍👧 부양가족 수 <span style="color:var(--accent4)">(최대 35점)</span></div>
+          <select id="cq-family" onchange="calcCheongak()" style="width:100%;font-size:.82rem">
+            <option value="5">0명 (5점)</option>
+            <option value="10">1명 (10점)</option>
+            <option value="15">2명 (15점)</option>
+            <option value="20">3명 (20점)</option>
+            <option value="25">4명 (25점)</option>
+            <option value="30">5명 (30점)</option>
+            <option value="35">6명↑ (35점)</option>
+          </select>
+        </div>
+        <!-- 청약통장 가입기간 -->
+        <div>
+          <div style="font-size:.75rem;color:var(--muted);margin-bottom:.35rem">🏦 청약통장 가입기간 <span style="color:var(--accent4)">(최대 17점)</span></div>
+          <select id="cq-account" onchange="calcCheongak()" style="width:100%;font-size:.82rem">
+            <option value="1">6개월 미만 (1점)</option>
+            <option value="2">6개월↑ (2점)</option>
+            <option value="3">1년↑ (3점)</option>
+            <option value="4">2년↑ (4점)</option>
+            <option value="5">3년↑ (5점)</option>
+            <option value="6">4년↑ (6점)</option>
+            <option value="7">5년↑ (7점)</option>
+            <option value="8">6년↑ (8점)</option>
+            <option value="9">7년↑ (9점)</option>
+            <option value="10">8년↑ (10점)</option>
+            <option value="11">9년↑ (11점)</option>
+            <option value="12">10년↑ (12점)</option>
+            <option value="13">11년↑ (13점)</option>
+            <option value="14">12년↑ (14점)</option>
+            <option value="15">13년↑ (15점)</option>
+            <option value="16">14년↑ (16점)</option>
+            <option value="17">15년↑ (17점)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 항목별 점수 바 -->
+      <div id="cq-score-bars" style="margin-bottom:1rem"></div>
+
+      <!-- 구분선 -->
+      <div style="border-top:1px solid var(--border);margin-bottom:1rem"></div>
+
+      <!-- 당첨 확률 시뮬레이터 -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem">
+        <div style="font-size:.85rem;font-weight:600;color:var(--text)">📊 당첨 확률 시뮬레이터</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.7rem;margin-bottom:.8rem">
+        <div>
+          <div style="font-size:.72rem;color:var(--muted);margin-bottom:.3rem">공급 세대수</div>
+          <input type="number" id="cq-supply" placeholder="예: 300" oninput="calcCheongak()" style="width:100%;font-size:.85rem"/>
+        </div>
+        <div>
+          <div style="font-size:.72rem;color:var(--muted);margin-bottom:.3rem">청약 신청 예상</div>
+          <input type="number" id="cq-applicants" placeholder="예: 9000" oninput="calcCheongak()" style="width:100%;font-size:.85rem"/>
+        </div>
+        <div>
+          <div style="font-size:.72rem;color:var(--muted);margin-bottom:.3rem">예상 커트라인</div>
+          <input type="number" id="cq-cutline" placeholder="예: 60" min="1" max="84" oninput="calcCheongak()" style="width:100%;font-size:.85rem"/>
+        </div>
+      </div>
+      <div id="cq-result"></div>
+    </div>
+
     <div class="grid2" style="align-items:start;margin-bottom:1.5rem">
       <!-- 관심 아파트 추가 -->
       <div class="card">
@@ -1313,7 +1408,7 @@ function showPage(id, el) {
   if(id==='stocks') { renderInvestStats(); }
   if(id==='youtube') { renderYtLibrary(); }
   if(id==='journal') { renderJournal(); fetchFearGreed(); }
-  if(id==='realty')  { renderRealty(); }
+  if(id==='realty')  { renderRealty(); initCheongak(); }
   if(id==='gifts')   { renderGiftList(); }
   if(id==='market')  { /* TradingView widgets load automatically */ }
 }
@@ -1534,6 +1629,123 @@ function renderGoalWidget() {
         (monthlySaving > 0 && remaining > 0 ? ' &nbsp;·&nbsp; 월 <b style="color:var(--text)">'+Math.round(monthlySaving).toLocaleString()+'만원</b> 저축 기준' : '') +
       '</div>' +
     '</div>';
+}
+
+// ── 청약 가점 계산기 ──
+function calcCheongak() {
+  var homeless = parseInt(document.getElementById('cq-homeless').value) || 0;
+  var family   = parseInt(document.getElementById('cq-family').value)   || 0;
+  var account  = parseInt(document.getElementById('cq-account').value)  || 0;
+  var total    = homeless + family + account;
+
+  // 저장
+  S.set('cq_homeless', homeless);
+  S.set('cq_family',   family);
+  S.set('cq_account',  account);
+
+  // 총점 뱃지
+  document.getElementById('cq-total-badge').innerHTML =
+    '<span style="color:var(--accent)">' + total + '</span> <span style="font-size:.8rem;color:var(--muted)">/ 84점</span>';
+
+  // 항목별 점수 바
+  var bars = [
+    { label:'무주택 기간', val: homeless, max: 32, clr:'var(--accent)' },
+    { label:'부양가족',     val: family,   max: 35, clr:'var(--success)' },
+    { label:'청약통장',     val: account,  max: 17, clr:'var(--accent4)' },
+  ];
+  document.getElementById('cq-score-bars').innerHTML =
+    bars.map(function(b) {
+      var pct = Math.round(b.val / b.max * 100);
+      return '<div style="margin-bottom:.45rem">' +
+        '<div style="display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-bottom:.2rem">' +
+          '<span>' + b.label + '</span>' +
+          '<span style="font-family:JetBrains Mono,monospace;color:var(--text)">' + b.val + ' / ' + b.max + '</span>' +
+        '</div>' +
+        '<div style="background:var(--border);border-radius:4px;height:6px">' +
+          '<div style="background:' + b.clr + ';width:' + pct + '%;height:100%;border-radius:4px;transition:width .4s"></div>' +
+        '</div></div>';
+    }).join('');
+
+  // 당첨 확률 계산
+  var supply     = parseInt(document.getElementById('cq-supply').value)     || 0;
+  var applicants = parseInt(document.getElementById('cq-applicants').value) || 0;
+  var cutline    = parseInt(document.getElementById('cq-cutline').value)    || 0;
+  var resultEl   = document.getElementById('cq-result');
+
+  if(!cutline) {
+    resultEl.innerHTML = '<div style="font-size:.8rem;color:var(--muted);text-align:center;padding:.4rem">예상 커트라인을 입력하면 당첨 확률을 분석해요</div>';
+    return;
+  }
+
+  var diff = total - cutline;
+  var compRate = (supply > 0 && applicants > 0) ? (applicants / supply).toFixed(1) : null;
+
+  // 판정
+  var grade, gradeClr, gradeMsg;
+  if(diff >= 5)       { grade='당첨 유력';   gradeClr='#52d9a3'; gradeMsg='커트라인보다 '+diff+'점 높아요. 당첨 가능성이 매우 높아요!'; }
+  else if(diff >= 1)  { grade='당첨 가능';   gradeClr='#6c8aff'; gradeMsg='커트라인보다 '+diff+'점 높아요. 충분히 노려볼 만해요.'; }
+  else if(diff === 0) { grade='경계선';      gradeClr='#ffc850'; gradeMsg='커트라인과 동점이에요. 배점 동점자 처리 규정에 따라 결정돼요.'; }
+  else if(diff >= -4) { grade='당첨 어려움'; gradeClr='#ff9054'; gradeMsg='커트라인보다 '+Math.abs(diff)+'점 낮아요. 가점을 더 쌓거나 단지를 조정해보세요.'; }
+  else                { grade='당첨 희박';   gradeClr='#ff5c7a'; gradeMsg='커트라인보다 '+Math.abs(diff)+'점 낮아요. 다른 단지 또는 특별공급을 검토해보세요.'; }
+
+  // 스코어 시각화 바 (0~84점 스케일)
+  var myPct  = Math.round(total   / 84 * 100);
+  var cutPct = Math.round(cutline / 84 * 100);
+
+  resultEl.innerHTML =
+    // 판정 결과
+    '<div style="display:flex;align-items:center;gap:.8rem;margin-bottom:.8rem;padding:.7rem;background:rgba(0,0,0,.15);border-radius:8px;border-left:3px solid '+gradeClr+'">' +
+      '<div style="font-size:1.4rem;font-weight:800;color:'+gradeClr+';font-family:JetBrains Mono,monospace;min-width:2.5rem;text-align:center">'+total+'</div>' +
+      '<div>' +
+        '<div style="font-size:.88rem;font-weight:700;color:'+gradeClr+'">'+grade+'</div>' +
+        '<div style="font-size:.78rem;color:var(--muted);margin-top:.1rem">'+gradeMsg+'</div>' +
+      '</div>' +
+    '</div>' +
+    // 점수 비교 바
+    '<div style="margin-bottom:.7rem">' +
+      '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.4rem;display:flex;justify-content:space-between">' +
+        '<span>0점</span><span>내 점수 <b style="color:var(--accent)">'+total+'점</b> · 커트라인 <b style="color:#ffc850">'+cutline+'점</b></span><span>84점</span>' +
+      '</div>' +
+      '<div style="position:relative;background:var(--border);border-radius:6px;height:14px">' +
+        '<div style="background:var(--accent);width:'+myPct+'%;height:100%;border-radius:6px;opacity:.7;transition:width .4s"></div>' +
+        '<div style="position:absolute;top:0;left:'+cutPct+'%;width:2px;height:100%;background:#ffc850;border-radius:2px"></div>' +
+        '<div style="position:absolute;top:-16px;left:'+cutPct+'%;transform:translateX(-50%);font-size:.65rem;color:#ffc850;white-space:nowrap">커트 '+cutline+'점</div>' +
+      '</div>' +
+    '</div>' +
+    // 경쟁률 + 추가 정보
+    (compRate ? '<div style="display:flex;gap:.6rem">' +
+      '<div style="flex:1;background:rgba(108,138,255,.1);border-radius:6px;padding:.5rem;text-align:center">' +
+        '<div style="font-size:.68rem;color:var(--muted)">경쟁률</div>' +
+        '<div style="font-family:JetBrains Mono,monospace;font-size:.95rem;font-weight:700;color:var(--accent)">'+compRate+':1</div>' +
+      '</div>' +
+      '<div style="flex:1;background:rgba(255,200,80,.1);border-radius:6px;padding:.5rem;text-align:center">' +
+        '<div style="font-size:.68rem;color:var(--muted)">공급/신청</div>' +
+        '<div style="font-family:JetBrains Mono,monospace;font-size:.95rem;font-weight:700;color:var(--accent4)">'+supply.toLocaleString()+'/'+applicants.toLocaleString()+'</div>' +
+      '</div>' +
+      '<div style="flex:1;background:rgba(82,217,163,.1);border-radius:6px;padding:.5rem;text-align:center">' +
+        '<div style="font-size:.68rem;color:var(--muted)">커트라인 대비</div>' +
+        '<div style="font-family:JetBrains Mono,monospace;font-size:.95rem;font-weight:700;color:'+gradeClr+'">'+(diff>=0?'+':'')+diff+'점</div>' +
+      '</div>' +
+    '</div>' : '') ;
+}
+
+function initCheongak() {
+  var homeless = S.get('cq_homeless');
+  var family   = S.get('cq_family');
+  var account  = S.get('cq_account');
+  if(homeless) {
+    var el = document.getElementById('cq-homeless');
+    if(el) el.value = homeless;
+  }
+  if(family) {
+    var el2 = document.getElementById('cq-family');
+    if(el2) el2.value = family;
+  }
+  if(account) {
+    var el3 = document.getElementById('cq-account');
+    if(el3) el3.value = account;
+  }
+  calcCheongak();
 }
 
 // ── GIFTS (축의금 장부) ──
