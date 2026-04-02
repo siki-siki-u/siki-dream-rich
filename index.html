@@ -2435,13 +2435,11 @@ async function loadVix(range) {
   if(!chartEl) return;
   chartEl.innerHTML = '<span style="color:var(--muted);font-size:.85rem">로딩 중...</span>';
 
-  var interval = currentVixRange === '1mo' ? '1d' : currentVixRange === '3mo' ? '1d' : '1wk';
-  var url = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval='+interval+'&range='+currentVixRange+'&includeAdjustedClose=true';
-  var proxied = 'https://api.allorigins.win/raw?url='+encodeURIComponent(url);
+  var url = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d&range='+currentVixRange;
 
   try {
-    var res = await fetchWithTimeout(proxied, 10000);
-    if(!res.ok) throw new Error('fetch fail');
+    var res = await fetchWithProxy(url);
+    if(!res) throw new Error('네트워크 오류');
     var data = await res.json();
     var result = data.chart && data.chart.result && data.chart.result[0];
     if(!result) throw new Error('no data');
