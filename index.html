@@ -2310,21 +2310,36 @@ function renderAssetHistory() {
     el.innerHTML='<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:1.5rem">캡처 업로드 후 저장됩니다</div>';
     return;
   }
-  // 월별 합산 (각 사람별 최신값)
-  var monthMap = {};
+  // 일별 합산 (같은 날짜 여러 장도 각 사람 최신값으로 합산)
+  var dayMap = {};
   snaps.forEach(function(s){
-    var m = s.date ? s.date.slice(0,7) : s.month || '';
-    if(!monthMap[m]) monthMap[m] = {};
-    if(!monthMap[m][s.person] || s.date > monthMap[m][s.person].date) monthMap[m][s.person] = s;
+    var d = s.date || '';
+    if(!d) return;
+    if(!dayMap[d]) dayMap[d] = {};
+    if(!dayMap[d][s.person] || s.id > dayMap[d][s.person].id) dayMap[d][s.person] = s;
   });
-  var entries = Object.entries(monthMap).sort(function(a,b){return b[0].localeCompare(a[0]);}).map(function(e){
-    var total = Object.values(e[1]).reduce(function(s,snap){return s+(snap.total||0);},0);
-    return { month: e[0], total: total };
+  var entries = Object.entries(dayMap).sort(function(a,b){return b[0].localeCompare(a[0]);}).map(function(e){
+    var daySnaps = Object.values(e[1]);
+    var total = daySnaps.reduce(function(s,snap){return s+(snap.total||0);},0);
+    var principal = daySnaps.reduce(function(s,snap){return s+(snap.principal||0);},0);
+    var profit_rate = null;
+    if(principal > 0) profit_rate = (total - principal) / principal * 100;
+    else {
+      var rates = daySnaps.filter(function(s){return s.profit_rate!=null;}).map(function(s){return s.profit_rate;});
+      if(rates.length) profit_rate = rates.reduce(function(a,b){return a+b;},0)/rates.length;
+    }
+    return { date: e[0], total: total, profit_rate: profit_rate };
   });
   el.innerHTML = entries.map(function(e){
+    var roiHtml = '';
+    if(e.profit_rate != null) {
+      var rClr = e.profit_rate >= 0 ? 'var(--success)' : 'var(--danger)';
+      roiHtml = '<span style="font-family:JetBrains Mono,monospace;font-size:.78rem;color:'+rClr+';font-weight:600">'+(e.profit_rate>=0?'+':'')+e.profit_rate.toFixed(2)+'%</span>';
+    }
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--border);font-size:.83rem">'+
-      '<span style="color:var(--muted);font-family:JetBrains Mono,monospace">'+e.month+'</span>'+
+      '<span style="color:var(--muted);font-family:JetBrains Mono,monospace">'+e.date+'</span>'+
       '<span style="color:var(--accent4);font-family:JetBrains Mono,monospace;font-weight:600">'+fmtMoney(e.total)+'</span>'+
+      roiHtml+
     '</div>';
   }).join('');
 }
@@ -2971,18 +2986,22 @@ async function analyzeAssetShotMain() {
         '<div style="font-size:.88rem;color:var(--accent3);font-weight:600">✅ '+result.parsed.summary+'</div>'+
       '</div>'+
       '<div style="margin-bottom:.6rem">'+rowsHtml+'</div>'+
-      (result.insight ? '<div style="padding:.7rem;background:rgba(108,138,255,.07);border-radius:8px;font-size:.8rem;color:var(--text);line-height:1.75">'+result.insight.replace(/\n/g,'<br/>')+'</div>' : '');
+      '';
 
     // 스냅샷 저장
     var snap = {
       id: Date.now(), person: person, date: today(),
       total: result.parsed.total || 0,
+      principal: result.parsed.principal || 0,
+      profit: result.parsed.profit || 0,
+      profit_rate: result.parsed.profit_rate != null ? result.parsed.profit_rate : null,
       items: result.parsed.items || [],
       summary: result.parsed.summary || result.summary || '',
       img: img, rows: result.rows
     };
     var shots = S.get('asset_shots') || [];
-    shots.unshift({ id:snap.id, person:person, img:img, summary:snap.summary, rows:result.rows, date:today() });
+    shots.unshift({ id:snap.id, person:person, img:img, summary:snap.summary, rows:result.rows, date:today(),
+      total:snap.total, principal:snap.principal, profit:snap.profit, profit_rate:snap.profit_rate });
     S.set('asset_shots', shots.slice(0, 30));
     var snaps = S.get('asset_snapshots') || [];
     snaps.unshift(snap);
@@ -3009,6 +3028,16 @@ function renderAssetShotHistory() {
     return;
   }
   el.innerHTML = shots.map(function(s){
+    var roiHtml = '';
+    if(s.profit_rate != null) {
+      var rClr = s.profit_rate >= 0 ? 'var(--success)' : 'var(--danger)';
+      var rSign = s.profit_rate >= 0 ? '+' : '';
+      roiHtml = '<div style="font-size:.72rem;font-weight:700;color:'+rClr+';margin-top:.2rem">'+rSign+s.profit_rate.toFixed(2)+'%</div>';
+    } else if(s.principal && s.total) {
+      var rate = ((s.total - s.principal) / s.principal * 100);
+      var rClr2 = rate >= 0 ? 'var(--success)' : 'var(--danger)';
+      roiHtml = '<div style="font-size:.72rem;font-weight:700;color:'+rClr2+';margin-top:.2rem">'+(rate>=0?'+':'')+rate.toFixed(2)+'%</div>';
+    }
     return '<div style="background:var(--surface2);border-radius:10px;overflow:hidden;cursor:pointer" onclick="expandAssetShot('+s.id+')" title="클릭하면 크게 봐요">'+
       '<img src="'+s.img+'" style="width:100%;height:110px;object-fit:cover;display:block"/>'+
       '<div style="padding:.5rem .6rem">'+
@@ -3016,7 +3045,9 @@ function renderAssetShotHistory() {
           '<span>'+(s.person==='yujin'?'👩 유진':'👨 윤식')+'</span>'+
           '<span style="font-family:JetBrains Mono,monospace">'+s.date+'</span>'+
         '</div>'+
-        '<div style="font-size:.75rem;color:var(--accent3);line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">'+s.summary+'</div>'+
+        (s.total ? '<div style="font-size:.75rem;font-family:JetBrains Mono,monospace;color:var(--accent4);font-weight:600">'+fmtMoney(s.total)+'</div>' : '')+
+        roiHtml+
+        '<div style="font-size:.73rem;color:var(--muted);line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;margin-top:.2rem">'+s.summary+'</div>'+
       '</div>'+
       '<button onclick="event.stopPropagation();deleteAssetShot('+s.id+')" style="width:100%;background:rgba(255,92,122,.08);border:none;border-top:1px solid var(--border);color:var(--muted);font-size:.72rem;padding:.3rem;cursor:pointer">🗑️ 삭제</button>'+
     '</div>';
@@ -3064,27 +3095,29 @@ function renderAssetTrend(mode) {
   });
 
   var snaps = S.get('asset_snapshots') || [];
-  // 월별 그룹 (각 사람 최신값 합산)
-  var monthMap = {};
+  // 일별 그룹 (각 날짜별 각 사람 최신값 합산)
+  var dayMap = {};
   snaps.forEach(function(s){
-    var m = (s.date||'').slice(0,7);
-    if(!m) return;
-    if(!monthMap[m]) monthMap[m] = {};
-    if(!monthMap[m][s.person] || s.date > monthMap[m][s.person].date) monthMap[m][s.person] = s;
+    var d = (s.date||'');
+    if(!d) return;
+    if(!dayMap[d]) dayMap[d] = {};
+    if(!dayMap[d][s.person] || s.id > dayMap[d][s.person].id) dayMap[d][s.person] = s;
   });
-  var entries = Object.entries(monthMap).sort(function(a,b){return a[0].localeCompare(b[0]);}).map(function(e){
-    var monthSnaps = Object.values(e[1]);
-    var total = monthSnaps.reduce(function(s,snap){return s+(snap.total||0);},0);
-    var allItems = monthSnaps.reduce(function(arr,snap){return arr.concat(snap.items||[]);}, []);
+  var entries = Object.entries(dayMap).sort(function(a,b){return a[0].localeCompare(b[0]);}).map(function(e){
+    var daySnaps = Object.values(e[1]);
+    var total = daySnaps.reduce(function(s,snap){return s+(snap.total||0);},0);
+    var allItems = daySnaps.reduce(function(arr,snap){return arr.concat(snap.items||[]);}, []);
     var invest  = allItems.filter(function(i){return ['investment','fund','crypto'].includes(i.category);}).reduce(function(s,i){return s+i.value;},0);
     var reserve = allItems.filter(function(i){return ['savings','pension'].includes(i.category);}).reduce(function(s,i){return s+i.value;},0);
-    return { month: e[0].slice(5)+'월', total: total, invest: invest, reserve: reserve };
+    // 날짜 레이블: MM/DD
+    var label = e[0].slice(5).replace('-','/');
+    return { label: label, date: e[0], total: total, invest: invest, reserve: reserve };
   });
 
   var el = document.getElementById('asset-trend-chart');
   if(!el) return;
   if(entries.length < 2) {
-    el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:2.5rem;font-size:.85rem">월별 자산을 2개월 이상 저장하면 추이 그래프가 표시돼요</div>';
+    el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:2.5rem;font-size:.85rem">자산을 2일 이상 저장하면 추이 그래프가 표시돼요</div>';
     return;
   }
 
@@ -3123,7 +3156,7 @@ function renderAssetTrend(mode) {
       var cx = px(i).toFixed(1), cy = py(e[currentTrendMode]).toFixed(1);
       var isLast = i===n-1;
       return '<circle cx="'+cx+'" cy="'+cy+'" r="'+(isLast?4:2.5)+'" fill="'+clr+'" opacity="'+(isLast?1:.7)+'"/>'+
-        '<text x="'+cx+'" y="'+(pT+gH+18)+'" text-anchor="middle" font-size="9.5" fill="rgba(123,130,168,.7)">'+e.month+'</text>';
+        '<text x="'+cx+'" y="'+(pT+gH+18)+'" text-anchor="middle" font-size="9.5" fill="rgba(123,130,168,.7)">'+e.label+'</text>';
     }).join('')+
     // 최신값 라벨
     (function(){
@@ -3142,7 +3175,7 @@ function renderAssetTrend(mode) {
 
   el.innerHTML = svg +
     '<div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted);margin-top:.6rem;padding:.5rem;background:rgba(0,0,0,.15);border-radius:6px">'+
-      '<span>최근 '+n+'개월 추이</span>'+
+      '<span>최근 '+n+'일 추이</span>'+
       '<span>변화: <b style="color:'+diffClr+'">'+(diff>=0?'▲':'▼')+' '+diffLabel+'</b></span>'+
       '<span style="font-family:JetBrains Mono,monospace;color:var(--accent)">현재 '+(last2>=100000000?(last2/100000000).toFixed(2)+'억':Math.round(last2/10000).toLocaleString()+'만')+'</span>'+
     '</div>';
