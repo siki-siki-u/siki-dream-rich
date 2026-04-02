@@ -884,44 +884,28 @@ tr:hover td{background:rgba(108,138,255,.03)}
     </div>
 
     <!-- VIX 지수 -->
-    <div class="card" style="padding:0;overflow:hidden;margin-bottom:1.5rem">
-      <div style="padding:1rem 1.2rem .5rem;background:var(--surface)">
-        <div style="font-size:1rem;font-weight:700;color:var(--text)">😱 VIX 공포지수</div>
-        <div style="font-size:.78rem;color:var(--muted);margin-top:.2rem">CBOE 변동성 지수 · 20 이하=안정 · 30 이상=공포 · 40 이상=극공포</div>
+    <div class="card" style="margin-bottom:1.5rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.6rem">
+        <div>
+          <div style="font-size:1rem;font-weight:700;color:var(--text)">😱 VIX 공포지수</div>
+          <div style="font-size:.78rem;color:var(--muted);margin-top:.2rem">CBOE 변동성 지수 · 20↓ 안정 · 30↑ 공포 · 40↑ 극공포</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:.8rem">
+          <div id="vix-badge" style="font-size:1.6rem;font-weight:800;font-family:JetBrains Mono,monospace;color:var(--muted)">--</div>
+          <div>
+            <div id="vix-change" style="font-size:.8rem;font-family:JetBrains Mono,monospace;color:var(--muted)"></div>
+            <div id="vix-level" style="font-size:.72rem;font-weight:700;margin-top:.1rem"></div>
+          </div>
+        </div>
       </div>
-      <div class="tradingview-widget-container" style="height:300px">
-        <div class="tradingview-widget-container__widget" style="height:100%"></div>
-        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
-        {
-          "symbols": [["CBOE:VIX|1M"]],
-          "chartOnly": false,
-          "width": "100%",
-          "height": "300",
-          "locale": "kr",
-          "colorTheme": "dark",
-          "autosize": false,
-          "showVolume": false,
-          "showMA": false,
-          "hideDateRanges": false,
-          "hideMarketStatus": false,
-          "hideSymbolLogo": false,
-          "scalePosition": "right",
-          "scaleMode": "Normal",
-          "fontFamily": "-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, Ubuntu, sans-serif",
-          "fontSize": "10",
-          "noTimeScale": false,
-          "valuesTracking": "1",
-          "changeMode": "price-and-percent",
-          "chartType": "area",
-          "maLineColor": "#2962FF",
-          "maLineWidth": 1,
-          "maLength": 9,
-          "headerFontSize": "medium",
-          "lineWidth": 2,
-          "lineType": 0,
-          "dateRanges": ["1d|1","1m|30","3m|60","12m|1D","60m|1W","all|1M"]
-        }
-        </script>
+      <div id="vix-chart" style="min-height:140px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.85rem">
+        <span>로딩 중...</span>
+      </div>
+      <div style="display:flex;gap:.4rem;margin-top:.6rem">
+        <button onclick="loadVix('1mo')" id="vix-btn-1mo" class="btn btn-ghost" style="font-size:.72rem;padding:.2rem .5rem">1개월</button>
+        <button onclick="loadVix('3mo')" id="vix-btn-3mo" class="btn btn-ghost" style="font-size:.72rem;padding:.2rem .5rem">3개월</button>
+        <button onclick="loadVix('6mo')" id="vix-btn-6mo" class="btn btn-ghost" style="font-size:.72rem;padding:.2rem .5rem">6개월</button>
+        <button onclick="loadVix('1y')"  id="vix-btn-1y"  class="btn btn-ghost" style="font-size:.72rem;padding:.2rem .5rem">1년</button>
       </div>
     </div>
 
@@ -1448,7 +1432,7 @@ function showPage(id, el) {
   if(id==='journal') { renderJournal(); fetchFearGreed(); }
   if(id==='realty')  { renderRealty(); initCheongak(); }
   if(id==='gifts')   { renderGiftList(); }
-  if(id==='market')  { /* TradingView widgets load automatically */ }
+  if(id==='market')  { loadVix('1mo'); }
 }
 
 // ── DATE HELPERS ──
@@ -2438,6 +2422,115 @@ function renderAssetHistory() {
   }).join('');
 }
 
+
+// ── VIX ──
+var currentVixRange = '1mo';
+async function loadVix(range) {
+  currentVixRange = range || currentVixRange;
+  ['1mo','3mo','6mo','1y'].forEach(function(r){
+    var b = document.getElementById('vix-btn-'+r);
+    if(b) b.style.color = r===currentVixRange ? 'var(--accent)' : '';
+  });
+  var chartEl = document.getElementById('vix-chart');
+  if(!chartEl) return;
+  chartEl.innerHTML = '<span style="color:var(--muted);font-size:.85rem">로딩 중...</span>';
+
+  var interval = currentVixRange === '1mo' ? '1d' : currentVixRange === '3mo' ? '1d' : '1wk';
+  var url = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval='+interval+'&range='+currentVixRange+'&includeAdjustedClose=true';
+  var proxied = 'https://api.allorigins.win/raw?url='+encodeURIComponent(url);
+
+  try {
+    var res = await fetchWithTimeout(proxied, 10000);
+    if(!res.ok) throw new Error('fetch fail');
+    var data = await res.json();
+    var result = data.chart && data.chart.result && data.chart.result[0];
+    if(!result) throw new Error('no data');
+
+    var timestamps = result.timestamp || [];
+    var closes = (result.indicators.quote[0].close) || [];
+    var meta = result.meta || {};
+
+    // 현재값
+    var current = meta.regularMarketPrice || closes[closes.length-1] || 0;
+    var prev = meta.chartPreviousClose || closes[closes.length-2] || current;
+    var chg = current - prev;
+    var chgPct = prev ? (chg/prev*100) : 0;
+
+    var badge = document.getElementById('vix-badge');
+    var changeEl = document.getElementById('vix-change');
+    var levelEl = document.getElementById('vix-level');
+    var color = current >= 40 ? '#ff5c7a' : current >= 30 ? '#ff9940' : current >= 20 ? '#ffc850' : '#52d9a3';
+    if(badge) { badge.textContent = current.toFixed(2); badge.style.color = color; }
+    if(changeEl) {
+      var sign = chg >= 0 ? '+' : '';
+      changeEl.textContent = sign+chg.toFixed(2)+' ('+sign+chgPct.toFixed(2)+'%)';
+      changeEl.style.color = chg >= 0 ? 'var(--danger)' : 'var(--success)'; // VIX 상승=위험
+    }
+    if(levelEl) {
+      var lvl = current >= 40 ? '🔴 극공포' : current >= 30 ? '🟠 공포' : current >= 20 ? '🟡 주의' : '🟢 안정';
+      levelEl.textContent = lvl; levelEl.style.color = color;
+    }
+
+    // 유효한 데이터만 필터
+    var pts = [];
+    for(var i=0; i<timestamps.length; i++){
+      if(closes[i] != null) pts.push({ts: timestamps[i], v: closes[i]});
+    }
+    if(pts.length < 2){ chartEl.innerHTML='<span style="color:var(--muted);font-size:.8rem">데이터 없음</span>'; return; }
+
+    // SVG 차트
+    var svgW=540, svgH=130, pL=42, pR=10, pT=10, pB=22;
+    var gW=svgW-pL-pR, gH=svgH-pT-pB;
+    var vals = pts.map(function(p){return p.v;});
+    var maxV = Math.max.apply(null,vals), minV = Math.min.apply(null,vals);
+    var range2 = maxV-minV || 1;
+    maxV += range2*0.08; minV -= range2*0.08;
+    var n = pts.length;
+    function px(i){return pL+(i/(n-1))*gW;}
+    function py(v){return pT+gH-((v-minV)/(maxV-minV))*gH;}
+
+    var linePath = pts.map(function(p,i){return (i===0?'M':'L')+px(i).toFixed(1)+','+py(p.v).toFixed(1);}).join(' ');
+    var areaPath = linePath+' L'+px(n-1).toFixed(1)+','+(pT+gH)+' L'+px(0).toFixed(1)+','+(pT+gH)+' Z';
+
+    // 위험 레벨 가이드라인 (20, 30, 40)
+    var guides = [
+      {v:20, label:'20', clr:'rgba(82,217,163,.5)'},
+      {v:30, label:'30', clr:'rgba(255,153,64,.5)'},
+      {v:40, label:'40', clr:'rgba(255,92,122,.5)'},
+    ].filter(function(g){return g.v>=minV&&g.v<=maxV;});
+
+    // x축 레이블 (균등 5개)
+    var xLabels = [];
+    var step = Math.floor((n-1)/4);
+    for(var j=0;j<=4;j++){
+      var idx = Math.min(j*step, n-1);
+      var d = new Date(pts[idx].ts*1000);
+      xLabels.push({i:idx, label:(d.getMonth()+1)+'/'+(d.getDate())});
+    }
+
+    var svg = '<svg viewBox="0 0 '+svgW+' '+svgH+'" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">'+
+      '<defs><linearGradient id="vg" x1="0" y1="0" x2="0" y2="1">'+
+        '<stop offset="0%" stop-color="'+color+'" stop-opacity=".35"/>'+
+        '<stop offset="100%" stop-color="'+color+'" stop-opacity=".02"/>'+
+      '</linearGradient></defs>'+
+      guides.map(function(g){
+        var gy=py(g.v).toFixed(1);
+        return '<line x1="'+pL+'" y1="'+gy+'" x2="'+(pL+gW)+'" y2="'+gy+'" stroke="'+g.clr+'" stroke-width="1" stroke-dasharray="3,3"/>'+
+               '<text x="'+(pL-3)+'" y="'+(parseFloat(gy)+4)+'" text-anchor="end" font-size="9" fill="'+g.clr+'">'+g.label+'</text>';
+      }).join('')+
+      '<path d="'+areaPath+'" fill="url(#vg)"/>'+
+      '<path d="'+linePath+'" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>'+
+      // 최신 점
+      '<circle cx="'+px(n-1).toFixed(1)+'" cy="'+py(pts[n-1].v).toFixed(1)+'" r="3.5" fill="'+color+'"/>'+
+      xLabels.map(function(xl){
+        return '<text x="'+px(xl.i).toFixed(1)+'" y="'+(pT+gH+16)+'" text-anchor="middle" font-size="9" fill="rgba(123,130,168,.7)">'+xl.label+'</text>';
+      }).join('')+
+      '</svg>';
+    chartEl.innerHTML = svg;
+  } catch(e) {
+    chartEl.innerHTML = '<span style="color:var(--muted);font-size:.82rem">데이터를 불러오지 못했어요 ('+e.message+')</span>';
+  }
+}
 
 // ── STOCKS (REAL-TIME) ──
 const PROXIES = [
