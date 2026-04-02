@@ -506,52 +506,47 @@ tr:hover td{background:rgba(108,138,255,.03)}
     <div class="grid2" style="align-items:start;margin-bottom:1.5rem">
       <!-- 수입 입력 -->
       <div class="card">
-        <div class="sec-title">💵 수입 입력</div>
+        <div class="sec-title">💵 수입 입력
+          <span id="income-saved-badge" style="display:none;font-size:.7rem;font-weight:400;color:var(--success);margin-left:.5rem">✓ 저장됨</span>
+        </div>
         <div style="display:flex;flex-direction:column;gap:.6rem">
           <div style="display:flex;gap:.5rem;align-items:center">
             <label style="font-size:.82rem;color:var(--muted);min-width:80px">윤식 월급</label>
-            <input type="number" id="b-in-yoonsik" placeholder="0" style="flex:1" oninput="recalcBudget()"/>
+            <input type="number" id="b-in-yoonsik" placeholder="0" style="flex:1" oninput="recalcBudget()" onchange="autoSaveIncome()"/>
           </div>
           <div style="display:flex;gap:.5rem;align-items:center">
             <label style="font-size:.82rem;color:var(--muted);min-width:80px">유진 월급</label>
-            <input type="number" id="b-in-yujin" placeholder="0" style="flex:1" oninput="recalcBudget()"/>
+            <input type="number" id="b-in-yujin" placeholder="0" style="flex:1" oninput="recalcBudget()" onchange="autoSaveIncome()"/>
           </div>
           <div style="display:flex;gap:.5rem;align-items:center">
             <label style="font-size:.82rem;color:var(--muted);min-width:80px">성과금(윤식)</label>
-            <input type="number" id="b-in-bonus-y" placeholder="0" style="flex:1" oninput="recalcBudget()"/>
+            <input type="number" id="b-in-bonus-y" placeholder="0" style="flex:1" oninput="recalcBudget()" onchange="autoSaveIncome()"/>
           </div>
           <div style="display:flex;gap:.5rem;align-items:center">
             <label style="font-size:.82rem;color:var(--muted);min-width:80px">성과금(유진)</label>
-            <input type="number" id="b-in-bonus-u" placeholder="0" style="flex:1" oninput="recalcBudget()"/>
+            <input type="number" id="b-in-bonus-u" placeholder="0" style="flex:1" oninput="recalcBudget()" onchange="autoSaveIncome()"/>
           </div>
           <div style="display:flex;gap:.5rem;align-items:center">
             <label style="font-size:.82rem;color:var(--muted);min-width:80px">기타수입</label>
-            <input type="number" id="b-in-etc" placeholder="0" style="flex:1" oninput="recalcBudget()"/>
+            <input type="number" id="b-in-etc" placeholder="0" style="flex:1" oninput="recalcBudget()" onchange="autoSaveIncome()"/>
           </div>
-          <button class="btn btn-primary" onclick="saveIncome()">수입 저장 💾</button>
+          <div style="border-top:1px solid var(--border);margin:.2rem 0;padding-top:.5rem;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:.82rem;color:var(--muted)">총 수입</span>
+            <span id="b-income-total-inline" style="font-family:JetBrains Mono,monospace;font-size:.95rem;font-weight:700;color:var(--accent)">₩0</span>
+          </div>
         </div>
       </div>
 
-      <!-- 고정비 요약 -->
+      <!-- 고정비 (수정 가능) -->
       <div class="card">
-        <div class="sec-title">🔒 고정비 (자동 적용)</div>
-        <div style="font-size:.82rem;display:flex;flex-direction:column;gap:.45rem">
-          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">윤식 용돈</span><span style="font-family:JetBrains Mono,monospace">₩1,100,000</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">윤식 교통비</span><span style="font-family:JetBrains Mono,monospace">₩80,000</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">윤식 보험비</span><span style="font-family:JetBrains Mono,monospace">₩80,000</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">유진 용돈</span><span style="font-family:JetBrains Mono,monospace">₩1,100,000</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">유진 교통비</span><span style="font-family:JetBrains Mono,monospace">₩80,000</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">유진 보험비</span><span style="font-family:JetBrains Mono,monospace">₩80,000</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">유진 퇴직연금</span><span style="font-family:JetBrains Mono,monospace">₩200,000</span></div>
-          <div style="border-top:1px solid var(--border);margin:.3rem 0"></div>
-          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">공용생활비</span><span style="font-family:JetBrains Mono,monospace">₩500,000</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">여분통장</span><span style="font-family:JetBrains Mono,monospace">₩100,000</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">관리비</span><span style="font-family:JetBrains Mono,monospace">₩430,000</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">경조사</span><span style="font-family:JetBrains Mono,monospace">₩300,000</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">여행비</span><span style="font-family:JetBrains Mono,monospace">₩300,000</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">부모님</span><span style="font-family:JetBrains Mono,monospace">₩300,000</span></div>
-          <div style="border-top:1px solid var(--border);margin:.3rem 0"></div>
-          <div style="display:flex;justify-content:space-between;font-weight:700"><span style="color:var(--accent4)">합계</span><span style="font-family:JetBrains Mono,monospace;color:var(--accent4)">₩4,650,000</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem">
+          <div class="sec-title" style="margin:0">🔒 고정비</div>
+          <button onclick="addFixedCostRow()" style="background:rgba(108,138,255,.13);border:1px solid rgba(108,138,255,.25);border-radius:6px;color:var(--accent);font-size:.75rem;padding:.25rem .6rem;cursor:pointer">+ 추가</button>
+        </div>
+        <div id="fixed-cost-list" style="font-size:.82rem;display:flex;flex-direction:column;gap:.35rem"></div>
+        <div style="border-top:1px solid var(--border);margin:.4rem 0;padding-top:.45rem;display:flex;justify-content:space-between;font-weight:700">
+          <span style="color:var(--accent4)">합계</span>
+          <span id="fixed-cost-total" style="font-family:JetBrains Mono,monospace;color:var(--accent4)">₩0</span>
         </div>
       </div>
     </div>
@@ -1966,7 +1961,82 @@ function deleteEvent(id) {
 try { document.getElementById('ev-date').value = today(); } catch(e){}
 
 // ── BUDGET (새 가계부) ──
-const FIXED_COST = 4650000;
+var DEFAULT_FIXED_COSTS = [
+  {id:1, label:'윤식 용돈',    amount:1100000},
+  {id:2, label:'윤식 교통비',  amount:80000},
+  {id:3, label:'윤식 보험비',  amount:80000},
+  {id:4, label:'유진 용돈',    amount:1100000},
+  {id:5, label:'유진 교통비',  amount:80000},
+  {id:6, label:'유진 보험비',  amount:80000},
+  {id:7, label:'유진 퇴직연금',amount:200000},
+  {id:8, label:'공용생활비',   amount:500000},
+  {id:9, label:'여분통장',     amount:100000},
+  {id:10,label:'관리비',       amount:430000},
+  {id:11,label:'경조사',       amount:300000},
+  {id:12,label:'여행비',       amount:300000},
+  {id:13,label:'부모님',       amount:300000},
+];
+
+function getFixedCosts() {
+  return S.get('fixed_costs') || DEFAULT_FIXED_COSTS;
+}
+function saveFixedCosts(list) {
+  S.set('fixed_costs', list);
+}
+function getFixedCostTotal() {
+  return getFixedCosts().reduce(function(s,c){return s+(c.amount||0);},0);
+}
+
+function renderFixedCosts() {
+  var list = getFixedCosts();
+  var el = document.getElementById('fixed-cost-list');
+  if(!el) return;
+  el.innerHTML = list.map(function(c){
+    return '<div style="display:flex;gap:.4rem;align-items:center" data-fc-id="'+c.id+'">'+
+      '<input type="text" value="'+c.label+'" placeholder="항목명" style="flex:1;font-size:.8rem;padding:.25rem .4rem;min-width:0" '+
+        'onchange="updateFixedCostField('+c.id+',\'label\',this.value)"/>'+
+      '<input type="number" value="'+c.amount+'" placeholder="0" style="width:100px;font-size:.8rem;padding:.25rem .4rem;text-align:right;min-width:0;font-family:JetBrains Mono,monospace" '+
+        'oninput="updateFixedCostField('+c.id+',\'amount\',parseFloat(this.value)||0);recalcBudget()" '+
+        'onchange="updateFixedCostField('+c.id+',\'amount\',parseFloat(this.value)||0)"/>'+
+      '<button onclick="deleteFixedCostRow('+c.id+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.85rem;padding:.1rem .25rem;line-height:1" title="삭제">✕</button>'+
+    '</div>';
+  }).join('');
+  var total = getFixedCostTotal();
+  var totalEl = document.getElementById('fixed-cost-total');
+  if(totalEl) totalEl.textContent = fmtMoney(total);
+  var bFixed = document.getElementById('b-fixed');
+  if(bFixed) bFixed.textContent = fmtMoney(total);
+}
+
+function updateFixedCostField(id, field, val) {
+  var list = getFixedCosts();
+  var item = list.find(function(c){return c.id===id;});
+  if(!item) return;
+  item[field] = val;
+  saveFixedCosts(list);
+  var total = getFixedCostTotal();
+  var totalEl = document.getElementById('fixed-cost-total');
+  if(totalEl) totalEl.textContent = fmtMoney(total);
+  var bFixed = document.getElementById('b-fixed');
+  if(bFixed) bFixed.textContent = fmtMoney(total);
+}
+
+function addFixedCostRow() {
+  var list = getFixedCosts();
+  var newId = Date.now();
+  list.push({id:newId, label:'새 항목', amount:0});
+  saveFixedCosts(list);
+  renderFixedCosts();
+  recalcBudget();
+}
+
+function deleteFixedCostRow(id) {
+  var list = getFixedCosts().filter(function(c){return c.id!==id;});
+  saveFixedCosts(list);
+  renderFixedCosts();
+  recalcBudget();
+}
+
 let budgetYear, budgetMonth;
 
 (function(){
@@ -2003,6 +2073,7 @@ function renderBudget() {
   document.getElementById('b-in-etc').value      = income.etc      || '';
 
   recalcBudget();
+  renderFixedCosts();
   renderTransactions();
 }
 
@@ -2014,39 +2085,48 @@ function recalcBudget() {
   const etc     = parseFloat(document.getElementById('b-in-etc').value)||0;
   const totalIn = yoonsik+yujin+bonusY+bonusU+etc;
 
+  const fixedTotal = getFixedCostTotal();
   const key = budgetKey();
   const txs = S.get('txs_'+key) || [];
   const totalExp = txs.reduce(function(s,t){return s+(t.amount>0?t.amount:0);},0);
-  const investable = totalIn - FIXED_COST - totalExp;
+  const investable = totalIn - fixedTotal - totalExp;
 
   document.getElementById('b-income').textContent    = fmtMoney(totalIn);
   document.getElementById('b-expense').textContent   = fmtMoney(totalExp);
   document.getElementById('b-investable').textContent= fmtMoney(investable);
-  document.getElementById('b-fixed').textContent     = fmtMoney(FIXED_COST);
+  document.getElementById('b-fixed').textContent     = fmtMoney(fixedTotal);
+  var inlineEl = document.getElementById('b-income-total-inline');
+  if(inlineEl) inlineEl.textContent = fmtMoney(totalIn);
 
   // 대시보드 연동
   const di = document.getElementById('dash-income');
   const de = document.getElementById('dash-expense');
   const db = document.getElementById('dash-balance');
   if(di) di.textContent = fmtMoney(totalIn);
-  if(de) de.textContent = fmtMoney(totalExp+FIXED_COST);
+  if(de) de.textContent = fmtMoney(totalExp+fixedTotal);
   if(db) db.textContent = fmtMoney(investable);
 }
 
-function saveIncome() {
-  const key = budgetKey();
-  const incomeData = {
-    yoonsik: parseFloat(document.getElementById('b-in-yoonsik').value)||0,
-    yujin:   parseFloat(document.getElementById('b-in-yujin').value)||0,
-    bonusY:  parseFloat(document.getElementById('b-in-bonus-y').value)||0,
-    bonusU:  parseFloat(document.getElementById('b-in-bonus-u').value)||0,
-    etc:     parseFloat(document.getElementById('b-in-etc').value)||0,
-  };
-  S.set('income_'+key, incomeData);
-  dbUpsert('income', {budget_key: key, yoonsik: incomeData.yoonsik, yujin: incomeData.yujin, bonus_y: incomeData.bonusY, bonus_u: incomeData.bonusU, etc: incomeData.etc});
-  recalcBudget();
-  alert('✅ 수입이 저장됐어요!');
+var _incomeSaveTimer = null;
+function autoSaveIncome() {
+  clearTimeout(_incomeSaveTimer);
+  _incomeSaveTimer = setTimeout(function(){
+    const key = budgetKey();
+    const incomeData = {
+      yoonsik: parseFloat(document.getElementById('b-in-yoonsik').value)||0,
+      yujin:   parseFloat(document.getElementById('b-in-yujin').value)||0,
+      bonusY:  parseFloat(document.getElementById('b-in-bonus-y').value)||0,
+      bonusU:  parseFloat(document.getElementById('b-in-bonus-u').value)||0,
+      etc:     parseFloat(document.getElementById('b-in-etc').value)||0,
+    };
+    S.set('income_'+key, incomeData);
+    dbUpsert('income', {budget_key: key, yoonsik: incomeData.yoonsik, yujin: incomeData.yujin, bonus_y: incomeData.bonusY, bonus_u: incomeData.bonusU, etc: incomeData.etc});
+    var badge = document.getElementById('income-saved-badge');
+    if(badge){ badge.style.display='inline'; setTimeout(function(){badge.style.display='none';},2000); }
+  }, 600);
 }
+
+function saveIncome() { autoSaveIncome(); }
 
 function addTransaction() {
   const date   = document.getElementById('tx-date').value || today();
