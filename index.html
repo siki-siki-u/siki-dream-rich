@@ -821,7 +821,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
   <div class="page" id="page-market">
     <div class="page-header">
       <h2>📊 글로벌 마켓 현황</h2>
-      <p>실시간 지수 · 섹터 히트맵 · 환율 · 원자재</p>
+      <p>실시간 지수 · S&P 섹터 히트맵 · 환율 · 원자재</p>
     </div>
 
     <!-- 지수/환율/크립토 오버뷰 -->
@@ -913,52 +913,24 @@ tr:hover td{background:rgba(108,138,255,.03)}
       </div>
     </div>
 
-    <!-- 2단: 코스피 히트맵 + 크립토 히트맵 -->
-    <div class="grid2" style="gap:1.2rem;margin-bottom:1.5rem">
-      <div class="card" style="padding:0;overflow:hidden">
-        <div style="padding:1rem 1.2rem .5rem;background:var(--surface)">
-          <div style="font-size:.95rem;font-weight:700;color:var(--text)">🇰🇷 코스피 히트맵</div>
-        </div>
-        <div class="tradingview-widget-container" style="height:400px">
-          <div class="tradingview-widget-container__widget" style="height:100%"></div>
-          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js" async>
-          {
-            "exchanges": ["KRX"],
-            "dataSource": "KOSPI200",
-            "grouping": "sector",
-            "blockSize": "market_cap_basic",
-            "blockColor": "change",
-            "locale": "kr",
-            "colorTheme": "dark",
-            "hasTopBar": true,
-            "isDataSetEnabled": true,
-            "isZoomEnabled": true,
-            "hasSymbolTooltip": true,
-            "isMonoSize": false,
-            "width": "100%",
-            "height": "400"
-          }
-          </script>
-        </div>
+    <!-- 크립토 히트맵 -->
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:1.5rem">
+      <div style="padding:1rem 1.2rem .5rem;background:var(--surface)">
+        <div style="font-size:.95rem;font-weight:700;color:var(--text)">₿ 크립토 시장</div>
       </div>
-      <div class="card" style="padding:0;overflow:hidden">
-        <div style="padding:1rem 1.2rem .5rem;background:var(--surface)">
-          <div style="font-size:.95rem;font-weight:700;color:var(--text)">₿ 크립토 시장</div>
-        </div>
-        <div class="tradingview-widget-container" style="height:400px">
-          <div class="tradingview-widget-container__widget" style="height:100%"></div>
-          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-crypto-coins-heatmap.js" async>
-          {
-            "dataSource": "Crypto",
-            "blockSize": "market_cap_calc",
-            "blockColor": "change",
-            "locale": "kr",
-            "colorTheme": "dark",
-            "width": "100%",
-            "height": "400"
-          }
-          </script>
-        </div>
+      <div class="tradingview-widget-container" style="height:400px">
+        <div class="tradingview-widget-container__widget" style="height:100%"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-crypto-coins-heatmap.js" async>
+        {
+          "dataSource": "Crypto",
+          "blockSize": "market_cap_calc",
+          "blockColor": "change",
+          "locale": "kr",
+          "colorTheme": "dark",
+          "width": "100%",
+          "height": "400"
+        }
+        </script>
       </div>
     </div>
 
