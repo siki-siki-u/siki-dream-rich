@@ -4371,6 +4371,15 @@ function deleteApt(id) {
   ];
   inits.forEach(function(fn){ try{ fn(); } catch(e){ console.warn('safeInit error:', e.message); } });
   // Supabase에서 최신 데이터 동기화
+  // 2026-04-01 데이터 일회성 정리
+  (function(){
+    var snaps = S.get('asset_snapshots') || [];
+    var filtered = snaps.filter(function(s){ return s.date !== '2026-04-01'; });
+    if(filtered.length !== snaps.length) { S.set('asset_snapshots', filtered); }
+    var shots = S.get('asset_shots') || [];
+    var fShots = shots.filter(function(s){ return s.date !== '2026-04-01'; });
+    if(fShots.length !== shots.length) { S.set('asset_shots', fShots); }
+  })();
   syncFromSupabase();
 })();
 
