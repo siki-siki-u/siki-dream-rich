@@ -2513,14 +2513,15 @@ function renderAssetHistory() {
   var el = document.getElementById('a-history');
   var sel = document.getElementById('a-history-month');
   if(!el) return;
-  var snaps = (S.get('asset_snapshots') || []).slice().sort(function(a,b){return b.id-a.id;});
-  if(!snaps.length){
+  // 월별 기록은 asset_shots 기준 (업로드마다 개별 금액 표시)
+  var shots = (S.get('asset_shots') || []).slice().sort(function(a,b){return b.id-a.id;});
+  if(!shots.length){
     el.innerHTML='<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:1.5rem">캡처 업로드 후 저장됩니다</div>';
     return;
   }
   // 월 목록 구성
   var months = [];
-  snaps.forEach(function(s){ var m=(s.date||'').slice(0,7); if(m && months.indexOf(m)<0) months.push(m); });
+  shots.forEach(function(s){ var m=(s.date||'').slice(0,7); if(m && months.indexOf(m)<0) months.push(m); });
   months.sort(function(a,b){return b.localeCompare(a);});
   if(sel) {
     var curVal = sel.value;
@@ -2530,8 +2531,8 @@ function renderAssetHistory() {
     if(!sel.value && months.length) sel.value = months[0];
   }
   var selectedMonth = sel ? sel.value : (months[0]||'');
-  // 선택 월의 스냅샷만 표시 (개별 기록)
-  var filtered = snaps.filter(function(s){ return (s.date||'').slice(0,7)===selectedMonth; });
+  // 선택 월의 shot만 표시 (업로드별 개별 금액)
+  var filtered = shots.filter(function(s){ return (s.date||'').slice(0,7)===selectedMonth; });
   if(!filtered.length){
     el.innerHTML='<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:1.5rem">해당 월 기록 없음</div>';
     return;
@@ -2546,10 +2547,13 @@ function renderAssetHistory() {
       var rClr2 = r >= 0 ? 'var(--success)' : 'var(--danger)';
       roi = '<span style="font-size:.75rem;color:'+rClr2+';font-weight:600">'+(r>=0?'+':'')+r.toFixed(2)+'%</span>';
     }
+    var label = s.summary ? '<span style="font-size:.75rem;color:var(--muted);margin-left:.3rem">'+s.summary+'</span>' : '';
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--border);font-size:.83rem">'+
-      '<span style="color:var(--muted);font-family:JetBrains Mono,monospace">'+s.date+'</span>'+
-      '<span style="color:var(--accent4);font-family:JetBrains Mono,monospace;font-weight:600">'+fmtMoney(s.total)+'</span>'+
-      roi+
+      '<span style="color:var(--muted);font-family:JetBrains Mono,monospace">'+s.date+label+'</span>'+
+      '<span style="display:flex;align-items:center;gap:.5rem">'+
+        '<span style="color:var(--accent4);font-family:JetBrains Mono,monospace;font-weight:600">'+fmtMoney(s.total)+'</span>'+
+        roi+
+      '</span>'+
     '</div>';
   }).join('');
 }
@@ -3317,13 +3321,13 @@ async function analyzeAssetShotMain() {
       '<div style="margin-bottom:.6rem">'+rowsHtml+'</div>'+
       '';
 
-    // 종목 upsert: 같은 person의 오늘 스냅샷이 있으면 items 병합
+    // 종목 upsert: 같은 person의 오늘 스냅샷이 있으면 items 병합 (포트폴리오용)
     var newItems = result.parsed.items || [];
     var snaps = S.get('asset_snapshots') || [];
     var todayStr = today();
     var todaySnap = snaps.find(function(s){ return s.person===person && s.date===todayStr; });
     var mergedItems;
-    var snapId = todaySnap ? todaySnap.id : Date.now(); // 오늘 기존 스냅이 있으면 id 유지
+    var snapId = todaySnap ? todaySnap.id : Date.now(); // 오늘 기존 스냅이 있으면 id 유지 (포트폴리오 병합)
     if(todaySnap) {
       mergedItems = todaySnap.items ? todaySnap.items.slice() : [];
       newItems.forEach(function(ni){
@@ -3336,6 +3340,8 @@ async function analyzeAssetShotMain() {
       mergedItems = newItems;
     }
     var mergedTotal = mergedItems.reduce(function(s,i){return s+(i.value||0);}, 0);
+    // 이번 업로드 금액만 (히스토리 표시용)
+    var uploadTotal = newItems.reduce(function(s,i){return s+(i.value||0);}, 0) || result.parsed.total || 0;
 
     var snap = {
       id: snapId, person: person, date: todayStr,
@@ -3347,12 +3353,12 @@ async function analyzeAssetShotMain() {
       summary: result.parsed.summary || result.summary || '',
       img: img, rows: result.rows
     };
-    // asset_shots: 오늘 같은 사람 기존 항목 교체 (id 유지이므로 중복 방지)
+    // asset_shots: 각 업로드마다 새 항목 추가 (히스토리 누적)
+    var shotId = Date.now();
     var shots = S.get('asset_shots') || [];
-    shots = shots.filter(function(s){ return !(s.person===person && s.date===todayStr); });
-    shots.unshift({ id:snap.id, person:person, img:img, summary:snap.summary, rows:result.rows, date:todayStr,
-      total:snap.total, principal:snap.principal, profit:snap.profit, profit_rate:snap.profit_rate });
-    S.set('asset_shots', shots.slice(0, 30));
+    shots.unshift({ id:shotId, person:person, img:img, summary:snap.summary, rows:result.rows, date:todayStr,
+      total:uploadTotal, principal:snap.principal, profit:snap.profit, profit_rate:snap.profit_rate });
+    S.set('asset_shots', shots.slice(0, 50));
     snaps.unshift(snap);
     S.set('asset_snapshots', snaps.slice(0, 100));
     // DB 저장 (img 제외)
