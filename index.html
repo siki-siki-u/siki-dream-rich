@@ -1424,10 +1424,28 @@ async function syncFromSupabase() {
     if(settings && settings.length > 0) settings.forEach(function(s){
       if(s.key === 'fixed_costs') { try { S.set('fixed_costs', JSON.parse(s.value)); } catch(e){} }
     });
+    // asset_snapshots
+    const { data: assetSnaps } = await supa.from('asset_snapshots').select('*').order('id', {ascending: false}).limit(100);
+    if(assetSnaps && assetSnaps.length > 0) {
+      // localStorage에 없는 것만 병합 (로컬 우선)
+      var localSnaps = S.get('asset_snapshots') || [];
+      var localIds = new Set(localSnaps.map(function(s){return s.id;}));
+      var merged = localSnaps.slice();
+      assetSnaps.forEach(function(s){
+        if(!localIds.has(s.id)) {
+          merged.push({ id:s.id, person:s.person, date:s.date, total:s.total||0,
+            principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate,
+            items:s.items||[], summary:s.summary||'', rows:s.rows||[] });
+        }
+      });
+      merged.sort(function(a,b){return b.id-a.id;});
+      S.set('asset_snapshots', merged.slice(0,100));
+    }
     // re-render
     renderStocks(); fetchAllPrices();
     renderBudget(); refreshDashboard();
     renderJournal(); renderRealty();
+    renderSnapshotStats(); renderAssetBreakdown(); renderAssetHistory(); renderAssetTrend(); renderAssetShotHistory();
   } catch(e) { console.warn('[Supabase sync]', e.message); }
 }
 
@@ -3333,6 +3351,12 @@ async function analyzeAssetShotMain() {
     S.set('asset_shots', shots.slice(0, 30));
     snaps.unshift(snap);
     S.set('asset_snapshots', snaps.slice(0, 100));
+    // DB 저장 (img 제외)
+    dbUpsert('asset_snapshots', {
+      id: snap.id, person: snap.person, date: snap.date,
+      total: snap.total, principal: snap.principal, profit: snap.profit, profit_rate: snap.profit_rate,
+      items: snap.items, summary: snap.summary, rows: snap.rows
+    });
     renderSnapshotStats();
     renderAssetBreakdown();
     renderAssetHistory();
@@ -3383,7 +3407,13 @@ function renderAssetShotHistory() {
 
 function deleteAssetShot(id) {
   S.set('asset_shots', (S.get('asset_shots')||[]).filter(function(s){return s.id!==id;}));
+  S.set('asset_snapshots', (S.get('asset_snapshots')||[]).filter(function(s){return s.id!==id;}));
+  dbDelete('asset_snapshots', id);
   renderAssetShotHistory();
+  renderSnapshotStats();
+  renderAssetBreakdown();
+  renderAssetHistory();
+  renderAssetTrend();
 }
 
 function expandAssetShot(id) {
