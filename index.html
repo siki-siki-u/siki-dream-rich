@@ -585,6 +585,15 @@ tr:hover td{background:rgba(108,138,255,.03)}
           📌 <b style="color:var(--text)">토스 거래내역 받는 법</b><br/>
           토스 앱 → 공용통장 → 거래내역 → 우측 상단 내보내기 → 엑셀
         </div>
+        <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem">
+          <label style="font-size:.82rem;color:var(--muted);min-width:60px;flex-shrink:0">어느 통장?</label>
+          <select id="excel-source-account" style="flex:1;font-size:.85rem">
+            <option value="">선택 안 함</option>
+            <option value="공용생활비">💳 공용생활비</option>
+            <option value="여분통장">💰 여분통장</option>
+            <option value="관리비">🏠 관리비</option>
+          </select>
+        </div>
         <div class="toss-drop" id="excel-drop"
           ondragover="event.preventDefault();this.classList.add('drag-over')"
           ondragleave="this.classList.remove('drag-over')"
@@ -618,7 +627,15 @@ tr:hover td{background:rgba(108,138,255,.03)}
     <div class="grid2" style="align-items:start">
       <!-- 카테고리별 지출 -->
       <div class="card">
-        <div class="sec-title">📊 카테고리별 지출</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.4rem">
+          <div class="sec-title" style="margin:0">📊 카테고리별 지출</div>
+          <div style="display:flex;gap:.3rem;flex-wrap:wrap">
+            <button onclick="setCatFilter('')"  id="cf-btn-all"  class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">전체</button>
+            <button onclick="setCatFilter('공용생활비')" id="cf-btn-공용생활비" class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">💳 공용생활비</button>
+            <button onclick="setCatFilter('여분통장')"   id="cf-btn-여분통장"   class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">💰 여분통장</button>
+            <button onclick="setCatFilter('관리비')"     id="cf-btn-관리비"     class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">🏠 관리비</button>
+          </div>
+        </div>
         <div id="b-cat-chart"></div>
       </div>
       <!-- 지출 내역 -->
@@ -626,7 +643,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div class="sec-title">📋 지출 내역</div>
         <div class="table-wrap" style="max-height:380px;overflow-y:auto">
           <table>
-            <thead><tr><th>날짜</th><th>카테고리</th><th>내용</th><th>금액</th><th></th></tr></thead>
+            <thead><tr><th>날짜</th><th>카테고리</th><th>내용</th><th>통장</th><th>금액</th><th></th></tr></thead>
             <tbody id="tx-body"></tbody>
           </table>
         </div>
@@ -1385,7 +1402,7 @@ async function syncFromSupabase() {
     const { data: txs } = await supa.from('transactions').select('*');
     if(txs && txs.length > 0) {
       const byKey = {};
-      txs.forEach(function(t){ if(!byKey[t.budget_key]) byKey[t.budget_key]=[]; byKey[t.budget_key].push({id:t.id, date:t.date, cat:t.cat, amount:t.amount, desc:t.descr||''}); });
+      txs.forEach(function(t){ if(!byKey[t.budget_key]) byKey[t.budget_key]=[]; byKey[t.budget_key].push({id:t.id, date:t.date, cat:t.cat, amount:t.amount, desc:t.descr||'', source:t.source||''}); });
       Object.keys(byKey).forEach(function(k){ S.set('txs_'+k, byKey[k]); });
     }
     // income
@@ -2195,9 +2212,21 @@ function addTransaction() {
   renderTransactions();
 }
 
+var currentCatFilter = '';
+function setCatFilter(src) {
+  currentCatFilter = src;
+  ['all','공용생활비','여분통장','관리비'].forEach(function(k){
+    var b = document.getElementById('cf-btn-'+(k==='all'?'all':k));
+    if(b) b.style.color = (src===''&&k==='all'||src===k) ? 'var(--accent)' : '';
+  });
+  renderTransactions();
+}
+
 function renderTransactions() {
   const key  = budgetKey();
-  const txs  = (S.get('txs_'+key)||[]).sort(function(a,b){return b.date.localeCompare(a.date);});
+  const allTxs = (S.get('txs_'+key)||[]).sort(function(a,b){return b.date.localeCompare(a.date);});
+  // 필터 적용 (카테고리 차트·집계는 필터 적용, 테이블도 필터 적용)
+  const txs = currentCatFilter ? allTxs.filter(function(t){return t.source===currentCatFilter;}) : allTxs;
 
   // 카테고리 집계
   const catMap = {};
@@ -2237,21 +2266,26 @@ function renderTransactions() {
   const tbody = document.getElementById('tx-body');
   if(tbody) {
     var catOpts = ['식료품','식비','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
+    var srcColors = {'공용생활비':'#60a5fa','여분통장':'#34d399','관리비':'#f472b6'};
     tbody.innerHTML = txs.length ? txs.map(function(t){
       var clr = catColors[t.cat]||'var(--muted)';
       var opts = catOpts.map(function(c){
         return '<option value="'+c+'"'+(c===t.cat?' selected':'')+'>'+c+'</option>';
       }).join('');
+      var srcHtml = t.source
+        ? '<span style="font-size:.68rem;padding:.1rem .35rem;border-radius:4px;background:'+(srcColors[t.source]||'var(--muted)')+'22;color:'+(srcColors[t.source]||'var(--muted)')+';white-space:nowrap">'+t.source+'</span>'
+        : '<span style="color:var(--border);font-size:.72rem">—</span>';
       return '<tr>'+
         '<td style="font-family:JetBrains Mono,monospace;font-size:.78rem">'+t.date+'</td>'+
         '<td><select onchange="updateTxCat('+t.id+',this.value)" '+
           'style="background:'+clr+'22;color:'+clr+';border:1px solid '+clr+'44;border-radius:5px;font-size:.75rem;padding:.15rem .3rem;font-weight:600;cursor:pointer;max-width:100px">'+
           opts+'</select></td>'+
         '<td style="color:var(--muted);font-size:.82rem">'+t.desc+'</td>'+
+        '<td>'+srcHtml+'</td>'+
         '<td style="font-family:JetBrains Mono,monospace;color:'+(t.amount<0?'var(--success)':'var(--danger)')+';font-weight:600">'+(t.amount<0?'+':'-')+fmtMoney(Math.abs(t.amount))+'</td>'+
         '<td><button onclick="deleteTx('+t.id+')" class="btn btn-danger" style="padding:.2rem .45rem;font-size:.72rem">삭제</button></td>'+
       '</tr>';
-    }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:2rem">지출 내역이 없어요</td></tr>';
+    }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">지출 내역이 없어요</td></tr>';
   }
 }
 
@@ -3763,10 +3797,14 @@ function removePreviewRow(i) {
 function importExcelToBudget() {
   if(!parsedExcelRows.length) { alert('먼저 엑셀 파일을 업로드해 주세요!'); return; }
   var targetKey = document.getElementById('excel-target-month').value;
+  var sourceAccount = (document.getElementById('excel-source-account')||{}).value || '';
   var existing  = S.get('txs_'+targetKey) || [];
   var added = 0;
   parsedExcelRows.forEach(function(r){
-    existing.push({ id: Date.now()+Math.random(), date:r.date, cat:r.cat, amount:r.amount, desc:r.desc });
+    var tx = { id: Date.now()+Math.random(), date:r.date, cat:r.cat, amount:r.amount, desc:r.desc };
+    if(sourceAccount) tx.source = sourceAccount;
+    existing.push(tx);
+    dbUpsert('transactions', {id:tx.id, budget_key:targetKey, date:tx.date, cat:tx.cat, amount:tx.amount, descr:tx.desc, source:sourceAccount||null});
     added++;
   });
   S.set('txs_'+targetKey, existing);
