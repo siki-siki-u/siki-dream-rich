@@ -2235,17 +2235,35 @@ function renderTransactions() {
 
   const tbody = document.getElementById('tx-body');
   if(tbody) {
+    var catOpts = ['식료품','식비','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
     tbody.innerHTML = txs.length ? txs.map(function(t){
       var clr = catColors[t.cat]||'var(--muted)';
+      var opts = catOpts.map(function(c){
+        return '<option value="'+c+'"'+(c===t.cat?' selected':'')+'>'+c+'</option>';
+      }).join('');
       return '<tr>'+
         '<td style="font-family:JetBrains Mono,monospace;font-size:.78rem">'+t.date+'</td>'+
-        '<td><span class="badge" style="background:'+clr+'22;color:'+clr+'">'+t.cat+'</span></td>'+
+        '<td><select onchange="updateTxCat('+t.id+',this.value)" '+
+          'style="background:'+clr+'22;color:'+clr+';border:1px solid '+clr+'44;border-radius:5px;font-size:.75rem;padding:.15rem .3rem;font-weight:600;cursor:pointer;max-width:100px">'+
+          opts+'</select></td>'+
         '<td style="color:var(--muted);font-size:.82rem">'+t.desc+'</td>'+
         '<td style="font-family:JetBrains Mono,monospace;color:'+(t.amount<0?'var(--success)':'var(--danger)')+';font-weight:600">'+(t.amount<0?'+':'-')+fmtMoney(Math.abs(t.amount))+'</td>'+
         '<td><button onclick="deleteTx('+t.id+')" class="btn btn-danger" style="padding:.2rem .45rem;font-size:.72rem">삭제</button></td>'+
       '</tr>';
     }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:2rem">지출 내역이 없어요</td></tr>';
   }
+}
+
+function updateTxCat(id, newCat) {
+  var key = budgetKey();
+  var txs = S.get('txs_'+key) || [];
+  var tx = txs.find(function(t){return t.id===id;});
+  if(!tx) return;
+  tx.cat = newCat;
+  S.set('txs_'+key, txs);
+  dbUpsert('transactions', {id:tx.id, budget_key:key, date:tx.date, cat:newCat, amount:tx.amount, descr:tx.desc||''});
+  renderTransactions();
+  recalcBudget();
 }
 
 function deleteTx(id) {
