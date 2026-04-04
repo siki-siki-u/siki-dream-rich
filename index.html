@@ -221,7 +221,6 @@ tr:hover td{background:rgba(108,138,255,.03)}
   #page-market .tradingview-widget-container[style*="450px"]{height:360px!important}
   .grid3{grid-template-columns:1fr}
   /* 주식 종목 추가 폼 */
-  #page-stocks .grid2 > div:first-child{order:1}
   /* 부동산 */
   #page-realty .grid2{gap:1rem}
   /* 가계부 지출 입력 줄바꿈 */
@@ -256,7 +255,6 @@ tr:hover td{background:rgba(108,138,255,.03)}
   .stats-row[style*="repeat(4"]{grid-template-columns:1fr 1fr!important}
   .stats-row[style*="repeat(3"]{grid-template-columns:1fr 1fr!important}
   /* 주식탭 상단 flex */
-  #page-stocks .page-header > div{flex-direction:column;align-items:flex-start!important;gap:.5rem}
   /* 부동산 주소 row */
   #page-realty .card div[style*="display:flex"][style*="gap:.5rem"]{flex-wrap:wrap}
   /* 자산 탭 라벨 너비 축소 */
@@ -350,8 +348,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
     <div class="nav-section">
       <div class="nav-label">재정</div>
       <div class="nav-item" onclick="showPage('budget',this);closeSidebar()"><span class="icon">💰</span> 가계부</div>
-      <div class="nav-item" onclick="showPage('assets',this);closeSidebar()"><span class="icon">🏦</span> 자산 현황</div>
-      <div class="nav-item" onclick="showPage('stocks',this);closeSidebar()"><span class="icon">💼</span> 투자현황</div>
+      <div class="nav-item" onclick="showPage('assets',this);closeSidebar()"><span class="icon">🏦</span> 투자 자산현황</div>
       <div class="nav-item" onclick="showPage('market',this);closeSidebar()"><span class="icon">📊</span> 마켓 현황</div>
       <div class="nav-item" onclick="showPage('youtube',this);closeSidebar()"><span class="icon">▶️</span> 올랜도킴 분석</div>
       <div class="nav-item" onclick="showPage('journal',this);closeSidebar()"><span class="icon">📝</span> 투자 일지</div>
@@ -662,11 +659,11 @@ tr:hover td{background:rgba(108,138,255,.03)}
     </div>
   </div>
 
-  <!-- 자산 현황 -->
+  <!-- 투자 자산현황 -->
   <div class="page" id="page-assets">
     <div class="page-header">
-      <h2>🏦 자산 현황</h2>
-      <p>투자 및 전체 자산을 월별로 기록해요</p>
+      <h2>🏦 투자 자산현황</h2>
+      <p>캡처 업로드로 투자 자산 자동 기록 · AI 포트폴리오 분석</p>
     </div>
     <!-- 순자산 목표 달성 예측 위젯 -->
     <div id="goal-widget" style="display:none;margin-bottom:1.5rem"></div>
@@ -753,10 +750,21 @@ tr:hover td{background:rgba(108,138,255,.03)}
       <div id="asset-trend-chart"></div>
     </div>
 
+    <!-- AI 포트폴리오 분석 -->
+    <div class="card" style="margin-top:1.5rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <div class="sec-title" style="margin:0">🤖 AI 포트폴리오 분석</div>
+        <button class="btn btn-primary" onclick="getPortfolioAI(this)">분석하기</button>
+      </div>
+      <div id="portfolio-ai-result" style="font-size:.85rem;color:var(--muted);text-align:center;padding:1rem">
+        캡처를 업로드한 뒤 분석하면 AI가 포트폴리오를 진단해줘요
+      </div>
+    </div>
+
   </div>
 
-  <!-- 투자현황 -->
-  <div class="page" id="page-stocks">
+  <!-- 투자현황(삭제됨) -->
+  <div class="page" id="page-stocks" style="display:none!important">
     <div class="page-header">
       <h2>💼 투자현황</h2>
       <p>투자계좌 캡처로 자동입력 · AI 포트폴리오 분석</p>
@@ -1449,7 +1457,6 @@ function showPage(id, el) {
   if(id==='calendar') renderCalendar();
   if(id==='budget') { renderBudget(); }
   if(id==='assets') { renderSnapshotStats(); renderAssetBreakdown(); renderAssetHistory(); renderGoalWidget(); renderAssetShotHistory(); renderAssetTrend(); }
-  if(id==='stocks') { renderInvestStats(); }
   if(id==='youtube') { renderYtLibrary(); }
   if(id==='journal') { renderJournal(); fetchFearGreed(); }
   if(id==='realty')  { renderRealty(); initCheongak(); }
@@ -2733,33 +2740,23 @@ function renderInvestBreakdown(data, total) {
 }
 
 async function getPortfolioAI(btn) {
-  var data = S.get('assets_'+assetMonthKey()) || S.get('assets_latest') || {};
-  var allItems = [
-    ['토스증권(유진)',   data['a-toss']||0],
-    ['ISA계좌(유진)',    data['a-isa']||0],
-    ['금계좌(유진)',     data['a-gold']||0],
-    ['코인(유진)',       data['a-coin-u']||0],
-    ['코인(윤식)',       data['a-coin-y']||0],
-    ['펀드(유진)',       data['a-fund']||0],
-    ['주택청약(유진)',   data['a-cheongyak']||0],
-    ['적금(유진)',       data['a-savings-u']||0],
-    ['적금(윤식)',       data['a-savings-y']||0],
-    ['CMA(유진)',        data['a-cma']||0],
-    ['퇴직연금(유진)',   data['a-ret-u']||0],
-    ['퇴직연금(윤식)',   data['a-ret-y']||0],
-    ['개인주식(유진)',   data['a-stock-u']||0],
-  ].filter(function(r){return r[1]>0;});
-
-  if(!allItems.length) { alert('먼저 자산 현황 탭에서 자산을 입력해 주세요!'); return; }
+  var snapData = getLatestSnapshotData();
+  var allItems = snapData.allItems || [];
+  if(!allItems.length) { alert('먼저 캡처를 업로드해 주세요!'); return; }
 
   var resultEl = document.getElementById('portfolio-ai-result');
   btn.textContent = '⏳ 분석 중...'; btn.disabled = true;
   resultEl.innerHTML = '';
 
-  var total = allItems.reduce(function(s,r){return s+r[1];},0);
+  var total = allItems.reduce(function(s,i){return s+(i.value||0);},0);
+  var byPerson = snapData.byPerson || {};
+  var yujinItems  = (byPerson['yujin']  || []).reduce(function(a,s){return a.concat(s.items||[]);}, []);
+  var yoonsikItems= (byPerson['yoonsik']|| []).reduce(function(a,s){return a.concat(s.items||[]);}, []);
+
   var prompt = '아래는 유진과 윤식 부부의 투자 포트폴리오야 (기준일: '+today()+'):\n\n'+
-    allItems.map(function(r){return '- '+r[0]+': '+Number(r[1]).toLocaleString()+'원 ('+((r[1]/total*100).toFixed(1))+'%)';}).join('\n')+
-    '\n\n총 투자자산: '+Number(total).toLocaleString()+'원\n\n'+
+    '👩 유진:\n'+yujinItems.map(function(i){return '- '+i.name+': '+Number(i.value).toLocaleString()+'원';}).join('\n')+'\n\n'+
+    '👨 윤식:\n'+yoonsikItems.map(function(i){return '- '+i.name+': '+Number(i.value).toLocaleString()+'원';}).join('\n')+
+    '\n\n총 자산: '+Number(total).toLocaleString()+'원\n\n'+
     '이 포트폴리오를 한국어로, 친근하고 실용적으로 분석해줘. 아래 형식으로:\n\n'+
     '📊 포트폴리오 요약\n(전체 구성 평가, 2줄)\n\n'+
     '👩 유진 포트폴리오\n(강점과 개선점, 2줄)\n\n'+
@@ -2772,16 +2769,16 @@ async function getPortfolioAI(btn) {
     var res = await fetchWithTimeout('/api/claude', 30000, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({messages:[{role:'user',content:prompt}], max_tokens:1000})
+      body:JSON.stringify({messages:[{role:'user',content:prompt}], max_tokens:1200})
     });
     var d = await res.json();
     if(checkCreditError(d)) throw new Error('크레딧 부족');
     var text = d.content?.[0]?.text || '분석 실패';
-    resultEl.innerHTML = '<div style="margin-top:1rem;padding:.9rem;background:rgba(108,138,255,.07);border-radius:10px;font-size:.83rem;color:var(--text);line-height:1.9">'+text.replace(/\n/g,'<br/>')+'</div>';
+    resultEl.innerHTML = '<div style="padding:.9rem;background:rgba(108,138,255,.07);border-radius:10px;font-size:.83rem;color:var(--text);line-height:1.9">'+text.replace(/\n/g,'<br/>')+'</div>';
   } catch(e) {
     resultEl.innerHTML = '<div style="color:var(--danger);padding:.8rem;font-size:.85rem">⚠️ 분석 실패: '+e.message+'</div>';
   }
-  btn.textContent = '🤖 포트폴리오 AI 분석'; btn.disabled = false;
+  btn.textContent = '분석하기'; btn.disabled = false;
 }
 
 // 투자현황 initialized in safeInit
@@ -3299,22 +3296,41 @@ async function analyzeAssetShotMain() {
       '<div style="margin-bottom:.6rem">'+rowsHtml+'</div>'+
       '';
 
-    // 스냅샷 저장
+    // 종목 upsert: 같은 person의 오늘 스냅샷이 있으면 items 병합
+    var newItems = result.parsed.items || [];
+    var snaps = S.get('asset_snapshots') || [];
+    var todayStr = today();
+    var todaySnap = snaps.find(function(s){ return s.person===person && s.date===todayStr; });
+    var mergedItems;
+    if(todaySnap) {
+      // 기존 items에 upsert
+      mergedItems = todaySnap.items ? todaySnap.items.slice() : [];
+      newItems.forEach(function(ni){
+        var idx = mergedItems.findIndex(function(ei){ return ei.name === ni.name; });
+        if(idx >= 0) mergedItems[idx] = ni;  // 업데이트
+        else mergedItems.push(ni);            // 신규 삽입
+      });
+      // 오늘 스냅샷 제거 후 새 것으로 대체
+      snaps = snaps.filter(function(s){ return !(s.person===person && s.date===todayStr); });
+    } else {
+      mergedItems = newItems;
+    }
+    var mergedTotal = mergedItems.reduce(function(s,i){return s+(i.value||0);}, 0);
+
     var snap = {
-      id: Date.now(), person: person, date: today(),
-      total: result.parsed.total || 0,
+      id: Date.now(), person: person, date: todayStr,
+      total: mergedTotal || result.parsed.total || 0,
       principal: result.parsed.principal || 0,
       profit: result.parsed.profit || 0,
       profit_rate: result.parsed.profit_rate != null ? result.parsed.profit_rate : null,
-      items: result.parsed.items || [],
+      items: mergedItems,
       summary: result.parsed.summary || result.summary || '',
       img: img, rows: result.rows
     };
     var shots = S.get('asset_shots') || [];
-    shots.unshift({ id:snap.id, person:person, img:img, summary:snap.summary, rows:result.rows, date:today(),
+    shots.unshift({ id:snap.id, person:person, img:img, summary:snap.summary, rows:result.rows, date:todayStr,
       total:snap.total, principal:snap.principal, profit:snap.profit, profit_rate:snap.profit_rate });
     S.set('asset_shots', shots.slice(0, 30));
-    var snaps = S.get('asset_snapshots') || [];
     snaps.unshift(snap);
     S.set('asset_snapshots', snaps.slice(0, 100));
     renderSnapshotStats();
@@ -4310,7 +4326,6 @@ function deleteApt(id) {
     function(){ renderYtLibrary(); },
     function(){ renderJournal(); },
     function(){ renderRealty(); },
-    function(){ renderInvestStats(); },
   ];
   inits.forEach(function(fn){ try{ fn(); } catch(e){ console.warn('safeInit error:', e.message); } });
   // Supabase에서 최신 데이터 동기화
