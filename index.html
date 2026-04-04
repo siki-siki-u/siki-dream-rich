@@ -2929,37 +2929,60 @@ function renderYtVideoGrid() {
 }
 
 async function analyzeYtVideo(videoId, title, published, thumb, btn) {
-  btn.textContent = '⏳ 분석 중...';
+  btn.textContent = '⏳ 자막 가져오는 중...';
   btn.disabled = true;
 
-  // desc 찾기
   var video = ytVideos.find(function(v){return v.videoId===videoId;}) || {};
   var desc = video.desc || '';
 
   try {
-    var res = await fetchWithTimeout('/api/claude', 30000, {
+    // 1단계: 자막 가져오기
+    var transcriptText = '';
+    try {
+      var tRes = await fetchWithTimeout('/api/youtube-transcript?videoId=' + videoId, 15000);
+      if(tRes && tRes.ok) {
+        var tData = await tRes.json();
+        if(tData.transcript) transcriptText = tData.transcript;
+      }
+    } catch(e) { /* 자막 실패해도 계속 진행 */ }
+
+    btn.textContent = '⏳ AI 분석 중...';
+
+    var contentParts = [
+      '당신은 미국주식 투자 분석 전문가야. 올랜도킴은 한국인 미국주식 전문 유튜버로 S&P500, 나스닥, 성장주/가치주, 매크로 경제(연준·금리·CPI)를 주로 다뤄. 구독자는 미국주식에 관심있는 한국 개인투자자야.',
+      '',
+      '아래 영상 내용을 바탕으로 핵심만 뽑아서 딱 10줄 요약을 작성해줘.',
+      '',
+      '📅 날짜: ' + published,
+      '🎬 제목: ' + title,
+    ];
+
+    if(transcriptText) {
+      contentParts.push('📜 자막 전문:\n' + transcriptText);
+    } else {
+      contentParts.push('📝 설명: ' + (desc || '(설명 없음 — 제목으로만 분석)'));
+    }
+
+    contentParts.push(
+      '',
+      '규칙:',
+      '- 정확히 10줄. 각 줄은 번호(1~10)로 시작.',
+      '- 1~9번: 영상의 핵심 내용, 시장 맥락, 주목 종목/ETF, 투자 인사이트 등을 간결하게 한 줄씩.',
+      '- 10번: 반드시 "📍 포지션: [관망 / 매수 타이밍 / 매도 타이밍] — (한 줄 근거)" 형식으로 작성.',
+      '- 각 줄은 2~3문장 이내로 짧고 임팩트 있게.',
+      '- 불필요한 서론/마무리 멘트 없이 바로 1번부터 시작.',
+    );
+
+    // 2단계: Claude Sonnet으로 분석
+    var res = await fetchWithTimeout('/api/claude', 40000, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
-        max_tokens: 1500,
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2000,
         messages:[{
           role:'user',
-          content: [
-            '당신은 미국주식 투자 분석 전문가야. 올랜도킴은 한국인 미국주식 전문 유튜버로 S&P500, 나스닥, 성장주/가치주, 매크로 경제(연준·금리·CPI)를 주로 다뤄. 구독자는 미국주식에 관심있는 한국 개인투자자야.',
-            '',
-            '아래 영상 정보를 바탕으로 핵심만 뽑아서 딱 10줄 요약을 작성해줘.',
-            '',
-            '📅 날짜: ' + published,
-            '🎬 제목: ' + title,
-            '📝 설명: ' + (desc || '(설명 없음 — 제목으로만 분석)'),
-            '',
-            '규칙:',
-            '- 정확히 10줄. 각 줄은 번호(1~10)로 시작.',
-            '- 1~9번: 영상의 핵심 내용, 시장 맥락, 주목 종목/ETF, 투자 인사이트 등을 간결하게 한 줄씩.',
-            '- 10번: 반드시 "📍 포지션: [관망 / 매수 타이밍 / 매도 타이밍] — (한 줄 근거)" 형식으로 작성.',
-            '- 각 줄은 2~3문장 이내로 짧고 임팩트 있게.',
-            '- 불필요한 서론/마무리 멘트 없이 바로 1번부터 시작.',
-          ].join('\n')
+          content: contentParts.join('\n')
         }]
       })
     });

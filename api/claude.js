@@ -46,7 +46,7 @@ module.exports = async function(req, res) {
 
   try {
     var r = await callClaude({
-      model: 'claude-haiku-4-5-20251001',
+      model: body.model || 'claude-haiku-4-5-20251001',
       max_tokens: body.max_tokens || 1000,
       messages: body.messages,
     });
