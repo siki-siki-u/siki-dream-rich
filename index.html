@@ -1394,6 +1394,11 @@ async function syncFromSupabase() {
     // realty
     const { data: realty } = await supa.from('realty').select('*');
     if(realty && realty.length > 0) S.set('apts', realty.map(function(r){ return r.data; }));
+    // settings (고정비 등)
+    const { data: settings } = await supa.from('settings').select('*');
+    if(settings && settings.length > 0) settings.forEach(function(s){
+      if(s.key === 'fixed_costs') { try { S.set('fixed_costs', JSON.parse(s.value)); } catch(e){} }
+    });
     // re-render
     renderStocks(); fetchAllPrices();
     renderBudget(); refreshDashboard();
@@ -2003,14 +2008,21 @@ function renderFixedCosts() {
   if(bFixed) bFixed.textContent = fmtMoney(total);
 }
 
+function closeFixedCostPopup() {
+  var el = document.getElementById('fc-overlay');
+  if(el) document.body.removeChild(el);
+}
+
 function openFixedCostPopup(id) {
+  closeFixedCostPopup();
   var list = getFixedCosts();
   var item = list.find(function(c){return c.id===id;});
   if(!item) return;
 
   var overlay = document.createElement('div');
+  overlay.id = 'fc-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
-  overlay.onclick = function(e){ if(e.target===overlay) document.body.removeChild(overlay); };
+  overlay.onclick = function(e){ if(e.target===overlay) closeFixedCostPopup(); };
 
   overlay.innerHTML =
     '<div style="background:var(--surface);border-radius:16px;padding:1.5rem;width:100%;max-width:340px;box-shadow:0 20px 60px rgba(0,0,0,.5)" onclick="event.stopPropagation()">'+
@@ -2032,8 +2044,11 @@ function openFixedCostPopup(id) {
     '</div>';
 
   document.body.appendChild(overlay);
-  setTimeout(function(){ overlay.querySelector('#fc-popup-amount').focus(); overlay.querySelector('#fc-popup-amount').select(); }, 50);
-  overlay.querySelector('#fc-popup-amount').onkeydown = function(e){ if(e.key==='Enter') saveFixedCostPopup(id); };
+  setTimeout(function(){
+    var amt = document.getElementById('fc-popup-amount');
+    if(amt){ amt.focus(); amt.select(); }
+  }, 50);
+  document.getElementById('fc-popup-amount').onkeydown = function(e){ if(e.key==='Enter') saveFixedCostPopup(id); };
 }
 
 function saveFixedCostPopup(id) {
@@ -2046,9 +2061,8 @@ function saveFixedCostPopup(id) {
   item.label  = labelEl.value.trim() || item.label;
   item.amount = parseFloat(amountEl.value)||0;
   saveFixedCosts(list);
-  // 팝업 닫기
-  var overlay = labelEl.closest('[style*="position:fixed"]');
-  if(overlay) document.body.removeChild(overlay);
+  dbUpsert('settings', {key: 'fixed_costs', value: JSON.stringify(list)});
+  closeFixedCostPopup();
   renderFixedCosts();
   recalcBudget();
 }
@@ -2063,11 +2077,10 @@ function addFixedCostRow() {
 }
 
 function deleteFixedCostRow(id) {
-  // 팝업이 열려 있으면 닫기
-  var popup = document.getElementById('fc-popup-label');
-  if(popup) { var overlay = popup.closest('[style*="position:fixed"]'); if(overlay) document.body.removeChild(overlay); }
+  closeFixedCostPopup();
   var list = getFixedCosts().filter(function(c){return c.id!==id;});
   saveFixedCosts(list);
+  dbUpsert('settings', {key: 'fixed_costs', value: JSON.stringify(list)});
   renderFixedCosts();
   recalcBudget();
 }
