@@ -696,20 +696,17 @@ tr:hover td{background:rgba(108,138,255,.03)}
         </div>
       </div>
       <div class="card">
-        <div class="sec-title">📅 월별 기록</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem">
+          <div class="sec-title" style="margin:0">📅 기록</div>
+          <select id="a-history-month" style="font-size:.78rem;padding:.2rem .5rem" onchange="renderAssetHistory()"></select>
+        </div>
         <div id="a-history" style="max-height:320px;overflow-y:auto"></div>
       </div>
     </div>
 
-    <!-- 캡처 드롭박스 & AI 자동입력 -->
+    <!-- 캡처 드롭박스 -->
     <div class="card" style="margin-bottom:1.5rem">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-        <div class="sec-title" style="margin:0">📸 캡처 → AI 자동입력</div>
-        <select id="asset-shot-person" style="font-size:.82rem;padding:.3rem .6rem">
-          <option value="yujin">👩 유진</option>
-          <option value="yoonsik">👨 윤식</option>
-        </select>
-      </div>
+      <div class="sec-title">📸 투자 캡처 업로드</div>
       <div class="toss-drop" id="asset-drop-main"
         ondragover="event.preventDefault();this.classList.add('drag-over')"
         ondragleave="this.classList.remove('drag-over')"
@@ -722,7 +719,8 @@ tr:hover td{background:rgba(108,138,255,.03)}
         </div>
       </div>
       <div style="display:flex;gap:.6rem;margin-top:.8rem">
-        <button class="btn btn-primary" style="flex:1" onclick="analyzeAssetShotMain()">🤖 AI 분석 · 자동입력</button>
+        <button class="btn btn-primary" style="flex:1" onclick="analyzeAssetShotMain()">📥 자동입력</button>
+        <button class="btn btn-primary" style="flex:1;background:rgba(108,138,255,.2);color:var(--accent)" onclick="getPortfolioAI(this)">🤖 AI 분석</button>
         <button class="btn btn-ghost" style="font-size:.8rem" onclick="clearAssetShot()">초기화</button>
       </div>
       <div id="asset-ai-result" style="margin-top:.8rem"></div>
@@ -750,15 +748,10 @@ tr:hover td{background:rgba(108,138,255,.03)}
       <div id="asset-trend-chart"></div>
     </div>
 
-    <!-- AI 포트폴리오 분석 -->
-    <div class="card" style="margin-top:1.5rem">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-        <div class="sec-title" style="margin:0">🤖 AI 포트폴리오 분석</div>
-        <button class="btn btn-primary" onclick="getPortfolioAI(this)">분석하기</button>
-      </div>
-      <div id="portfolio-ai-result" style="font-size:.85rem;color:var(--muted);text-align:center;padding:1rem">
-        캡처를 업로드한 뒤 분석하면 AI가 포트폴리오를 진단해줘요
-      </div>
+    <!-- AI 분석 결과 -->
+    <div id="portfolio-ai-card" style="display:none" class="card" style="margin-top:1.5rem">
+      <div class="sec-title">🤖 AI 포트폴리오 분석</div>
+      <div id="portfolio-ai-result"></div>
     </div>
 
   </div>
@@ -2453,16 +2446,13 @@ function recalcAssets() { renderSnapshotStats(); }
 // 최신 스냅샷에서 통계 계산
 function getLatestSnapshotData() {
   var snaps = S.get('asset_snapshots') || [];
-  var byPerson = {};
-  snaps.forEach(function(s) {
-    if(!byPerson[s.person] || s.date > byPerson[s.person].date) byPerson[s.person] = s;
-  });
-  var allItems = [];
-  Object.values(byPerson).forEach(function(s){ allItems = allItems.concat(s.items || []); });
-  var total   = Object.values(byPerson).reduce(function(sum,s){ return sum+(s.total||0); }, 0);
+  // 가장 최근 스냅샷 1개 사용 (person 구분 없음)
+  var latest = snaps.length ? snaps.reduce(function(a,b){ return a.id > b.id ? a : b; }) : null;
+  var allItems = latest ? (latest.items || []) : [];
+  var total   = latest ? (latest.total || 0) : 0;
   var invest  = allItems.filter(function(i){ return ['investment','fund','crypto'].includes(i.category); }).reduce(function(s,i){ return s+i.value; },0);
   var reserve = allItems.filter(function(i){ return ['savings','pension'].includes(i.category); }).reduce(function(s,i){ return s+i.value; },0);
-  return { total: total, invest: invest, reserve: reserve, allItems: allItems, byPerson: byPerson };
+  return { total: total, invest: invest, reserve: reserve, allItems: allItems, byPerson: {self: latest || {items:[]}} };
 }
 
 function renderSnapshotStats() {
@@ -2521,42 +2511,45 @@ function saveAssets() { /* 스냅샷 방식으로 전환, 자동 저장 */ }
 
 function renderAssetHistory() {
   var el = document.getElementById('a-history');
+  var sel = document.getElementById('a-history-month');
   if(!el) return;
-  var snaps = S.get('asset_snapshots') || [];
+  var snaps = (S.get('asset_snapshots') || []).slice().sort(function(a,b){return b.id-a.id;});
   if(!snaps.length){
     el.innerHTML='<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:1.5rem">캡처 업로드 후 저장됩니다</div>';
     return;
   }
-  // 일별 합산 (같은 날짜 여러 장도 각 사람 최신값으로 합산)
-  var dayMap = {};
-  snaps.forEach(function(s){
-    var d = s.date || '';
-    if(!d) return;
-    if(!dayMap[d]) dayMap[d] = {};
-    if(!dayMap[d][s.person] || s.id > dayMap[d][s.person].id) dayMap[d][s.person] = s;
-  });
-  var entries = Object.entries(dayMap).sort(function(a,b){return b[0].localeCompare(a[0]);}).map(function(e){
-    var daySnaps = Object.values(e[1]);
-    var total = daySnaps.reduce(function(s,snap){return s+(snap.total||0);},0);
-    var principal = daySnaps.reduce(function(s,snap){return s+(snap.principal||0);},0);
-    var profit_rate = null;
-    if(principal > 0) profit_rate = (total - principal) / principal * 100;
-    else {
-      var rates = daySnaps.filter(function(s){return s.profit_rate!=null;}).map(function(s){return s.profit_rate;});
-      if(rates.length) profit_rate = rates.reduce(function(a,b){return a+b;},0)/rates.length;
-    }
-    return { date: e[0], total: total, profit_rate: profit_rate };
-  });
-  el.innerHTML = entries.map(function(e){
-    var roiHtml = '';
-    if(e.profit_rate != null) {
-      var rClr = e.profit_rate >= 0 ? 'var(--success)' : 'var(--danger)';
-      roiHtml = '<span style="font-family:JetBrains Mono,monospace;font-size:.78rem;color:'+rClr+';font-weight:600">'+(e.profit_rate>=0?'+':'')+e.profit_rate.toFixed(2)+'%</span>';
+  // 월 목록 구성
+  var months = [];
+  snaps.forEach(function(s){ var m=(s.date||'').slice(0,7); if(m && months.indexOf(m)<0) months.push(m); });
+  months.sort(function(a,b){return b.localeCompare(a);});
+  if(sel) {
+    var curVal = sel.value;
+    sel.innerHTML = months.map(function(m){
+      return '<option value="'+m+'"'+(m===curVal?' selected':'')+'>'+m+'</option>';
+    }).join('');
+    if(!sel.value && months.length) sel.value = months[0];
+  }
+  var selectedMonth = sel ? sel.value : (months[0]||'');
+  // 선택 월의 스냅샷만 표시 (개별 기록)
+  var filtered = snaps.filter(function(s){ return (s.date||'').slice(0,7)===selectedMonth; });
+  if(!filtered.length){
+    el.innerHTML='<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:1.5rem">해당 월 기록 없음</div>';
+    return;
+  }
+  el.innerHTML = filtered.map(function(s){
+    var roi = '';
+    if(s.profit_rate != null) {
+      var rClr = s.profit_rate >= 0 ? 'var(--success)' : 'var(--danger)';
+      roi = '<span style="font-size:.75rem;color:'+rClr+';font-weight:600">'+(s.profit_rate>=0?'+':'')+s.profit_rate.toFixed(2)+'%</span>';
+    } else if(s.principal > 0 && s.total > 0) {
+      var r = (s.total - s.principal) / s.principal * 100;
+      var rClr2 = r >= 0 ? 'var(--success)' : 'var(--danger)';
+      roi = '<span style="font-size:.75rem;color:'+rClr2+';font-weight:600">'+(r>=0?'+':'')+r.toFixed(2)+'%</span>';
     }
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--border);font-size:.83rem">'+
-      '<span style="color:var(--muted);font-family:JetBrains Mono,monospace">'+e.date+'</span>'+
-      '<span style="color:var(--accent4);font-family:JetBrains Mono,monospace;font-weight:600">'+fmtMoney(e.total)+'</span>'+
-      roiHtml+
+      '<span style="color:var(--muted);font-family:JetBrains Mono,monospace">'+s.date+'</span>'+
+      '<span style="color:var(--accent4);font-family:JetBrains Mono,monospace;font-weight:600">'+fmtMoney(s.total)+'</span>'+
+      roi+
     '</div>';
   }).join('');
 }
@@ -2773,24 +2766,23 @@ async function getPortfolioAI(btn) {
   var allItems = snapData.allItems || [];
   if(!allItems.length) { alert('먼저 캡처를 업로드해 주세요!'); return; }
 
+  var card = document.getElementById('portfolio-ai-card');
   var resultEl = document.getElementById('portfolio-ai-result');
+  var origText = btn.textContent;
   btn.textContent = '⏳ 분석 중...'; btn.disabled = true;
-  resultEl.innerHTML = '';
+  if(card) card.style.display = '';
+  resultEl.innerHTML = '<div style="color:var(--text-muted);font-size:.85rem;padding:.5rem">분석 중...</div>';
 
   var total = allItems.reduce(function(s,i){return s+(i.value||0);},0);
-  var byPerson = snapData.byPerson || {};
-  var yujinItems  = (byPerson['yujin']  || []).reduce(function(a,s){return a.concat(s.items||[]);}, []);
-  var yoonsikItems= (byPerson['yoonsik']|| []).reduce(function(a,s){return a.concat(s.items||[]);}, []);
 
-  var prompt = '아래는 유진과 윤식 부부의 투자 포트폴리오야 (기준일: '+today()+'):\n\n'+
-    '👩 유진:\n'+yujinItems.map(function(i){return '- '+i.name+': '+Number(i.value).toLocaleString()+'원';}).join('\n')+'\n\n'+
-    '👨 윤식:\n'+yoonsikItems.map(function(i){return '- '+i.name+': '+Number(i.value).toLocaleString()+'원';}).join('\n')+
+  var prompt = '아래는 현재 투자 포트폴리오야 (기준일: '+today()+'):\n\n'+
+    allItems.map(function(i){return '- '+i.name+' ('+i.category+'): '+Number(i.value).toLocaleString()+'원';}).join('\n')+
     '\n\n총 자산: '+Number(total).toLocaleString()+'원\n\n'+
     '이 포트폴리오를 한국어로, 친근하고 실용적으로 분석해줘. 아래 형식으로:\n\n'+
     '📊 포트폴리오 요약\n(전체 구성 평가, 2줄)\n\n'+
-    '👩 유진 포트폴리오\n(강점과 개선점, 2줄)\n\n'+
-    '👨 윤식 포트폴리오\n(강점과 개선점, 2줄)\n\n'+
-    '💡 부부 합산 전략\n(균형 평가, 2줄)\n\n'+
+    '💪 강점\n(잘 된 점, 2줄)\n\n'+
+    '⚠️ 리스크\n(집중도·분산 등 위험 요소, 2줄)\n\n'+
+    '💡 개선 제안\n(균형 잡힌 전략, 2줄)\n\n'+
     '🎯 이번 달 추천 액션\n(구체적 행동 1~2가지)\n\n'+
     '투자 권유 아닌 참고 의견으로.';
 
@@ -2798,7 +2790,7 @@ async function getPortfolioAI(btn) {
     var res = await fetchWithTimeout('/api/claude', 30000, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({messages:[{role:'user',content:prompt}], max_tokens:1200})
+      body:JSON.stringify({messages:[{role:'user',content:prompt}], max_tokens:1200, model:'claude-sonnet-4-6'})
     });
     var d = await res.json();
     if(checkCreditError(d)) throw new Error('크레딧 부족');
@@ -2807,7 +2799,7 @@ async function getPortfolioAI(btn) {
   } catch(e) {
     resultEl.innerHTML = '<div style="color:var(--danger);padding:.8rem;font-size:.85rem">⚠️ 분석 실패: '+e.message+'</div>';
   }
-  btn.textContent = '분석하기'; btn.disabled = false;
+  btn.textContent = origText; btn.disabled = false;
 }
 
 // 투자현황 initialized in safeInit
@@ -3293,7 +3285,7 @@ async function analyzeAssetShotMain() {
     resultEl.innerHTML = '<div style="color:var(--danger);font-size:.85rem;padding:.5rem">📸 먼저 캡처를 올려주세요</div>';
     return;
   }
-  var person = (document.getElementById('asset-shot-person') || {}).value || 'yujin';
+  var person = 'self';
   resultEl.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--muted)"><div style="font-size:1.5rem;margin-bottom:.5rem">⏳</div>AI가 분석 중이에요...</div>';
 
   const base64 = img.split(',')[1];
@@ -3302,7 +3294,7 @@ async function analyzeAssetShotMain() {
     const res = await fetchWithTimeout('/api/analyze-image', 35000, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ person, image: base64, mediaType }),
+      body: JSON.stringify({ image: base64, mediaType }),
     });
     if(!res || !res.ok) { const err = await res.json().catch(function(){return {};}); throw new Error(err.error || 'HTTP '+res.status); }
     const result = await res.json();
@@ -3319,7 +3311,7 @@ async function analyzeAssetShotMain() {
 
     resultEl.innerHTML =
       '<div style="background:rgba(82,217,163,.08);border:1px solid rgba(82,217,163,.2);border-radius:8px;padding:.8rem;margin-bottom:.6rem">'+
-        '<div style="font-size:.78rem;color:var(--muted);margin-bottom:.3rem">'+(person==='yujin'?'👩 유진':'👨 윤식')+'</div>'+
+        '<div style="font-size:.78rem;color:var(--muted);margin-bottom:.3rem">'+todayStr+'</div>'+
         '<div style="font-size:.88rem;color:var(--accent3);font-weight:600">✅ '+result.parsed.summary+'</div>'+
       '</div>'+
       '<div style="margin-bottom:.6rem">'+rowsHtml+'</div>'+
@@ -3405,7 +3397,7 @@ function renderAssetShotHistory() {
       '<img src="'+s.img+'" style="width:100%;height:110px;object-fit:cover;display:block"/>'+
       '<div style="padding:.5rem .6rem">'+
         '<div style="font-size:.7rem;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:.2rem">'+
-          '<span>'+(s.person==='yujin'?'👩 유진':'👨 윤식')+'</span>'+
+          '<span style="color:var(--muted)">'+s.date+'</span>'+
           '<span style="font-family:JetBrains Mono,monospace">'+s.date+'</span>'+
         '</div>'+
         (s.total ? '<div style="font-size:.75rem;font-family:JetBrains Mono,monospace;color:var(--accent4);font-weight:600">'+fmtMoney(s.total)+'</div>' : '')+
@@ -3437,7 +3429,7 @@ function expandAssetShot(id) {
   overlay.innerHTML =
     '<div style="max-width:500px;width:100%;background:var(--surface);border-radius:14px;overflow:hidden" onclick="event.stopPropagation()">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;padding:.8rem 1rem;border-bottom:1px solid var(--border)">'+
-        '<div style="font-size:.85rem;font-weight:600;color:var(--text)">'+(s.person==='yujin'?'👩 유진':'👨 윤식')+' · '+s.date+'</div>'+
+        '<div style="font-size:.85rem;font-weight:600;color:var(--text)">'+s.date+'</div>'+
         '<button onclick="document.body.removeChild(this.closest(\'div[style*=\"position:fixed\"]\'))" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer">✕</button>'+
       '</div>'+
       '<img src="'+s.img+'" style="width:100%;display:block;max-height:400px;object-fit:contain;background:#000"/>'+
