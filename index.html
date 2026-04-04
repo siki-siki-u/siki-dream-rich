@@ -3331,15 +3331,14 @@ async function analyzeAssetShotMain() {
     var todayStr = today();
     var todaySnap = snaps.find(function(s){ return s.person===person && s.date===todayStr; });
     var mergedItems;
+    var snapId = todaySnap ? todaySnap.id : Date.now(); // 오늘 기존 스냅이 있으면 id 유지
     if(todaySnap) {
-      // 기존 items에 upsert
       mergedItems = todaySnap.items ? todaySnap.items.slice() : [];
       newItems.forEach(function(ni){
         var idx = mergedItems.findIndex(function(ei){ return ei.name === ni.name; });
-        if(idx >= 0) mergedItems[idx] = ni;  // 업데이트
-        else mergedItems.push(ni);            // 신규 삽입
+        if(idx >= 0) mergedItems[idx] = ni;
+        else mergedItems.push(ni);
       });
-      // 오늘 스냅샷 제거 후 새 것으로 대체
       snaps = snaps.filter(function(s){ return !(s.person===person && s.date===todayStr); });
     } else {
       mergedItems = newItems;
@@ -3347,7 +3346,7 @@ async function analyzeAssetShotMain() {
     var mergedTotal = mergedItems.reduce(function(s,i){return s+(i.value||0);}, 0);
 
     var snap = {
-      id: Date.now(), person: person, date: todayStr,
+      id: snapId, person: person, date: todayStr,
       total: mergedTotal || result.parsed.total || 0,
       principal: result.parsed.principal || 0,
       profit: result.parsed.profit || 0,
@@ -3356,7 +3355,9 @@ async function analyzeAssetShotMain() {
       summary: result.parsed.summary || result.summary || '',
       img: img, rows: result.rows
     };
+    // asset_shots: 오늘 같은 사람 기존 항목 교체 (id 유지이므로 중복 방지)
     var shots = S.get('asset_shots') || [];
+    shots = shots.filter(function(s){ return !(s.person===person && s.date===todayStr); });
     shots.unshift({ id:snap.id, person:person, img:img, summary:snap.summary, rows:result.rows, date:todayStr,
       total:snap.total, principal:snap.principal, profit:snap.profit, profit_rate:snap.profit_rate });
     S.set('asset_shots', shots.slice(0, 30));
