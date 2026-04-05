@@ -681,16 +681,20 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div class="stat-sub">CMA + 퇴직연금</div>
       </div>
     </div>
-    <!-- 총 자산 + 초기화 -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;padding:.7rem 1rem;background:var(--surface);border:1px solid var(--border);border-radius:12px">
-      <div>
-        <span style="font-size:.78rem;color:var(--muted)">총 자산</span>
-        <span style="font-size:1.15rem;font-weight:700;color:var(--accent4);font-family:JetBrains Mono,monospace;margin-left:.6rem" id="a-total">₩0</span>
-        <span id="a-total-roi" style="font-size:.8rem;margin-left:.6rem"></span>
+    <!-- 총 자산 + 수익률 상세 -->
+    <div style="margin-bottom:1rem;padding:.85rem 1rem;background:var(--surface);border:1px solid var(--border);border-radius:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+        <span style="font-size:.78rem;color:var(--muted)">💼 투자 총액 (평가금액)</span>
+        <div style="display:flex;gap:.4rem">
+          <button class="btn btn-ghost" style="font-size:.72rem;padding:.25rem .6rem" onclick="openManualAssetInput()">✏️ 수동 입력</button>
+          <button class="btn btn-ghost" style="font-size:.72rem;padding:.25rem .6rem;color:var(--danger)" onclick="clearAllAssetData()">🗑️</button>
+        </div>
       </div>
-      <div style="display:flex;gap:.5rem">
-        <button class="btn btn-ghost" style="font-size:.75rem;padding:.3rem .7rem" onclick="openManualAssetInput()">✏️ 수동 입력</button>
-        <button class="btn btn-ghost" style="font-size:.75rem;padding:.3rem .7rem;color:var(--danger)" onclick="clearAllAssetData()">🗑️ 초기화</button>
+      <div style="font-size:1.25rem;font-weight:700;color:var(--accent4);font-family:JetBrains Mono,monospace;margin-bottom:.4rem" id="a-total">₩0</div>
+      <div id="a-roi-detail" style="font-size:.8rem;display:flex;flex-wrap:wrap;gap:.6rem;color:var(--muted)">
+        <span>원금 <span id="a-principal-val" style="font-family:JetBrains Mono,monospace;color:var(--text)">–</span></span>
+        <span>수익금 <span id="a-profit-val" style="font-family:JetBrains Mono,monospace">–</span></span>
+        <span id="a-total-roi"></span>
       </div>
     </div>
 
@@ -2570,20 +2574,27 @@ function renderSnapshotStats() {
   var ar   = document.getElementById('a-reserve');
   var aroi = document.getElementById('a-roi');
   var atroi= document.getElementById('a-total-roi');
-  if(at) at.textContent = fmtMoney(d.total);   // total = invest (reserve 제외)
+  var aprin= document.getElementById('a-principal-val');
+  var aprof= document.getElementById('a-profit-val');
+  if(at) at.textContent = fmtMoney(d.total);
   if(ai) ai.textContent = fmtMoney(d.invest);
   if(ar) ar.textContent = fmtMoney(d.reserve);
-  // 수익률 (원금 대비 %)
+  // 원금 / 수익금 / 수익률
   if(d.principal > 0 && d.total > 0) {
-    var roi  = (d.total - d.principal) / d.principal * 100;
-    var sign = roi >= 0 ? '+' : '';
-    var clr  = roi >= 0 ? 'var(--success)' : 'var(--danger)';
-    var arrow= roi >= 0 ? '▲' : '▼';
+    var profit = d.total - d.principal;
+    var roi    = profit / d.principal * 100;
+    var sign   = roi >= 0 ? '+' : '';
+    var clr    = roi >= 0 ? 'var(--success)' : 'var(--danger)';
+    var arrow  = roi >= 0 ? '▲' : '▼';
     var roiStr = '<span style="color:'+clr+'">'+arrow+' '+sign+roi.toFixed(2)+'%</span>';
-    if(aroi) aroi.innerHTML = roiStr;
-    if(atroi) atroi.innerHTML = roiStr;
+    if(aprin) aprin.textContent = fmtMoney(d.principal);
+    if(aprof) aprof.innerHTML   = '<span style="color:'+clr+'">'+(profit>=0?'+':'')+fmtMoney(Math.abs(profit))+'</span>';
+    if(aroi)  aroi.innerHTML    = roiStr;
+    if(atroi) atroi.innerHTML   = roiStr;
   } else {
-    if(aroi)  aroi.textContent = '–';
+    if(aprin) aprin.textContent = '–';
+    if(aprof) aprof.textContent = '–';
+    if(aroi)  aroi.textContent  = '–';
     if(atroi) atroi.textContent = '';
   }
 }
