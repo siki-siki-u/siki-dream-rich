@@ -1430,10 +1430,18 @@ async function syncFromSupabase() {
     // realty
     const { data: realty } = await supa.from('realty').select('*');
     if(realty && realty.length > 0) S.set('apts', realty.map(function(r){ return r.data; }));
-    // settings (고정비 등)
+    // settings (고정비, 사용자 설정 등)
     const { data: settings } = await supa.from('settings').select('*');
     if(settings && settings.length > 0) settings.forEach(function(s){
       if(s.key === 'fixed_costs') { try { S.set('fixed_costs', JSON.parse(s.value)); } catch(e){} }
+      else if(s.key === 'anniversary') S.set('anniversary', s.value);
+      else if(s.key === 'myname')      S.set('myname', s.value);
+      else if(s.key === 'goal_amount') S.set('goal_amount', parseFloat(s.value)||0);
+      else if(s.key === 'goal_year')   S.set('goal_year', parseInt(s.value)||0);
+      else if(s.key === 'cq_homeless') S.set('cq_homeless', parseInt(s.value)||0);
+      else if(s.key === 'cq_family')   S.set('cq_family',   parseInt(s.value)||0);
+      else if(s.key === 'cq_account')  S.set('cq_account',  parseInt(s.value)||0);
+      else if(s.key === 'yt_last_seen_id') S.set('yt_last_seen_id', s.value);
     });
     // asset_snapshots
     var localSnaps = S.get('asset_snapshots') || [];
@@ -1463,10 +1471,43 @@ async function syncFromSupabase() {
       merged.sort(function(a,b){return b.id-a.id;});
       S.set('asset_snapshots', merged.slice(0,100));
     }
+    // events — 양방향 sync
+    const { data: dbEvents } = await supa.from('events').select('*');
+    var localEvents = S.get('events') || [];
+    var dbEvIds = new Set((dbEvents||[]).map(function(e){return e.id;}));
+    localEvents.forEach(function(e){ if(!dbEvIds.has(e.id)) dbUpsert('events', e); });
+    if(dbEvents && dbEvents.length > 0) {
+      var localEvIds = new Set(localEvents.map(function(e){return e.id;}));
+      dbEvents.forEach(function(e){ if(!localEvIds.has(e.id)) localEvents.push({id:e.id, date:e.date, title:e.title, color:e.color}); });
+      S.set('events', localEvents);
+    }
+    // yt_summaries — 양방향 sync
+    const { data: dbYt } = await supa.from('yt_summaries').select('*').order('saved_at', {ascending:false}).limit(50);
+    var localYt = S.get('yt_summaries') || [];
+    var dbYtIds = new Set((dbYt||[]).map(function(s){return s.video_id;}));
+    localYt.forEach(function(s){ if(!dbYtIds.has(s.videoId)) dbUpsert('yt_summaries', {video_id:s.videoId, title:s.title, summary:s.summary, published:s.published||'', thumb:s.thumb||'', saved_at:s.savedAt||''}); });
+    if(dbYt && dbYt.length > 0) {
+      var localYtIds = new Set(localYt.map(function(s){return s.videoId;}));
+      dbYt.forEach(function(s){ if(!localYtIds.has(s.video_id)) localYt.push({videoId:s.video_id, title:s.title, summary:s.summary, published:s.published||'', thumb:s.thumb||'', savedAt:s.saved_at||''}); });
+      localYt.sort(function(a,b){return (b.savedAt||'').localeCompare(a.savedAt||'');});
+      S.set('yt_summaries', localYt.slice(0,50));
+    }
+    // asset_shots — 양방향 sync (img 제외)
+    var localShots = S.get('asset_shots') || [];
+    const { data: dbShots } = await supa.from('asset_shots').select('*').order('id', {ascending:false}).limit(50);
+    var dbShotIds = new Set((dbShots||[]).map(function(s){return s.id;}));
+    localShots.forEach(function(s){ if(!dbShotIds.has(s.id)) dbUpsert('asset_shots', {id:s.id, person:s.person||'self', date:s.date, total:s.total||0, principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate||null, summary:s.summary||'', rows:s.rows||[]}); });
+    if(dbShots && dbShots.length > 0) {
+      var localShotIds = new Set(localShots.map(function(s){return s.id;}));
+      dbShots.forEach(function(s){ if(!localShotIds.has(s.id)) localShots.push({id:s.id, person:s.person||'self', date:s.date, total:s.total||0, principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate, summary:s.summary||'', rows:s.rows||[], img:null}); });
+      localShots.sort(function(a,b){return b.id-a.id;});
+      S.set('asset_shots', localShots.slice(0,50));
+    }
     // re-render
     renderStocks(); fetchAllPrices();
     renderBudget(); refreshDashboard();
     renderJournal(); renderRealty();
+    renderCalendar(); renderEventList(); renderYtLibrary();
     renderSnapshotStats(); renderAssetBreakdown(); renderAssetHistory(); renderAssetTrend(); renderAssetShotHistory();
   } catch(e) { console.warn('[Supabase sync]', e.message); }
 }
@@ -1551,6 +1592,10 @@ function saveSettings() {
   S.set('myname', document.getElementById('s-myname').value);
   S.set('goal_amount', parseFloat(document.getElementById('s-goal-amount').value)||0);
   S.set('goal_year', parseInt(document.getElementById('s-goal-year').value)||0);
+  dbUpsert('settings', {key:'anniversary', value: S.get('anniversary')||''});
+  dbUpsert('settings', {key:'myname', value: S.get('myname')||''});
+  dbUpsert('settings', {key:'goal_amount', value: String(S.get('goal_amount')||0)});
+  dbUpsert('settings', {key:'goal_year', value: String(S.get('goal_year')||0)});
   const name = S.get('myname');
   if(name) {
     document.querySelector('.sidebar-logo p').textContent = name + '님의 대시보드';
@@ -1730,6 +1775,9 @@ function calcCheongak() {
   S.set('cq_homeless', homeless);
   S.set('cq_family',   family);
   S.set('cq_account',  account);
+  dbUpsert('settings', {key:'cq_homeless', value: String(homeless)});
+  dbUpsert('settings', {key:'cq_family',   value: String(family)});
+  dbUpsert('settings', {key:'cq_account',  value: String(account)});
 
   // 총점 뱃지
   document.getElementById('cq-total-badge').innerHTML =
@@ -1998,9 +2046,11 @@ function addEvent() {
   const title = document.getElementById('ev-title').value.trim();
   const color = document.getElementById('ev-color').value;
   if(!date||!title) return;
+  const ev = { id: Date.now(), date, title, color };
   const events = S.get('events') || [];
-  events.push({ id: Date.now(), date, title, color });
+  events.push(ev);
   S.set('events', events);
+  dbUpsert('events', ev);
   document.getElementById('ev-title').value = '';
   renderCalendar();
 }
@@ -2021,6 +2071,7 @@ function renderEventList() {
 
 function deleteEvent(id) {
   S.set('events', (S.get('events')||[]).filter(e=>e.id!==id));
+  dbDelete('events', id);
   renderCalendar();
 }
 
@@ -2909,6 +2960,7 @@ async function fetchYoutubeVideos() {
     var isFirst = !lastSavedId;
 
     S.set('yt_last_seen_id', latestId);
+    dbUpsert('settings', {key:'yt_last_seen_id', value: latestId});
 
     var now = new Date();
     document.getElementById('yt-last-fetch').textContent =
@@ -3035,8 +3087,10 @@ async function analyzeYtVideo(videoId, title, published, thumb, btn) {
     // 저장
     var summaries = S.get('yt_summaries') || [];
     summaries = summaries.filter(function(s){return s.videoId!==videoId;});
-    summaries.unshift({ videoId, title, published, thumb, summary, savedAt: today() });
+    var ytEntry = { videoId, title, published, thumb, summary, savedAt: today() };
+    summaries.unshift(ytEntry);
     S.set('yt_summaries', summaries.slice(0,50));
+    dbUpsert('yt_summaries', {video_id:videoId, title, summary, published, thumb, saved_at: ytEntry.savedAt});
 
     // 카드 업데이트
     var card = btn.closest('.yt-card').querySelector('.yt-info');
@@ -3094,6 +3148,7 @@ function renderYtLibrary() {
 
 function deleteYtSummary(videoId) {
   S.set('yt_summaries', (S.get('yt_summaries')||[]).filter(function(s){return s.videoId!==videoId;}));
+  if(supa) supa.from('yt_summaries').delete().eq('video_id', videoId).then(function(){});
   renderYtLibrary();
 }
 
@@ -3377,6 +3432,9 @@ async function analyzeAssetShotMain() {
     shots.unshift({ id:shotId, person:person, img:img, summary:snap.summary, rows:result.rows, date:todayStr,
       total:uploadTotal, principal:snap.principal, profit:snap.profit, profit_rate:snap.profit_rate });
     S.set('asset_shots', shots.slice(0, 50));
+    dbUpsert('asset_shots', {id:shotId, person:person, date:todayStr, total:uploadTotal,
+      principal:snap.principal||0, profit:snap.profit||0, profit_rate:snap.profit_rate||null,
+      summary:snap.summary||'', rows:result.rows||[]});
     snaps.unshift(snap);
     S.set('asset_snapshots', snaps.slice(0, 100));
     // DB 저장 (img 제외)
@@ -3437,6 +3495,7 @@ function deleteAssetShot(id) {
   S.set('asset_shots', (S.get('asset_shots')||[]).filter(function(s){return s.id!==id;}));
   S.set('asset_snapshots', (S.get('asset_snapshots')||[]).filter(function(s){return s.id!==id;}));
   dbDelete('asset_snapshots', id);
+  dbDelete('asset_shots', id);
   renderAssetShotHistory();
   renderSnapshotStats();
   renderAssetBreakdown();
