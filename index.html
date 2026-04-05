@@ -2237,7 +2237,7 @@ function renderBudget() {
 
   // 수입 불러오기
   const income = S.get('income_'+key) || {};
-  function fmtIncomeVal(v){ return v ? Number(v).toLocaleString() : ''; }
+  function fmtIncomeVal(v){ return v ? Math.floor(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g,',') : ''; }
   document.getElementById('b-in-yoonsik').value  = fmtIncomeVal(income.yoonsik);
   document.getElementById('b-in-yujin').value    = fmtIncomeVal(income.yujin);
   document.getElementById('b-in-bonus-y').value  = fmtIncomeVal(income.bonusY);
@@ -2535,48 +2535,55 @@ function loadAssetInputs() {
 
 function recalcAssets() { renderSnapshotStats(); }
 
-// 최신 날짜의 모든 스냅샷 집계
+var RESERVE_CATS = ['savings','pension'];
+var INVEST_CATS  = ['investment','fund','crypto','etc'];
+
+// 최신 날짜의 모든 스냅샷 집계 (savings/pension은 reserve로 분리)
 function getLatestSnapshotData() {
   var snaps = S.get('asset_snapshots') || [];
-  if(!snaps.length) return { total:0, invest:0, reserve:0, allItems:[], principal:0, profit:0, byPerson:{self:{items:[]}} };
+  if(!snaps.length) return { total:0, invest:0, reserve:0, allItems:[], removedItems:[], principal:0, byPerson:{self:{items:[]}} };
   var latestDate = snaps.reduce(function(a,b){ return (a.date||'') >= (b.date||'') ? a : b; }).date;
   var latestSnaps = snaps.filter(function(s){ return s.date === latestDate; });
-  var allItems = [], totalPrincipal = 0, totalProfit = 0;
+  var allItems = [], removedItems = [], totalPrincipal = 0;
+  // 최신 스냅샷의 changes 가져오기 (변경 표시용)
+  var latestSnap = latestSnaps.reduce(function(a,b){ return a.id > b.id ? a : b; }, latestSnaps[0]);
+  var changes = latestSnap && latestSnap.changes ? latestSnap.changes : null;
   latestSnaps.forEach(function(s){
     (s.items||[]).forEach(function(item){
+      if(item.removed) { removedItems.push(item); return; }
       var idx = allItems.findIndex(function(i){ return i.name === item.name; });
       if(idx >= 0) allItems[idx] = item; else allItems.push(item);
     });
     totalPrincipal += (s.principal || 0);
-    totalProfit    += (s.profit    || 0);
   });
-  var total   = allItems.reduce(function(s,i){ return s+(i.value||0); }, 0);
-  var invest  = allItems.filter(function(i){ return ['investment','fund','crypto'].includes(i.category); }).reduce(function(s,i){ return s+i.value; },0);
-  var reserve = allItems.filter(function(i){ return ['savings','pension'].includes(i.category); }).reduce(function(s,i){ return s+i.value; },0);
-  return { total, invest, reserve, allItems, principal: totalPrincipal, profit: totalProfit, byPerson:{self:{items:allItems}} };
+  var invest  = allItems.filter(function(i){ return INVEST_CATS.includes(i.category); }).reduce(function(s,i){ return s+i.value; },0);
+  var reserve = allItems.filter(function(i){ return RESERVE_CATS.includes(i.category); }).reduce(function(s,i){ return s+i.value; },0);
+  var total   = invest; // savings/pension 제외
+  var investPrincipal = totalPrincipal; // 원금은 invest 기반
+  return { total, invest, reserve, allItems, removedItems, principal: investPrincipal, changes, byPerson:{self:{items:allItems}} };
 }
 
 function renderSnapshotStats() {
   var d = getLatestSnapshotData();
-  var at = document.getElementById('a-total');
-  var ai = document.getElementById('a-invest');
-  var ar = document.getElementById('a-reserve');
+  var at   = document.getElementById('a-total');
+  var ai   = document.getElementById('a-invest');
+  var ar   = document.getElementById('a-reserve');
   var aroi = document.getElementById('a-roi');
-  var atroi = document.getElementById('a-total-roi');
-  if(at) at.textContent = fmtMoney(d.total);
+  var atroi= document.getElementById('a-total-roi');
+  if(at) at.textContent = fmtMoney(d.total);   // total = invest (reserve 제외)
   if(ai) ai.textContent = fmtMoney(d.invest);
   if(ar) ar.textContent = fmtMoney(d.reserve);
-  // 수익률 계산
+  // 수익률 (원금 대비 %)
   if(d.principal > 0 && d.total > 0) {
-    var roi = (d.total - d.principal) / d.principal * 100;
-    var profit = d.total - d.principal;
+    var roi  = (d.total - d.principal) / d.principal * 100;
     var sign = roi >= 0 ? '+' : '';
-    var clr = roi >= 0 ? 'var(--success)' : 'var(--danger)';
-    var arrow = roi >= 0 ? '▲' : '▼';
-    if(aroi) aroi.innerHTML = '<span style="color:'+clr+'">'+arrow+' '+sign+roi.toFixed(2)+'%</span> · '+fmtMoney(profit);
-    if(atroi) atroi.innerHTML = '<span style="color:'+clr+';font-size:.82rem">'+arrow+' '+sign+roi.toFixed(2)+'% ('+fmtMoney(profit)+')</span>';
+    var clr  = roi >= 0 ? 'var(--success)' : 'var(--danger)';
+    var arrow= roi >= 0 ? '▲' : '▼';
+    var roiStr = '<span style="color:'+clr+'">'+arrow+' '+sign+roi.toFixed(2)+'%</span>';
+    if(aroi) aroi.innerHTML = roiStr;
+    if(atroi) atroi.innerHTML = roiStr;
   } else {
-    if(aroi) aroi.textContent = '원금 정보 없음';
+    if(aroi)  aroi.textContent = '–';
     if(atroi) atroi.textContent = '';
   }
 }
@@ -2585,42 +2592,84 @@ function renderAssetBreakdown() {
   var el = document.getElementById('a-breakdown');
   if(!el) return;
   var d = getLatestSnapshotData();
-  if(!d.total){ el.innerHTML='<div style="color:var(--muted);text-align:center;padding:2rem;font-size:.83rem">캡처를 업로드하면 자동으로 분석돼요</div>'; return; }
+  if(!d.total && !d.reserve && !d.allItems.length){
+    el.innerHTML='<div style="color:var(--muted);text-align:center;padding:2rem;font-size:.83rem">캡처를 업로드하면 자동으로 분석돼요</div>';
+    return;
+  }
 
-  var catMap = { investment:'📈 주식/ETF', crypto:'🪙 코인', savings:'💰 예금/적금', pension:'🛡️ 연금/IRP', fund:'📂 펀드', etc:'📌 기타' };
+  var catMap = { investment:'📈 주식/ETF', crypto:'🪙 코인', savings:'💰 CMA/예금', pension:'🛡️ 퇴직연금/IRP', fund:'📂 펀드', etc:'📌 기타' };
   var catClr = { investment:'var(--accent)', crypto:'var(--accent4)', savings:'var(--accent3)', pension:'var(--success)', fund:'var(--accent2)', etc:'var(--muted)' };
 
-  // 카테고리별 합산
+  // 변경 표시 여부 (24시간 이내)
+  var chg = d.changes;
+  var showChg = chg && chg.changedAt && (Date.now() - chg.changedAt) < 86400000;
+  var updSet = showChg ? new Set(chg.updated||[]) : new Set();
+  var insSet = showChg ? new Set(chg.inserted||[]) : new Set();
+  var remSet = showChg ? new Set(chg.removed||[]) : new Set();
+
+  function chgBadge(name) {
+    if(updSet.has(name)||insSet.has(name)) return ' <span style="color:var(--accent);font-size:.7rem">(변경)</span>';
+    return '';
+  }
+
+  // 투자 항목 카테고리별 합산
   var catTotals = {};
-  d.allItems.forEach(function(i){
+  d.allItems.filter(function(i){ return INVEST_CATS.includes(i.category); }).forEach(function(i){
     catTotals[i.category] = (catTotals[i.category]||0) + i.value;
   });
 
   var groups = Object.entries(catTotals).sort(function(a,b){return b[1]-a[1];});
-  el.innerHTML =
-    groups.map(function(g){
-      var pct = Math.round(g[1]/d.total*100);
-      var lbl = catMap[g[0]] || g[0];
-      var clr = catClr[g[0]] || 'var(--muted)';
-      return '<div style="margin-bottom:.7rem">'+
-        '<div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:.25rem">'+
-          '<span>'+lbl+'</span>'+
-          '<span style="font-family:JetBrains Mono,monospace;color:'+clr+'">'+fmtMoney(g[1])+' ('+pct+'%)</span>'+
-        '</div>'+
-        '<div style="background:var(--border);border-radius:4px;height:7px">'+
-          '<div style="background:'+clr+';width:'+pct+'%;height:100%;border-radius:4px;transition:width .5s"></div>'+
-        '</div></div>';
-    }).join('') +
-    '<div style="border-top:1px solid var(--border);margin:.7rem 0;padding-top:.7rem;display:flex;justify-content:space-between;font-weight:700;font-size:.88rem">'+
-      '<span>총 자산</span><span style="font-family:JetBrains Mono,monospace;color:var(--accent4)">'+fmtMoney(d.total)+'</span>'+
-    '</div>'+
-    // 세부 항목
-    d.allItems.filter(function(i){return i.value>0;}).map(function(i){
+  var html = groups.map(function(g){
+    var pct = d.total > 0 ? Math.round(g[1]/d.total*100) : 0;
+    var lbl = catMap[g[0]] || g[0];
+    var clr = catClr[g[0]] || 'var(--muted)';
+    return '<div style="margin-bottom:.7rem">'+
+      '<div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:.25rem">'+
+        '<span>'+lbl+'</span>'+
+        '<span style="font-family:JetBrains Mono,monospace;color:'+clr+'">'+fmtMoney(g[1])+' ('+pct+'%)</span>'+
+      '</div>'+
+      '<div style="background:var(--border);border-radius:4px;height:7px">'+
+        '<div style="background:'+clr+';width:'+pct+'%;height:100%;border-radius:4px;transition:width .5s"></div>'+
+      '</div></div>';
+  }).join('');
+
+  // 세부 항목 (투자)
+  var investItems = d.allItems.filter(function(i){ return INVEST_CATS.includes(i.category) && i.value > 0; });
+  if(investItems.length) {
+    html += '<div style="border-top:1px solid var(--border);margin:.7rem 0;padding-top:.7rem;font-size:.78rem;font-weight:600;color:var(--muted)">📈 투자 종목</div>';
+    html += investItems.map(function(i){
+      var chgStyle = (updSet.has(i.name)||insSet.has(i.name)) ? 'color:var(--accent)' : 'color:var(--muted)';
       return '<div style="display:flex;justify-content:space-between;font-size:.79rem;padding:.2rem 0;border-bottom:1px solid rgba(42,48,72,.25)">'+
-        '<span style="color:var(--muted)">'+i.name+'</span>'+
+        '<span style="'+chgStyle+'">'+i.name+chgBadge(i.name)+'</span>'+
+        '<span style="font-family:JetBrains Mono,monospace;'+(updSet.has(i.name)||insSet.has(i.name)?'color:var(--accent)':'')+'">'+fmtMoney(i.value)+'</span>'+
+      '</div>';
+    }).join('');
+  }
+
+  // 삭제된 항목 (strikethrough)
+  var removedToShow = d.removedItems.filter(function(i){ return showChg && remSet.has(i.name); });
+  if(removedToShow.length) {
+    html += removedToShow.map(function(i){
+      return '<div style="display:flex;justify-content:space-between;font-size:.79rem;padding:.2rem 0;border-bottom:1px solid rgba(42,48,72,.25);opacity:.55">'+
+        '<span style="text-decoration:line-through;color:var(--accent)">'+i.name+' <span style="font-size:.7rem">(변경)</span></span>'+
+        '<span style="font-family:JetBrains Mono,monospace;text-decoration:line-through">'+fmtMoney(i.value)+'</span>'+
+      '</div>';
+    }).join('');
+  }
+
+  // 비상금/노후 구분선
+  var reserveItems = d.allItems.filter(function(i){ return RESERVE_CATS.includes(i.category) && i.value > 0; });
+  if(reserveItems.length) {
+    html += '<div style="border-top:1px solid var(--border);margin:.7rem 0;padding-top:.7rem;font-size:.78rem;font-weight:600;color:var(--muted)">💰 비상금/노후 (총 자산 제외)</div>';
+    html += reserveItems.map(function(i){
+      var chgStyle = (updSet.has(i.name)||insSet.has(i.name)) ? 'color:var(--accent)' : 'color:var(--muted)';
+      return '<div style="display:flex;justify-content:space-between;font-size:.79rem;padding:.2rem 0;border-bottom:1px solid rgba(42,48,72,.25)">'+
+        '<span style="'+chgStyle+'">'+i.name+chgBadge(i.name)+'</span>'+
         '<span style="font-family:JetBrains Mono,monospace">'+fmtMoney(i.value)+'</span>'+
       '</div>';
     }).join('');
+  }
+  el.innerHTML = html;
 }
 
 function saveAssets() { /* 스냅샷 방식으로 전환, 자동 저장 */ }
@@ -2654,22 +2703,11 @@ function renderAssetHistory() {
     return;
   }
   el.innerHTML = filtered.map(function(s){
-    var roi = '';
-    if(s.profit_rate != null) {
-      var rClr = s.profit_rate >= 0 ? 'var(--success)' : 'var(--danger)';
-      roi = '<span style="font-size:.75rem;color:'+rClr+';font-weight:600">'+(s.profit_rate>=0?'+':'')+s.profit_rate.toFixed(2)+'%</span>';
-    } else if(s.principal > 0 && s.total > 0) {
-      var r = (s.total - s.principal) / s.principal * 100;
-      var rClr2 = r >= 0 ? 'var(--success)' : 'var(--danger)';
-      roi = '<span style="font-size:.75rem;color:'+rClr2+';font-weight:600">'+(r>=0?'+':'')+r.toFixed(2)+'%</span>';
-    }
-    var label = s.summary ? '<span style="font-size:.75rem;color:var(--muted);margin-left:.3rem">'+s.summary+'</span>' : '';
+    var ts = new Date(s.id);
+    var timeStr = ts.getHours().toString().padStart(2,'0')+':'+ts.getMinutes().toString().padStart(2,'0');
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--border);font-size:.83rem">'+
-      '<span style="color:var(--muted);font-family:JetBrains Mono,monospace">'+s.date+label+'</span>'+
-      '<span style="display:flex;align-items:center;gap:.5rem">'+
-        '<span style="color:var(--accent4);font-family:JetBrains Mono,monospace;font-weight:600">'+fmtMoney(s.total)+'</span>'+
-        roi+
-      '</span>'+
+      '<span style="color:var(--muted);font-family:JetBrains Mono,monospace;font-size:.78rem">'+s.date+' '+timeStr+'</span>'+
+      '<span style="color:var(--accent4);font-family:JetBrains Mono,monospace;font-weight:600">'+fmtMoney(s.total)+'</span>'+
     '</div>';
   }).join('');
 }
@@ -3448,13 +3486,27 @@ async function analyzeAssetShotMain() {
     var snapId = Date.now();
     var uploadTotal = newItems.reduce(function(s,i){return s+(i.value||0);}, 0) || result.parsed.total || 0;
 
+    var snapsForChg = S.get('asset_snapshots') || [];
+    var chgResult = detectAssetChanges(newItems, snapsForChg, snapId);
+    // removed 항목은 items에 removed:true로 포함
+    var itemsWithRemoved = newItems.slice();
+    if(chgResult && chgResult.removed.length) {
+      var prevMonthSnap = snapsForChg.filter(function(s){ return s.date && s.date.startsWith(todayStr.slice(0,7)) && s.id !== snapId; }).sort(function(a,b){ return b.id-a.id; })[0];
+      if(prevMonthSnap) {
+        chgResult.removed.forEach(function(name){
+          var item = (prevMonthSnap.items||[]).find(function(i){ return i.name===name; });
+          if(item) itemsWithRemoved.push(Object.assign({}, item, {removed:true}));
+        });
+      }
+    }
     var snap = {
       id: snapId, person: person, date: todayStr,
       total: uploadTotal,
       principal: result.parsed.principal || 0,
       profit: result.parsed.profit || 0,
       profit_rate: result.parsed.profit_rate != null ? result.parsed.profit_rate : null,
-      items: newItems,
+      items: itemsWithRemoved,
+      changes: chgResult,
       summary: result.parsed.summary || result.summary || '',
       img: img, rows: result.rows
     };
@@ -3478,10 +3530,35 @@ async function analyzeAssetShotMain() {
     renderAssetHistory();
     renderAssetTrend();
     renderAssetShotHistory();
+    setTimeout(clearAssetShot, 800); // 업로드 완료 후 자동 초기화
 
   } catch(err) {
     resultEl.innerHTML = '<div style="color:var(--danger);padding:1rem;font-size:.85rem">⚠️ 분석 실패: '+err.message+'</div>';
   }
+}
+
+// 같은 월 이전 스냅샷 대비 변경 감지
+function detectAssetChanges(newItems, snaps, currentId) {
+  var newDate = today();
+  var monthKey = newDate.slice(0,7);
+  // 같은 월에서 현재 스냅보다 이전 스냅 찾기
+  var prev = null;
+  snaps.filter(function(s){ return s.id !== currentId && (s.date||'').startsWith(monthKey); })
+    .sort(function(a,b){ return b.id - a.id; })
+    .forEach(function(s,i){ if(i===0) prev = s; });
+  if(!prev) return null;
+  var prevActiveItems = (prev.items||[]).filter(function(i){ return !i.removed; });
+  var updated = [], inserted = [], removed = [];
+  newItems.forEach(function(ni){
+    var pi = prevActiveItems.find(function(p){ return p.name === ni.name; });
+    if(!pi) inserted.push(ni.name);
+    else if(pi.value !== ni.value) updated.push(ni.name);
+  });
+  prevActiveItems.forEach(function(pi){
+    if(!newItems.find(function(n){ return n.name === pi.name; })) removed.push(pi.name);
+  });
+  if(!updated.length && !inserted.length && !removed.length) return null;
+  return { updated, inserted, removed, changedAt: Date.now() };
 }
 
 function renderAssetShotHistory() {
@@ -3551,42 +3628,65 @@ function clearAllAssetData() {
 
 // 수동 입력
 var manualAssetItems = [];
+var MAI = { inputStyle:'padding:.5rem .7rem;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.86rem;width:100%;box-sizing:border-box' };
 function openManualAssetInput() {
   manualAssetItems = [];
   var overlay = document.createElement('div');
   overlay.id = 'manual-asset-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
   overlay.innerHTML =
-    '<div style="max-width:420px;width:100%;background:var(--surface);border-radius:16px;padding:1.4rem;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">'+
+    '<div style="max-width:440px;width:100%;background:var(--surface);border-radius:16px;padding:1.4rem;max-height:92vh;overflow-y:auto" onclick="event.stopPropagation()">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">'+
         '<div style="font-weight:700;font-size:1rem">✏️ 수동 자산 입력</div>'+
         '<button onclick="document.body.removeChild(document.getElementById(\'manual-asset-overlay\'))" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer">✕</button>'+
       '</div>'+
-      '<div style="display:flex;flex-direction:column;gap:.6rem;margin-bottom:.8rem">'+
-        '<input id="ma-name" placeholder="종목명 (예: 토스증권)" style="padding:.6rem .8rem;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.88rem"/>'+
-        '<select id="ma-cat" style="padding:.6rem .8rem;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.88rem">'+
+      // 투자 항목 추가
+      '<div style="font-size:.78rem;font-weight:600;color:var(--muted);margin-bottom:.4rem">📈 투자 종목 추가</div>'+
+      '<div style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:.7rem">'+
+        '<input id="ma-name" placeholder="종목명 (예: 토스증권)" style="'+MAI.inputStyle+'"/>'+
+        '<select id="ma-cat" style="'+MAI.inputStyle+'">'+
           '<option value="investment">📈 주식/ETF</option>'+
           '<option value="crypto">🪙 코인</option>'+
-          '<option value="savings">💰 예금/적금</option>'+
-          '<option value="pension">🛡️ 연금/IRP</option>'+
           '<option value="fund">📂 펀드</option>'+
           '<option value="etc">📌 기타</option>'+
         '</select>'+
-        '<input id="ma-value" type="number" placeholder="평가금액 (원)" style="padding:.6rem .8rem;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.88rem"/>'+
-        '<input id="ma-principal" type="number" placeholder="원금 (원, 선택)" style="padding:.6rem .8rem;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.88rem"/>'+
-        '<button onclick="addManualAssetItem()" class="btn btn-ghost" style="font-size:.85rem">+ 항목 추가</button>'+
+        '<input id="ma-value" type="text" inputmode="numeric" placeholder="평가금액 (예: 3,500,000)" style="'+MAI.inputStyle+'" oninput="onAssetAmtInput(this)"/>'+
+        '<input id="ma-principal" type="text" inputmode="numeric" placeholder="원금 (선택)" style="'+MAI.inputStyle+'" oninput="onAssetAmtInput(this)"/>'+
+        '<button onclick="addManualAssetItem()" class="btn btn-ghost" style="font-size:.83rem">+ 투자 항목 추가</button>'+
       '</div>'+
-      '<div id="ma-items" style="margin-bottom:.8rem;display:flex;flex-direction:column;gap:.35rem;font-size:.83rem"></div>'+
+      '<div id="ma-items" style="margin-bottom:.8rem;display:flex;flex-direction:column;gap:.3rem;font-size:.82rem"></div>'+
+      // 비상금/노후 전용 입력
+      '<div style="border-top:1px solid var(--border);padding-top:.8rem;margin-bottom:.6rem">'+
+        '<div style="font-size:.78rem;font-weight:600;color:var(--muted);margin-bottom:.5rem">💰 비상금/노후 (총 자산 제외)</div>'+
+        '<div style="display:flex;flex-direction:column;gap:.5rem">'+
+          '<div style="display:flex;align-items:center;gap:.5rem">'+
+            '<label style="font-size:.8rem;color:var(--muted);min-width:80px;white-space:nowrap">CMA 잔액</label>'+
+            '<input id="ma-cma" type="text" inputmode="numeric" placeholder="0" style="'+MAI.inputStyle+'" oninput="onAssetAmtInput(this)"/>'+
+          '</div>'+
+          '<div style="display:flex;align-items:center;gap:.5rem">'+
+            '<label style="font-size:.8rem;color:var(--muted);min-width:80px;white-space:nowrap">퇴직연금</label>'+
+            '<input id="ma-pension" type="text" inputmode="numeric" placeholder="0" style="'+MAI.inputStyle+'" oninput="onAssetAmtInput(this)"/>'+
+          '</div>'+
+        '</div>'+
+      '</div>'+
       '<button onclick="saveManualAsset()" class="btn btn-primary" style="width:100%">💾 저장</button>'+
     '</div>';
   document.body.appendChild(overlay);
 }
 
+function onAssetAmtInput(el) {
+  var raw = el.value.replace(/[^0-9]/g, '');
+  var pos = el.selectionStart, prevLen = el.value.length;
+  el.value = raw ? Number(raw).toLocaleString() : '';
+  try { el.setSelectionRange(pos + (el.value.length - prevLen), pos + (el.value.length - prevLen)); } catch(e){}
+}
+function parseAmt(id) { return parseFloat((document.getElementById(id).value||'').replace(/,/g,''))||0; }
+
 function addManualAssetItem() {
   var name = document.getElementById('ma-name').value.trim();
   var cat  = document.getElementById('ma-cat').value;
-  var val  = parseFloat(document.getElementById('ma-value').value) || 0;
-  var prin = parseFloat(document.getElementById('ma-principal').value) || 0;
+  var val  = parseAmt('ma-value');
+  var prin = parseAmt('ma-principal');
   if(!name || !val) { alert('종목명과 금액을 입력해주세요'); return; }
   manualAssetItems.push({ name, category:cat, value:val, principal:prin });
   document.getElementById('ma-name').value = '';
@@ -3613,27 +3713,54 @@ function renderManualAssetItems() {
 }
 
 function saveManualAsset() {
-  if(!manualAssetItems.length) { alert('항목을 먼저 추가해주세요'); return; }
-  var total     = manualAssetItems.reduce(function(s,i){return s+i.value;}, 0);
-  var principal = manualAssetItems.reduce(function(s,i){return s+i.principal;}, 0);
-  var profit    = total - principal;
-  var snapId    = Date.now();
-  var todayStr  = today();
-  var snap = { id:snapId, person:'self', date:todayStr, total, principal, profit,
+  var cmaVal     = parseAmt('ma-cma');
+  var pensionVal = parseAmt('ma-pension');
+  // reserve 항목
+  var reserveItems = [];
+  if(cmaVal)     reserveItems.push({name:'CMA',     category:'savings', value:cmaVal,     principal:cmaVal});
+  if(pensionVal) reserveItems.push({name:'퇴직연금', category:'pension', value:pensionVal, principal:pensionVal});
+
+  var allNewItems = manualAssetItems.map(function(i){ return {name:i.name, category:i.category, value:i.value}; })
+    .concat(reserveItems);
+  if(!allNewItems.length) { alert('항목을 추가하거나 CMA/퇴직연금을 입력해주세요'); return; }
+
+  var snapId   = Date.now();
+  var todayStr = today();
+  var snaps    = S.get('asset_snapshots') || [];
+
+  // 변경 감지 (투자 항목 기준)
+  var investNewItems = manualAssetItems.map(function(i){ return {name:i.name, category:i.category, value:i.value}; });
+  var chgResult = detectAssetChanges(investNewItems, snaps, snapId);
+  var itemsWithRemoved = allNewItems.slice();
+  if(chgResult && chgResult.removed.length) {
+    var prev2 = snaps.filter(function(s){ return s.date && s.date.startsWith(todayStr.slice(0,7)) && s.id !== snapId; }).sort(function(a,b){ return b.id-a.id; })[0];
+    if(prev2) {
+      chgResult.removed.forEach(function(name){
+        var item = (prev2.items||[]).find(function(i){ return i.name===name && !i.removed; });
+        if(item) itemsWithRemoved.push(Object.assign({}, item, {removed:true}));
+      });
+    }
+  }
+
+  var investTotal = manualAssetItems.reduce(function(s,i){return s+i.value;}, 0);
+  var principal   = manualAssetItems.reduce(function(s,i){return s+i.principal;}, 0);
+  var profit      = investTotal - principal;
+  var snap = { id:snapId, person:'self', date:todayStr, total:investTotal,
+    principal, profit,
     profit_rate: principal > 0 ? Math.round((profit/principal)*10000)/100 : null,
-    items: manualAssetItems.map(function(i){ return {name:i.name, category:i.category, value:i.value}; }),
-    summary:'수동입력', rows:manualAssetItems.map(function(i){ return [i.name, i.value]; }) };
-  var snaps = S.get('asset_snapshots') || [];
+    items: itemsWithRemoved, changes: chgResult,
+    summary:'수동입력', rows:allNewItems.map(function(i){ return [i.name, i.value]; }) };
+
   snaps.unshift(snap);
   S.set('asset_snapshots', snaps.slice(0,100));
   dbUpsert('asset_snapshots', {id:snap.id, person:snap.person, date:snap.date, total:snap.total,
     principal:snap.principal, profit:snap.profit, profit_rate:snap.profit_rate,
-    items:snap.items, summary:snap.summary, rows:snap.rows});
+    items:snap.items, changes:snap.changes, summary:snap.summary, rows:snap.rows});
   var shots = S.get('asset_shots') || [];
   shots.unshift({id:snapId, person:'self', img:null, summary:'수동입력', rows:snap.rows, date:todayStr,
-    total, principal, profit, profit_rate:snap.profit_rate});
+    total:investTotal, principal, profit, profit_rate:snap.profit_rate});
   S.set('asset_shots', shots.slice(0,50));
-  dbUpsert('asset_shots', {id:snapId, person:'self', date:todayStr, total, principal, profit,
+  dbUpsert('asset_shots', {id:snapId, person:'self', date:todayStr, total:investTotal, principal, profit,
     profit_rate:snap.profit_rate, summary:'수동입력', rows:snap.rows});
   var overlay = document.getElementById('manual-asset-overlay');
   if(overlay) document.body.removeChild(overlay);
