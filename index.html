@@ -2548,7 +2548,7 @@ function getLatestSnapshotData() {
   if(!snaps.length) return { total:0, invest:0, reserve:0, allItems:[], removedItems:[], principal:0, byPerson:{self:{items:[]}} };
   var latestDate = snaps.reduce(function(a,b){ return (a.date||'') >= (b.date||'') ? a : b; }).date;
   var latestSnaps = snaps.filter(function(s){ return s.date === latestDate; });
-  var allItems = [], removedItems = [], totalPrincipal = 0;
+  var allItems = [], removedItems = [];
   // 최신 스냅샷의 changes 가져오기 (변경 표시용)
   var latestSnap = latestSnaps.reduce(function(a,b){ return a.id > b.id ? a : b; }, latestSnaps[0]);
   var changes = latestSnap && latestSnap.changes ? latestSnap.changes : null;
@@ -2558,8 +2558,9 @@ function getLatestSnapshotData() {
       var idx = allItems.findIndex(function(i){ return i.name === item.name; });
       if(idx >= 0) allItems[idx] = item; else allItems.push(item);
     });
-    totalPrincipal += (s.principal || 0);
   });
+  // 원금: 항목별 합산 (중복 없음) — item.principal 없으면 스냅샷 principal 비중 배분값 사용
+  var totalPrincipal = allItems.reduce(function(s,i){ return s + (i.principal || 0); }, 0);
   var invest  = allItems.filter(function(i){ return INVEST_CATS.includes(i.category); }).reduce(function(s,i){ return s+i.value; },0);
   var reserve = allItems.filter(function(i){ return RESERVE_CATS.includes(i.category); }).reduce(function(s,i){ return s+i.value; },0);
   var total   = allItems.reduce(function(s,i){ return s+(i.value||0); }, 0); // 최신자산구성 합계 = 평가금액
@@ -3495,6 +3496,13 @@ async function analyzeAssetShotMain() {
     var todayStr = today();
     var snapId = Date.now();
     var uploadTotal = newItems.reduce(function(s,i){return s+(i.value||0);}, 0) || result.parsed.total || 0;
+    // 원금을 항목별로 비중 배분 (중복 합산 방지)
+    var snapPrincipal = result.parsed.principal || 0;
+    if(snapPrincipal > 0 && uploadTotal > 0) {
+      newItems = newItems.map(function(item){
+        return Object.assign({}, item, { principal: Math.round(snapPrincipal * (item.value / uploadTotal)) });
+      });
+    }
 
     var snapsForChg = S.get('asset_snapshots') || [];
     var chgResult = detectAssetChanges(newItems, snapsForChg, snapId);
