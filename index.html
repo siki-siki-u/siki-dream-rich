@@ -1399,12 +1399,30 @@ async function syncFromSupabase() {
     // assets
     const { data: assets } = await supa.from('assets').select('*');
     if(assets && assets.length > 0) assets.forEach(function(a){ S.set('assets_'+a.month_key, Object.assign({}, a.data, {savedAt:a.saved_at})); });
-    // transactions
-    const { data: txs } = await supa.from('transactions').select('*');
+    // transactions — 양방향 sync
+    const { data: txs, error: txErr } = await supa.from('transactions').select('*').order('id', {ascending: false}).limit(2000);
+    var dbTxIds = new Set((txs||[]).map(function(t){ return t.id; }));
+    // 로컬에만 있는 것 → DB에 push
+    var allLocalKeys = Object.keys(localStorage).filter(function(k){ return k.startsWith('txs_'); });
+    allLocalKeys.forEach(function(lk){
+      var key = lk.replace(/^txs_/, '');
+      var localTxs = S.get('txs_'+key) || [];
+      localTxs.forEach(function(t){
+        if(!dbTxIds.has(t.id)) {
+          dbUpsert('transactions', {id:t.id, budget_key:key, date:t.date, cat:t.cat, amount:t.amount, descr:t.desc||'', source:t.source||null});
+        }
+      });
+    });
+    // DB에 있는 것 → 로컬에 병합 (id 기준 중복 방지)
     if(txs && txs.length > 0) {
-      const byKey = {};
+      var byKey = {};
       txs.forEach(function(t){ if(!byKey[t.budget_key]) byKey[t.budget_key]=[]; byKey[t.budget_key].push({id:t.id, date:t.date, cat:t.cat, amount:t.amount, desc:t.descr||'', source:t.source||''}); });
-      Object.keys(byKey).forEach(function(k){ S.set('txs_'+k, byKey[k]); });
+      Object.keys(byKey).forEach(function(k){
+        var localTxs = S.get('txs_'+k) || [];
+        var localIds = new Set(localTxs.map(function(t){ return t.id; }));
+        byKey[k].forEach(function(t){ if(!localIds.has(t.id)) localTxs.push(t); });
+        S.set('txs_'+k, localTxs);
+      });
     }
     // income
     const { data: incomes } = await supa.from('income').select('*');
