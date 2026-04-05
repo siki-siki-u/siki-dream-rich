@@ -509,23 +509,23 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div style="display:flex;flex-direction:column;gap:.6rem">
           <div style="display:flex;gap:.5rem;align-items:center">
             <label style="font-size:.82rem;color:var(--muted);min-width:80px">윤식 월급</label>
-            <input type="number" id="b-in-yoonsik" placeholder="0" style="flex:1" oninput="recalcBudget()" onchange="autoSaveIncome()"/>
+            <input type="text" inputmode="numeric" id="b-in-yoonsik" placeholder="0" style="flex:1" oninput="onIncomeInput(this)"/>
           </div>
           <div style="display:flex;gap:.5rem;align-items:center">
             <label style="font-size:.82rem;color:var(--muted);min-width:80px">유진 월급</label>
-            <input type="number" id="b-in-yujin" placeholder="0" style="flex:1" oninput="recalcBudget()" onchange="autoSaveIncome()"/>
+            <input type="text" inputmode="numeric" id="b-in-yujin" placeholder="0" style="flex:1" oninput="onIncomeInput(this)"/>
           </div>
           <div style="display:flex;gap:.5rem;align-items:center">
             <label style="font-size:.82rem;color:var(--muted);min-width:80px">성과금(윤식)</label>
-            <input type="number" id="b-in-bonus-y" placeholder="0" style="flex:1" oninput="recalcBudget()" onchange="autoSaveIncome()"/>
+            <input type="text" inputmode="numeric" id="b-in-bonus-y" placeholder="0" style="flex:1" oninput="onIncomeInput(this)"/>
           </div>
           <div style="display:flex;gap:.5rem;align-items:center">
             <label style="font-size:.82rem;color:var(--muted);min-width:80px">성과금(유진)</label>
-            <input type="number" id="b-in-bonus-u" placeholder="0" style="flex:1" oninput="recalcBudget()" onchange="autoSaveIncome()"/>
+            <input type="text" inputmode="numeric" id="b-in-bonus-u" placeholder="0" style="flex:1" oninput="onIncomeInput(this)"/>
           </div>
           <div style="display:flex;gap:.5rem;align-items:center">
             <label style="font-size:.82rem;color:var(--muted);min-width:80px">기타수입</label>
-            <input type="number" id="b-in-etc" placeholder="0" style="flex:1" oninput="recalcBudget()" onchange="autoSaveIncome()"/>
+            <input type="text" inputmode="numeric" id="b-in-etc" placeholder="0" style="flex:1" oninput="onIncomeInput(this)"/>
           </div>
           <div style="border-top:1px solid var(--border);margin:.2rem 0;padding-top:.5rem;display:flex;justify-content:space-between;align-items:center">
             <span style="font-size:.82rem;color:var(--muted)">총 수입</span>
@@ -2237,23 +2237,39 @@ function renderBudget() {
 
   // 수입 불러오기
   const income = S.get('income_'+key) || {};
-  document.getElementById('b-in-yoonsik').value  = income.yoonsik  || '';
-  document.getElementById('b-in-yujin').value    = income.yujin    || '';
-  document.getElementById('b-in-bonus-y').value  = income.bonusY   || '';
-  document.getElementById('b-in-bonus-u').value  = income.bonusU   || '';
-  document.getElementById('b-in-etc').value      = income.etc      || '';
+  function fmtIncomeVal(v){ return v ? Number(v).toLocaleString() : ''; }
+  document.getElementById('b-in-yoonsik').value  = fmtIncomeVal(income.yoonsik);
+  document.getElementById('b-in-yujin').value    = fmtIncomeVal(income.yujin);
+  document.getElementById('b-in-bonus-y').value  = fmtIncomeVal(income.bonusY);
+  document.getElementById('b-in-bonus-u').value  = fmtIncomeVal(income.bonusU);
+  document.getElementById('b-in-etc').value      = fmtIncomeVal(income.etc);
 
   recalcBudget();
   renderFixedCosts();
   renderTransactions();
 }
 
+function onIncomeInput(el) {
+  var pos = el.selectionStart;
+  var prevLen = el.value.length;
+  var raw = el.value.replace(/[^0-9]/g, '');
+  el.value = raw ? Number(raw).toLocaleString() : '';
+  // 커서 위치 보정
+  var diff = el.value.length - prevLen;
+  try { el.setSelectionRange(pos + diff, pos + diff); } catch(e){}
+  recalcBudget();
+  autoSaveIncome();
+}
+function parseIncome(id) {
+  return parseFloat((document.getElementById(id).value||'').replace(/,/g,''))||0;
+}
+
 function recalcBudget() {
-  const yoonsik = parseFloat(document.getElementById('b-in-yoonsik').value)||0;
-  const yujin   = parseFloat(document.getElementById('b-in-yujin').value)||0;
-  const bonusY  = parseFloat(document.getElementById('b-in-bonus-y').value)||0;
-  const bonusU  = parseFloat(document.getElementById('b-in-bonus-u').value)||0;
-  const etc     = parseFloat(document.getElementById('b-in-etc').value)||0;
+  const yoonsik = parseIncome('b-in-yoonsik');
+  const yujin   = parseIncome('b-in-yujin');
+  const bonusY  = parseIncome('b-in-bonus-y');
+  const bonusU  = parseIncome('b-in-bonus-u');
+  const etc     = parseIncome('b-in-etc');
   const totalIn = yoonsik+yujin+bonusY+bonusU+etc;
 
   const fixedTotal = getFixedCostTotal();
@@ -2284,11 +2300,11 @@ function autoSaveIncome() {
   _incomeSaveTimer = setTimeout(function(){
     const key = budgetKey();
     const incomeData = {
-      yoonsik: parseFloat(document.getElementById('b-in-yoonsik').value)||0,
-      yujin:   parseFloat(document.getElementById('b-in-yujin').value)||0,
-      bonusY:  parseFloat(document.getElementById('b-in-bonus-y').value)||0,
-      bonusU:  parseFloat(document.getElementById('b-in-bonus-u').value)||0,
-      etc:     parseFloat(document.getElementById('b-in-etc').value)||0,
+      yoonsik: parseIncome('b-in-yoonsik'),
+      yujin:   parseIncome('b-in-yujin'),
+      bonusY:  parseIncome('b-in-bonus-y'),
+      bonusU:  parseIncome('b-in-bonus-u'),
+      etc:     parseIncome('b-in-etc'),
     };
     S.set('income_'+key, incomeData);
     dbUpsert('income', {budget_key: key, yoonsik: incomeData.yoonsik, yujin: incomeData.yujin, bonus_y: incomeData.bonusY, bonus_u: incomeData.bonusU, etc: incomeData.etc});
