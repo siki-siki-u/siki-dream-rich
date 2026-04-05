@@ -669,21 +669,28 @@ tr:hover td{background:rgba(108,138,255,.03)}
     <div id="goal-widget" style="display:none;margin-bottom:1.5rem"></div>
 
     <!-- 통계 -->
-    <div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:1.5rem">
+    <div class="stats-row" style="grid-template-columns:repeat(2,1fr);margin-bottom:1.5rem">
       <div class="stat-card blue">
-        <div class="stat-label">전체 자산</div>
-        <div class="stat-value blue" id="a-total">₩0</div>
-        <div class="stat-sub">전세 포함</div>
-      </div>
-      <div class="stat-card green">
         <div class="stat-label">투자 자산</div>
-        <div class="stat-value green" id="a-invest">₩0</div>
-        <div class="stat-sub">전세 제외</div>
+        <div class="stat-value blue" id="a-invest">₩0</div>
+        <div class="stat-sub" id="a-roi" style="font-size:.75rem;margin-top:.2rem">–</div>
       </div>
       <div class="stat-card yellow">
         <div class="stat-label">비상금 / 노후</div>
         <div class="stat-value yellow" id="a-reserve">₩0</div>
         <div class="stat-sub">CMA + 퇴직연금</div>
+      </div>
+    </div>
+    <!-- 총 자산 + 초기화 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;padding:.7rem 1rem;background:var(--surface);border:1px solid var(--border);border-radius:12px">
+      <div>
+        <span style="font-size:.78rem;color:var(--muted)">총 자산</span>
+        <span style="font-size:1.15rem;font-weight:700;color:var(--accent4);font-family:JetBrains Mono,monospace;margin-left:.6rem" id="a-total">₩0</span>
+        <span id="a-total-roi" style="font-size:.8rem;margin-left:.6rem"></span>
+      </div>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn-ghost" style="font-size:.75rem;padding:.3rem .7rem" onclick="openManualAssetInput()">✏️ 수동 입력</button>
+        <button class="btn btn-ghost" style="font-size:.75rem;padding:.3rem .7rem;color:var(--danger)" onclick="clearAllAssetData()">🗑️ 초기화</button>
       </div>
     </div>
 
@@ -2512,16 +2519,25 @@ function loadAssetInputs() {
 
 function recalcAssets() { renderSnapshotStats(); }
 
-// 최신 스냅샷에서 통계 계산
+// 최신 날짜의 모든 스냅샷 집계
 function getLatestSnapshotData() {
   var snaps = S.get('asset_snapshots') || [];
-  // 가장 최근 스냅샷 1개 사용 (person 구분 없음)
-  var latest = snaps.length ? snaps.reduce(function(a,b){ return a.id > b.id ? a : b; }) : null;
-  var allItems = latest ? (latest.items || []) : [];
-  var total   = latest ? (latest.total || 0) : 0;
+  if(!snaps.length) return { total:0, invest:0, reserve:0, allItems:[], principal:0, profit:0, byPerson:{self:{items:[]}} };
+  var latestDate = snaps.reduce(function(a,b){ return (a.date||'') >= (b.date||'') ? a : b; }).date;
+  var latestSnaps = snaps.filter(function(s){ return s.date === latestDate; });
+  var allItems = [], totalPrincipal = 0, totalProfit = 0;
+  latestSnaps.forEach(function(s){
+    (s.items||[]).forEach(function(item){
+      var idx = allItems.findIndex(function(i){ return i.name === item.name; });
+      if(idx >= 0) allItems[idx] = item; else allItems.push(item);
+    });
+    totalPrincipal += (s.principal || 0);
+    totalProfit    += (s.profit    || 0);
+  });
+  var total   = allItems.reduce(function(s,i){ return s+(i.value||0); }, 0);
   var invest  = allItems.filter(function(i){ return ['investment','fund','crypto'].includes(i.category); }).reduce(function(s,i){ return s+i.value; },0);
   var reserve = allItems.filter(function(i){ return ['savings','pension'].includes(i.category); }).reduce(function(s,i){ return s+i.value; },0);
-  return { total: total, invest: invest, reserve: reserve, allItems: allItems, byPerson: {self: latest || {items:[]}} };
+  return { total, invest, reserve, allItems, principal: totalPrincipal, profit: totalProfit, byPerson:{self:{items:allItems}} };
 }
 
 function renderSnapshotStats() {
@@ -2529,9 +2545,24 @@ function renderSnapshotStats() {
   var at = document.getElementById('a-total');
   var ai = document.getElementById('a-invest');
   var ar = document.getElementById('a-reserve');
+  var aroi = document.getElementById('a-roi');
+  var atroi = document.getElementById('a-total-roi');
   if(at) at.textContent = fmtMoney(d.total);
   if(ai) ai.textContent = fmtMoney(d.invest);
   if(ar) ar.textContent = fmtMoney(d.reserve);
+  // 수익률 계산
+  if(d.principal > 0 && d.total > 0) {
+    var roi = (d.total - d.principal) / d.principal * 100;
+    var profit = d.total - d.principal;
+    var sign = roi >= 0 ? '+' : '';
+    var clr = roi >= 0 ? 'var(--success)' : 'var(--danger)';
+    var arrow = roi >= 0 ? '▲' : '▼';
+    if(aroi) aroi.innerHTML = '<span style="color:'+clr+'">'+arrow+' '+sign+roi.toFixed(2)+'%</span> · '+fmtMoney(profit);
+    if(atroi) atroi.innerHTML = '<span style="color:'+clr+';font-size:.82rem">'+arrow+' '+sign+roi.toFixed(2)+'% ('+fmtMoney(profit)+')</span>';
+  } else {
+    if(aroi) aroi.textContent = '원금 정보 없음';
+    if(atroi) atroi.textContent = '';
+  }
 }
 
 function renderAssetBreakdown() {
@@ -3394,50 +3425,33 @@ async function analyzeAssetShotMain() {
       '<div style="margin-bottom:.6rem">'+rowsHtml+'</div>'+
       '';
 
-    // 종목 upsert: 같은 person의 오늘 스냅샷이 있으면 items 병합 (포트폴리오용)
+    // 캡처 1건 = 스냅샷 1건 (병합 없이 각각 insert)
     var newItems = result.parsed.items || [];
     var snaps = S.get('asset_snapshots') || [];
     var todayStr = today();
-    var todaySnap = snaps.find(function(s){ return s.person===person && s.date===todayStr; });
-    var mergedItems;
-    var snapId = todaySnap ? todaySnap.id : Date.now(); // 오늘 기존 스냅이 있으면 id 유지 (포트폴리오 병합)
-    if(todaySnap) {
-      mergedItems = todaySnap.items ? todaySnap.items.slice() : [];
-      newItems.forEach(function(ni){
-        var idx = mergedItems.findIndex(function(ei){ return ei.name === ni.name; });
-        if(idx >= 0) mergedItems[idx] = ni;
-        else mergedItems.push(ni);
-      });
-      snaps = snaps.filter(function(s){ return !(s.person===person && s.date===todayStr); });
-    } else {
-      mergedItems = newItems;
-    }
-    var mergedTotal = mergedItems.reduce(function(s,i){return s+(i.value||0);}, 0);
-    // 이번 업로드 금액만 (히스토리 표시용)
+    var snapId = Date.now();
     var uploadTotal = newItems.reduce(function(s,i){return s+(i.value||0);}, 0) || result.parsed.total || 0;
 
     var snap = {
       id: snapId, person: person, date: todayStr,
-      total: mergedTotal || result.parsed.total || 0,
+      total: uploadTotal,
       principal: result.parsed.principal || 0,
       profit: result.parsed.profit || 0,
       profit_rate: result.parsed.profit_rate != null ? result.parsed.profit_rate : null,
-      items: mergedItems,
+      items: newItems,
       summary: result.parsed.summary || result.summary || '',
       img: img, rows: result.rows
     };
-    // asset_shots: 각 업로드마다 새 항목 추가 (히스토리 누적)
-    var shotId = Date.now();
+    // asset_shots: 캡처마다 새 항목 (shot id = snap id로 1:1 매핑)
     var shots = S.get('asset_shots') || [];
-    shots.unshift({ id:shotId, person:person, img:img, summary:snap.summary, rows:result.rows, date:todayStr,
+    shots.unshift({ id:snapId, person:person, img:img, summary:snap.summary, rows:result.rows, date:todayStr,
       total:uploadTotal, principal:snap.principal, profit:snap.profit, profit_rate:snap.profit_rate });
     S.set('asset_shots', shots.slice(0, 50));
-    dbUpsert('asset_shots', {id:shotId, person:person, date:todayStr, total:uploadTotal,
+    dbUpsert('asset_shots', {id:snapId, person:person, date:todayStr, total:uploadTotal,
       principal:snap.principal||0, profit:snap.profit||0, profit_rate:snap.profit_rate||null,
       summary:snap.summary||'', rows:result.rows||[]});
     snaps.unshift(snap);
     S.set('asset_snapshots', snaps.slice(0, 100));
-    // DB 저장 (img 제외)
     dbUpsert('asset_snapshots', {
       id: snap.id, person: snap.person, date: snap.date,
       total: snap.total, principal: snap.principal, profit: snap.profit, profit_rate: snap.profit_rate,
@@ -3492,6 +3506,7 @@ function renderAssetShotHistory() {
 }
 
 function deleteAssetShot(id) {
+  if(!confirm('이 캡처와 관련 자산 데이터를 삭제하시겠습니까?')) return;
   S.set('asset_shots', (S.get('asset_shots')||[]).filter(function(s){return s.id!==id;}));
   S.set('asset_snapshots', (S.get('asset_snapshots')||[]).filter(function(s){return s.id!==id;}));
   dbDelete('asset_snapshots', id);
@@ -3501,6 +3516,112 @@ function deleteAssetShot(id) {
   renderAssetBreakdown();
   renderAssetHistory();
   renderAssetTrend();
+}
+
+function clearAllAssetData() {
+  if(!confirm('모든 투자 자산 데이터(캡처 히스토리, 스냅샷)를 초기화하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+  var shots = S.get('asset_shots') || [];
+  var snaps = S.get('asset_snapshots') || [];
+  shots.forEach(function(s){ dbDelete('asset_shots', s.id); });
+  snaps.forEach(function(s){ dbDelete('asset_snapshots', s.id); });
+  S.set('asset_shots', []);
+  S.set('asset_snapshots', []);
+  renderAssetShotHistory();
+  renderSnapshotStats();
+  renderAssetBreakdown();
+  renderAssetHistory();
+  renderAssetTrend();
+}
+
+// 수동 입력
+var manualAssetItems = [];
+function openManualAssetInput() {
+  manualAssetItems = [];
+  var overlay = document.createElement('div');
+  overlay.id = 'manual-asset-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+  overlay.innerHTML =
+    '<div style="max-width:420px;width:100%;background:var(--surface);border-radius:16px;padding:1.4rem;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">'+
+        '<div style="font-weight:700;font-size:1rem">✏️ 수동 자산 입력</div>'+
+        '<button onclick="document.body.removeChild(document.getElementById(\'manual-asset-overlay\'))" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer">✕</button>'+
+      '</div>'+
+      '<div style="display:flex;flex-direction:column;gap:.6rem;margin-bottom:.8rem">'+
+        '<input id="ma-name" placeholder="종목명 (예: 토스증권)" style="padding:.6rem .8rem;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.88rem"/>'+
+        '<select id="ma-cat" style="padding:.6rem .8rem;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.88rem">'+
+          '<option value="investment">📈 주식/ETF</option>'+
+          '<option value="crypto">🪙 코인</option>'+
+          '<option value="savings">💰 예금/적금</option>'+
+          '<option value="pension">🛡️ 연금/IRP</option>'+
+          '<option value="fund">📂 펀드</option>'+
+          '<option value="etc">📌 기타</option>'+
+        '</select>'+
+        '<input id="ma-value" type="number" placeholder="평가금액 (원)" style="padding:.6rem .8rem;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.88rem"/>'+
+        '<input id="ma-principal" type="number" placeholder="원금 (원, 선택)" style="padding:.6rem .8rem;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.88rem"/>'+
+        '<button onclick="addManualAssetItem()" class="btn btn-ghost" style="font-size:.85rem">+ 항목 추가</button>'+
+      '</div>'+
+      '<div id="ma-items" style="margin-bottom:.8rem;display:flex;flex-direction:column;gap:.35rem;font-size:.83rem"></div>'+
+      '<button onclick="saveManualAsset()" class="btn btn-primary" style="width:100%">💾 저장</button>'+
+    '</div>';
+  document.body.appendChild(overlay);
+}
+
+function addManualAssetItem() {
+  var name = document.getElementById('ma-name').value.trim();
+  var cat  = document.getElementById('ma-cat').value;
+  var val  = parseFloat(document.getElementById('ma-value').value) || 0;
+  var prin = parseFloat(document.getElementById('ma-principal').value) || 0;
+  if(!name || !val) { alert('종목명과 금액을 입력해주세요'); return; }
+  manualAssetItems.push({ name, category:cat, value:val, principal:prin });
+  document.getElementById('ma-name').value = '';
+  document.getElementById('ma-value').value = '';
+  document.getElementById('ma-principal').value = '';
+  renderManualAssetItems();
+}
+
+function removeManualItem(idx) {
+  manualAssetItems.splice(idx, 1);
+  renderManualAssetItems();
+}
+
+function renderManualAssetItems() {
+  var el = document.getElementById('ma-items');
+  if(!el) return;
+  if(!manualAssetItems.length) { el.innerHTML=''; return; }
+  el.innerHTML = manualAssetItems.map(function(item, i){
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem .6rem;background:rgba(108,138,255,.07);border-radius:8px">'+
+      '<span>'+item.name+' ('+fmtMoney(item.value)+')</span>'+
+      '<button onclick="removeManualItem('+i+')" style="background:none;border:none;color:var(--muted);cursor:pointer">✕</button>'+
+    '</div>';
+  }).join('');
+}
+
+function saveManualAsset() {
+  if(!manualAssetItems.length) { alert('항목을 먼저 추가해주세요'); return; }
+  var total     = manualAssetItems.reduce(function(s,i){return s+i.value;}, 0);
+  var principal = manualAssetItems.reduce(function(s,i){return s+i.principal;}, 0);
+  var profit    = total - principal;
+  var snapId    = Date.now();
+  var todayStr  = today();
+  var snap = { id:snapId, person:'self', date:todayStr, total, principal, profit,
+    profit_rate: principal > 0 ? Math.round((profit/principal)*10000)/100 : null,
+    items: manualAssetItems.map(function(i){ return {name:i.name, category:i.category, value:i.value}; }),
+    summary:'수동입력', rows:manualAssetItems.map(function(i){ return [i.name, i.value]; }) };
+  var snaps = S.get('asset_snapshots') || [];
+  snaps.unshift(snap);
+  S.set('asset_snapshots', snaps.slice(0,100));
+  dbUpsert('asset_snapshots', {id:snap.id, person:snap.person, date:snap.date, total:snap.total,
+    principal:snap.principal, profit:snap.profit, profit_rate:snap.profit_rate,
+    items:snap.items, summary:snap.summary, rows:snap.rows});
+  var shots = S.get('asset_shots') || [];
+  shots.unshift({id:snapId, person:'self', img:null, summary:'수동입력', rows:snap.rows, date:todayStr,
+    total, principal, profit, profit_rate:snap.profit_rate});
+  S.set('asset_shots', shots.slice(0,50));
+  dbUpsert('asset_shots', {id:snapId, person:'self', date:todayStr, total, principal, profit,
+    profit_rate:snap.profit_rate, summary:'수동입력', rows:snap.rows});
+  var overlay = document.getElementById('manual-asset-overlay');
+  if(overlay) document.body.removeChild(overlay);
+  renderSnapshotStats(); renderAssetBreakdown(); renderAssetHistory(); renderAssetTrend(); renderAssetShotHistory();
 }
 
 function expandAssetShot(id) {
