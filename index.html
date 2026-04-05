@@ -2562,9 +2562,8 @@ function getLatestSnapshotData() {
   });
   var invest  = allItems.filter(function(i){ return INVEST_CATS.includes(i.category); }).reduce(function(s,i){ return s+i.value; },0);
   var reserve = allItems.filter(function(i){ return RESERVE_CATS.includes(i.category); }).reduce(function(s,i){ return s+i.value; },0);
-  var total   = invest; // savings/pension 제외
-  var investPrincipal = totalPrincipal; // 원금은 invest 기반
-  return { total, invest, reserve, allItems, removedItems, principal: investPrincipal, changes, byPerson:{self:{items:allItems}} };
+  var total   = allItems.reduce(function(s,i){ return s+(i.value||0); }, 0); // 최신자산구성 합계 = 평가금액
+  return { total, invest, reserve, allItems, removedItems, principal: totalPrincipal, changes, byPerson:{self:{items:allItems}} };
 }
 
 function renderSnapshotStats() {
