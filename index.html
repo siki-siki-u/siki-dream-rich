@@ -360,6 +360,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
     <div class="nav-section">
       <div class="nav-label">경조사</div>
       <div class="nav-item" onclick="showPage('gifts',this);closeSidebar()"><span class="icon">🎁</span> 축의금 장부</div>
+      <div class="nav-item" onclick="showPage('condolences',this);closeSidebar()"><span class="icon">🖤</span> 조의금 장부</div>
     </div>
   </div>
 
@@ -1319,6 +1320,32 @@ tr:hover td{background:rgba(108,138,255,.03)}
       <p>받은 축의금을 조회하고 답례 금액을 확인해요</p>
     </div>
 
+    <!-- 추가 -->
+    <div class="card" style="margin-bottom:1.5rem">
+      <div class="sec-title">➕ 내역 추가</div>
+      <div style="display:flex;flex-direction:column;gap:.6rem">
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <select id="gift-person" style="min-width:80px">
+            <option value="윤식">윤식</option>
+            <option value="유진">유진</option>
+          </select>
+          <input type="text" id="gift-name" placeholder="이름" style="flex:1;min-width:120px"/>
+          <input type="number" id="gift-amount" placeholder="금액 (만원)" style="width:130px"/>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <select id="gift-type" style="min-width:100px">
+            <option value="결혼">결혼</option>
+            <option value="돌잔치">돌잔치</option>
+            <option value="생일">생일</option>
+            <option value="기타">기타</option>
+          </select>
+          <input type="date" id="gift-date" style="flex:1"/>
+          <input type="text" id="gift-memo" placeholder="메모 (선택)" style="flex:1;min-width:120px"/>
+        </div>
+        <button class="btn btn-primary" onclick="addGift()">추가하기 ＋</button>
+      </div>
+    </div>
+
     <!-- 검색 -->
     <div class="card" style="margin-bottom:1.5rem">
       <div class="sec-title">🔍 이름 검색</div>
@@ -1337,20 +1364,78 @@ tr:hover td{background:rgba(108,138,255,.03)}
     </div>
 
     <!-- 전체 목록 -->
-    <div>
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
-          <div class="sec-title" style="margin:0">📋 전체 내역</div>
-          <div style="display:flex;gap:.4rem;align-items:center">
-            <select id="gift-filter-person" onchange="renderGiftList()" style="font-size:.8rem;padding:.25rem .4rem">
-              <option value="">전체</option>
-              <option value="윤식">윤식</option>
-              <option value="유진">유진</option>
-            </select>
-          </div>
-        </div>
-        <div id="gift-list" style="max-height:600px;overflow-y:auto"></div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
+        <div class="sec-title" style="margin:0">📋 전체 내역</div>
+        <select id="gift-filter-person" onchange="renderGiftList()" style="font-size:.8rem;padding:.25rem .4rem">
+          <option value="">전체</option>
+          <option value="윤식">윤식</option>
+          <option value="유진">유진</option>
+        </select>
       </div>
+      <div id="gift-list" style="max-height:600px;overflow-y:auto"></div>
+    </div>
+  </div>
+
+  <!-- 조의금 장부 -->
+  <div class="page" id="page-condolences">
+    <div class="page-header">
+      <h2>🖤 조의금 장부</h2>
+      <p>조의금 내역을 조회하고 관리해요</p>
+    </div>
+
+    <!-- 추가 -->
+    <div class="card" style="margin-bottom:1.5rem">
+      <div class="sec-title">➕ 내역 추가</div>
+      <div style="display:flex;flex-direction:column;gap:.6rem">
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <select id="cond-person" style="min-width:80px">
+            <option value="윤식">윤식</option>
+            <option value="유진">유진</option>
+          </select>
+          <input type="text" id="cond-name" placeholder="이름" style="flex:1;min-width:120px"/>
+          <input type="number" id="cond-amount" placeholder="금액 (만원)" style="width:130px"/>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <select id="cond-type" style="min-width:100px">
+            <option value="부의">부의</option>
+            <option value="기타">기타</option>
+          </select>
+          <input type="date" id="cond-date" style="flex:1"/>
+          <input type="text" id="cond-memo" placeholder="메모 (선택)" style="flex:1;min-width:120px"/>
+        </div>
+        <button class="btn btn-primary" onclick="addCondolence()">추가하기 ＋</button>
+      </div>
+    </div>
+
+    <!-- 검색 -->
+    <div class="card" style="margin-bottom:1.5rem">
+      <div class="sec-title">🔍 이름 검색</div>
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+        <select id="cond-search-person" style="min-width:90px">
+          <option value="">전체</option>
+          <option value="윤식">윤식</option>
+          <option value="유진">유진</option>
+        </select>
+        <input type="text" id="cond-search-name" placeholder="이름 입력 (예: 홍길동)" style="flex:1;min-width:150px"
+          onkeydown="if(event.key==='Enter') searchCondolences()"/>
+        <button class="btn btn-primary" onclick="searchCondolences()">검색</button>
+        <button class="btn btn-ghost" onclick="clearCondolenceSearch()">전체 보기</button>
+      </div>
+      <div id="cond-search-result" style="margin-top:1rem"></div>
+    </div>
+
+    <!-- 전체 목록 -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
+        <div class="sec-title" style="margin:0">📋 전체 내역</div>
+        <select id="cond-filter-person" onchange="renderCondolenceList()" style="font-size:.8rem;padding:.25rem .4rem">
+          <option value="">전체</option>
+          <option value="윤식">윤식</option>
+          <option value="유진">유진</option>
+        </select>
+      </div>
+      <div id="cond-list" style="max-height:600px;overflow-y:auto"></div>
     </div>
   </div>
 
@@ -1552,7 +1637,8 @@ function showPage(id, el) {
   if(id==='youtube') { renderYtLibrary(); }
   if(id==='journal') { renderJournal(); fetchFearGreed(); }
   if(id==='realty')  { renderRealty(); initCheongak(); }
-  if(id==='gifts')   { renderGiftList(); }
+  if(id==='gifts')       { renderGiftList(); }
+  if(id==='condolences') { renderCondolenceList(); }
   if(id==='market')  { loadVix('1mo'); }
 }
 
@@ -2000,6 +2086,111 @@ function renderGiftList() {
 
 // 앱 시작 시 gifts 로드
 loadGifts();
+
+// ── CONDOLENCES ──
+var condolencesCache = [];
+
+async function loadCondolences() {
+  if(!supa) return;
+  const { data, error } = await supa.from('condolences').select('*').order('event_date', {ascending: false});
+  if(!error && data) condolencesCache = data;
+}
+
+async function addCondolence() {
+  const person = document.getElementById('cond-person').value;
+  const name   = document.getElementById('cond-name').value.trim();
+  const amount = parseInt(document.getElementById('cond-amount').value) || 0;
+  const type   = document.getElementById('cond-type').value;
+  const date   = document.getElementById('cond-date').value || null;
+  const memo   = document.getElementById('cond-memo').value.trim();
+  if(!name || !amount) { alert('이름과 금액을 입력해주세요.'); return; }
+  const row = { person, name, amount, event_type: type, event_date: date, memo: memo || null };
+  if(supa) {
+    const { data, error } = await supa.from('condolences').insert(row).select().single();
+    if(error) { alert('저장 실패: ' + error.message); return; }
+    condolencesCache.unshift(data);
+  } else {
+    condolencesCache.unshift({ ...row, id: Date.now() });
+  }
+  document.getElementById('cond-name').value = '';
+  document.getElementById('cond-amount').value = '';
+  document.getElementById('cond-memo').value = '';
+  document.getElementById('cond-date').value = '';
+  renderCondolenceList();
+  alert('✅ 추가됐어요!');
+}
+
+function searchCondolences() {
+  const person = document.getElementById('cond-search-person').value;
+  const name   = document.getElementById('cond-search-name').value.trim();
+  const el     = document.getElementById('cond-search-result');
+  if(!name) { el.innerHTML = '<div style="color:var(--muted);font-size:.85rem">이름을 입력해주세요.</div>'; return; }
+
+  const results = condolencesCache.filter(function(g) {
+    var nameMatch = g.name.includes(name);
+    var personMatch = !person || g.person === person;
+    return nameMatch && personMatch;
+  });
+
+  if(!results.length) {
+    el.innerHTML = '<div style="background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.2);border-radius:10px;padding:1.2rem;text-align:center;color:var(--muted);font-size:.88rem">' +
+      '😔 <b style="color:var(--text)">'+name+'</b>님의 데이터가 없어요.<br/><span style="font-size:.78rem">아직 등록되지 않은 분이에요.</span></div>';
+    return;
+  }
+
+  const total = results.reduce(function(s,g){ return s + g.amount; }, 0);
+  el.innerHTML = '<div style="background:rgba(108,138,255,.08);border:1px solid rgba(108,138,255,.2);border-radius:10px;padding:1rem">' +
+    '<div style="font-size:.9rem;margin-bottom:.8rem"><b style="color:var(--text)">'+name+'</b>님 검색 결과 — '+results.length+'건 · 합계 <b style="color:var(--accent)">'+total.toLocaleString()+'만원</b></div>' +
+    results.map(function(g) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem .6rem;background:var(--surface2);border-radius:8px;margin-bottom:.4rem;font-size:.83rem">' +
+        '<div>' +
+          '<span style="background:var(--accent)22;color:var(--accent);padding:.1rem .4rem;border-radius:4px;font-size:.75rem;margin-right:.4rem">'+g.person+'</span>' +
+          '<b style="color:var(--text)">'+g.name+'</b>' +
+          (g.event_date ? ' <span style="color:var(--muted)">· '+g.event_date.substring(0,10)+'</span>' : '') +
+          (g.event_type ? ' <span style="color:var(--muted)">· '+g.event_type+'</span>' : '') +
+          (g.memo ? '<br/><span style="color:var(--muted);font-size:.78rem">📝 '+g.memo+'</span>' : '') +
+        '</div>' +
+        '<b style="color:var(--accent3);font-family:JetBrains Mono,monospace">'+g.amount.toLocaleString()+'만원</b>' +
+      '</div>';
+    }).join('') +
+  '</div>';
+}
+
+function clearCondolenceSearch() {
+  document.getElementById('cond-search-name').value = '';
+  document.getElementById('cond-search-person').value = '';
+  document.getElementById('cond-search-result').innerHTML = '';
+  renderCondolenceList();
+}
+
+function renderCondolenceList() {
+  const el = document.getElementById('cond-list');
+  if(!el) return;
+  const filterPerson = document.getElementById('cond-filter-person')?.value || '';
+  const list = condolencesCache.filter(function(g){ return !filterPerson || g.person === filterPerson; });
+
+  if(!list.length) {
+    el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:2rem;font-size:.85rem">내역이 없어요.<br/>왼쪽에서 추가해주세요.</div>';
+    return;
+  }
+  el.innerHTML = list.map(function(g) {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.6rem .5rem;border-bottom:1px solid var(--border);font-size:.82rem">' +
+      '<div>' +
+        '<span style="background:var(--accent)22;color:var(--accent);padding:.1rem .35rem;border-radius:4px;font-size:.72rem;margin-right:.35rem">'+g.person+'</span>' +
+        '<b style="color:var(--text)">'+g.name+'</b>' +
+        ' <span style="color:var(--muted);font-size:.75rem">'+g.event_type+'</span>' +
+        (g.event_date ? '<br/><span style="color:var(--muted);font-size:.75rem">'+g.event_date.substring(0,10)+'</span>' : '') +
+        (g.memo ? ' <span style="color:var(--muted);font-size:.75rem">· '+g.memo+'</span>' : '') +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:.5rem">' +
+        '<b style="color:var(--accent4);font-family:JetBrains Mono,monospace">'+g.amount.toLocaleString()+'만원</b>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// 앱 시작 시 condolences 로드
+loadCondolences();
 
 // ── CALENDAR ──
 let calYear = new Date().getFullYear();
