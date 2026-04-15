@@ -2740,7 +2740,7 @@ function loadAssetInputs() {
 function recalcAssets() { renderSnapshotStats(); }
 
 var RESERVE_CATS = ['savings','pension'];
-var INVEST_CATS  = ['investment','fund','crypto','etc'];
+var INVEST_CATS  = ['investment','fund','crypto','gold','etc'];
 
 // 사람별 최신 스냅샷 기준 집계 (윤식/유진 각자 최신 날짜 따로 → 합산)
 function getLatestSnapshotData() {
@@ -2824,8 +2824,8 @@ function renderAssetBreakdown() {
     return;
   }
 
-  var catMap = { investment:'📈 주식/ETF', crypto:'🪙 코인', savings:'💰 CMA/예금', pension:'🛡️ 퇴직연금/IRP', fund:'📂 펀드', etc:'📌 기타' };
-  var catClr = { investment:'var(--accent)', crypto:'var(--accent4)', savings:'var(--accent3)', pension:'var(--success)', fund:'var(--accent2)', etc:'var(--muted)' };
+  var catMap = { investment:'📈 주식/ETF', crypto:'🪙 코인', savings:'💰 CMA/예금', pension:'🛡️ 퇴직연금/IRP', fund:'📂 펀드', gold:'🥇 금 현물', etc:'📌 기타' };
+  var catClr = { investment:'var(--accent)', crypto:'var(--accent4)', savings:'var(--accent3)', pension:'var(--success)', fund:'var(--accent2)', gold:'#f5c518', etc:'var(--muted)' };
 
   // 변경 표시 여부 (24시간 이내)
   var chg = d.changes;
