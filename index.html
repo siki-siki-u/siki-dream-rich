@@ -2804,7 +2804,7 @@ function renderSnapshotStats() {
     var arrow  = roi >= 0 ? '▲' : '▼';
     var roiStr = '<span style="color:'+clr+'">'+arrow+' '+sign+roi.toFixed(2)+'%</span>';
     if(aprin) aprin.textContent = fmtMoney(d.principal);
-    if(aprof) aprof.innerHTML   = '<span style="color:'+clr+'">'+(profit>=0?'+':'')+fmtMoney(Math.abs(profit))+'</span>';
+    if(aprof) aprof.innerHTML   = '<span style="color:'+clr+'">'+(profit>=0?'+':'-')+fmtMoney(Math.abs(profit))+'</span>';
     if(aroi)  aroi.innerHTML    = roiStr;
     if(atroi) atroi.innerHTML   = roiStr;
   } else {
