@@ -2940,45 +2940,35 @@ function renderAssetHistory() {
   var selectedMonth = sel ? sel.value : '';
   var filteredDates = selectedMonth ? dates.filter(function(d){ return d.startsWith(selectedMonth); }) : dates;
 
-  // 날짜별 집계: 각 날짜에서 사람별 최신 shot 합산
+  // 날짜별: 해당 날짜의 모든 shot을 다 보여줌 + 날짜 합계
   el.innerHTML = filteredDates.map(function(date){
-    var dayShots = shots.filter(function(s){ return s.date === date; });
-    // 사람별 최신 shot (같은 날 여러 번 올려도 최신것만)
-    var personLatest = {};
-    dayShots.forEach(function(s){
-      var p = s.person || 'self';
-      if(!personLatest[p] || s.id > personLatest[p].id) personLatest[p] = s;
-    });
-    var personList = Object.values(personLatest);
-    var dayTotal = personList.reduce(function(sum,s){ return sum + (s.total||0); }, 0);
-    var dayPrincipal = personList.reduce(function(sum,s){ return sum + (s.principal||0); }, 0);
-    var dayProfit = dayPrincipal > 0 ? (dayTotal - dayPrincipal) : null;
+    var dayShots = shots.filter(function(s){ return s.date === date; })
+      .sort(function(a,b){ return b.id - a.id; }); // 최신순
+    var dayTotal = dayShots.reduce(function(sum,s){ return sum + (s.total||0); }, 0);
+    var dayPrincipal = dayShots.reduce(function(sum,s){ return sum + (s.principal||0); }, 0);
     var dayRoi = (dayPrincipal > 0) ? (dayTotal - dayPrincipal) / dayPrincipal * 100 : null;
     var roiStr = dayRoi != null
-      ? '<span style="font-size:.72rem;color:'+(dayRoi>=0?'var(--success)':'var(--danger)')+';">'+(dayRoi>=0?'▲':'▼')+' '+(dayRoi>=0?'+':'')+dayRoi.toFixed(1)+'%</span>'
+      ? ' <span style="font-size:.7rem;color:'+(dayRoi>=0?'var(--success)':'var(--danger)')+';">'+(dayRoi>=0?'+':'')+dayRoi.toFixed(1)+'%</span>'
       : '';
 
-    // 사람별 상세 (2명 이상일 때만)
-    var personDetail = personList.length > 1
-      ? '<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.25rem">'+
-          personList.map(function(s){
-            return '<span style="font-size:.7rem;color:var(--muted)">'+
-              '<span style="background:rgba(108,138,255,.15);color:var(--accent);padding:.05rem .3rem;border-radius:3px;margin-right:.2rem">'+(s.person||'self')+'</span>'+
-              fmtMoney(s.total)+
-            '</span>';
-          }).join('')+
-        '</div>'
-      : (personList.length===1 ? '<div style="font-size:.7rem;color:var(--muted);margin-top:.15rem"><span style="background:rgba(108,138,255,.15);color:var(--accent);padding:.05rem .3rem;border-radius:3px;">'+(personList[0].person||'self')+'</span></div>' : '');
+    // 개별 shot 목록
+    var shotRows = dayShots.map(function(s){
+      var ts = new Date(s.id);
+      var timeStr = ts.getHours().toString().padStart(2,'0')+':'+ts.getMinutes().toString().padStart(2,'0');
+      var personTag = s.person ? '<span style="background:rgba(108,138,255,.15);color:var(--accent);padding:.05rem .25rem;border-radius:3px;font-size:.68rem;margin-right:.3rem">'+s.person+'</span>' : '';
+      var label = s.summary && s.summary !== '수동입력' ? s.summary : (s.rows && s.rows[0] ? s.rows[0][0] : '');
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.25rem .5rem;font-size:.77rem;color:var(--muted)">'+
+        '<span>'+personTag+(label ? label.slice(0,18) : timeStr)+'</span>'+
+        '<span style="font-family:JetBrains Mono,monospace;color:var(--text)">'+fmtMoney(s.total)+'</span>'+
+      '</div>';
+    }).join('');
 
-    return '<div style="padding:.55rem 0;border-bottom:1px solid var(--border)">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center">'+
-        '<span style="font-size:.8rem;color:var(--muted);font-family:JetBrains Mono,monospace">'+date+'</span>'+
-        '<div style="text-align:right">'+
-          '<div style="font-size:.85rem;font-family:JetBrains Mono,monospace;font-weight:700;color:var(--accent4)">'+fmtMoney(dayTotal)+'</div>'+
-          roiStr+
-        '</div>'+
+    return '<div style="border-bottom:1px solid var(--border);padding:.5rem 0">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.2rem">'+
+        '<span style="font-size:.8rem;font-family:JetBrains Mono,monospace;color:var(--muted)">'+date+'</span>'+
+        '<div style="font-size:.88rem;font-family:JetBrains Mono,monospace;font-weight:700;color:var(--accent4)">'+fmtMoney(dayTotal)+roiStr+'</div>'+
       '</div>'+
-      personDetail+
+      shotRows+
     '</div>';
   }).join('') || '<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:1.5rem">해당 기간 기록 없음</div>';
 }
