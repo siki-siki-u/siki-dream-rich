@@ -1547,7 +1547,7 @@ async function syncFromSupabase() {
     });
     // asset_snapshots
     var localSnaps = S.get('asset_snapshots') || [];
-    const { data: assetSnaps } = await supa.from('asset_snapshots').select('*').order('id', {ascending: false}).limit(100);
+    const { data: assetSnaps } = await supa.from('asset_snapshots').select('*').order('id', {ascending: false}).limit(500);
     var dbIds = new Set((assetSnaps||[]).map(function(s){return s.id;}));
     // 로컬에만 있는 것 → DB에 업로드
     localSnaps.forEach(function(s){
@@ -1599,7 +1599,7 @@ async function syncFromSupabase() {
     }
     // asset_shots — 양방향 sync (img 제외)
     var localShots = S.get('asset_shots') || [];
-    const { data: dbShots } = await supa.from('asset_shots').select('*').order('id', {ascending:false}).limit(50);
+    const { data: dbShots } = await supa.from('asset_shots').select('*').order('id', {ascending:false}).limit(500);
     var dbShotIds = new Set((dbShots||[]).map(function(s){return s.id;}));
     localShots.forEach(function(s){ if(!dbShotIds.has(s.id)) dbUpsert('asset_shots', {id:s.id, person:s.person||'self', date:s.date, total:s.total||0, principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate||null, summary:s.summary||'', rows:s.rows||[]}); });
     if(dbShots && dbShots.length > 0) {
@@ -2909,38 +2909,71 @@ function renderAssetHistory() {
   var el = document.getElementById('a-history');
   var sel = document.getElementById('a-history-month');
   if(!el) return;
-  // 월별 기록은 asset_shots 기준 (업로드마다 개별 금액 표시)
-  var shots = (S.get('asset_shots') || []).slice().sort(function(a,b){return b.id-a.id;});
+
+  var shots = (S.get('asset_shots') || []).slice().sort(function(a,b){ return b.id - a.id; });
   if(!shots.length){
     el.innerHTML='<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:1.5rem">캡처 업로드 후 저장됩니다</div>';
     return;
   }
-  // 월 목록 구성
+
+  // 날짜 목록 (전체, 최신순)
+  var dates = [];
+  shots.forEach(function(s){ var d=(s.date||''); if(d && dates.indexOf(d)<0) dates.push(d); });
+  dates.sort(function(a,b){ return b.localeCompare(a); });
+
+  // 월 목록 구성 (select용)
   var months = [];
-  shots.forEach(function(s){ var m=(s.date||'').slice(0,7); if(m && months.indexOf(m)<0) months.push(m); });
-  months.sort(function(a,b){return b.localeCompare(a);});
+  dates.forEach(function(d){ var m=d.slice(0,7); if(m && months.indexOf(m)<0) months.push(m); });
   if(sel) {
     var curVal = sel.value;
-    sel.innerHTML = months.map(function(m){
+    sel.innerHTML = '<option value="">전체</option>' + months.map(function(m){
       return '<option value="'+m+'"'+(m===curVal?' selected':'')+'>'+m+'</option>';
     }).join('');
-    if(!sel.value && months.length) sel.value = months[0];
   }
-  var selectedMonth = sel ? sel.value : (months[0]||'');
-  // 선택 월의 shot만 표시 (업로드별 개별 금액)
-  var filtered = shots.filter(function(s){ return (s.date||'').slice(0,7)===selectedMonth; });
-  if(!filtered.length){
-    el.innerHTML='<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:1.5rem">해당 월 기록 없음</div>';
-    return;
-  }
-  el.innerHTML = filtered.map(function(s){
-    var ts = new Date(s.id);
-    var timeStr = ts.getHours().toString().padStart(2,'0')+':'+ts.getMinutes().toString().padStart(2,'0');
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--border);font-size:.83rem">'+
-      '<span style="color:var(--muted);font-family:JetBrains Mono,monospace;font-size:.78rem">'+s.date+' '+timeStr+'</span>'+
-      '<span style="color:var(--accent4);font-family:JetBrains Mono,monospace;font-weight:600">'+fmtMoney(s.total)+'</span>'+
+  var selectedMonth = sel ? sel.value : '';
+  var filteredDates = selectedMonth ? dates.filter(function(d){ return d.startsWith(selectedMonth); }) : dates;
+
+  // 날짜별 집계: 각 날짜에서 사람별 최신 shot 합산
+  el.innerHTML = filteredDates.map(function(date){
+    var dayShots = shots.filter(function(s){ return s.date === date; });
+    // 사람별 최신 shot (같은 날 여러 번 올려도 최신것만)
+    var personLatest = {};
+    dayShots.forEach(function(s){
+      var p = s.person || 'self';
+      if(!personLatest[p] || s.id > personLatest[p].id) personLatest[p] = s;
+    });
+    var personList = Object.values(personLatest);
+    var dayTotal = personList.reduce(function(sum,s){ return sum + (s.total||0); }, 0);
+    var dayPrincipal = personList.reduce(function(sum,s){ return sum + (s.principal||0); }, 0);
+    var dayProfit = dayPrincipal > 0 ? (dayTotal - dayPrincipal) : null;
+    var dayRoi = (dayPrincipal > 0) ? (dayTotal - dayPrincipal) / dayPrincipal * 100 : null;
+    var roiStr = dayRoi != null
+      ? '<span style="font-size:.72rem;color:'+(dayRoi>=0?'var(--success)':'var(--danger)')+';">'+(dayRoi>=0?'▲':'▼')+' '+(dayRoi>=0?'+':'')+dayRoi.toFixed(1)+'%</span>'
+      : '';
+
+    // 사람별 상세 (2명 이상일 때만)
+    var personDetail = personList.length > 1
+      ? '<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.25rem">'+
+          personList.map(function(s){
+            return '<span style="font-size:.7rem;color:var(--muted)">'+
+              '<span style="background:rgba(108,138,255,.15);color:var(--accent);padding:.05rem .3rem;border-radius:3px;margin-right:.2rem">'+(s.person||'self')+'</span>'+
+              fmtMoney(s.total)+
+            '</span>';
+          }).join('')+
+        '</div>'
+      : (personList.length===1 ? '<div style="font-size:.7rem;color:var(--muted);margin-top:.15rem"><span style="background:rgba(108,138,255,.15);color:var(--accent);padding:.05rem .3rem;border-radius:3px;">'+(personList[0].person||'self')+'</span></div>' : '');
+
+    return '<div style="padding:.55rem 0;border-bottom:1px solid var(--border)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center">'+
+        '<span style="font-size:.8rem;color:var(--muted);font-family:JetBrains Mono,monospace">'+date+'</span>'+
+        '<div style="text-align:right">'+
+          '<div style="font-size:.85rem;font-family:JetBrains Mono,monospace;font-weight:700;color:var(--accent4)">'+fmtMoney(dayTotal)+'</div>'+
+          roiStr+
+        '</div>'+
+      '</div>'+
+      personDetail+
     '</div>';
-  }).join('');
+  }).join('') || '<div style="color:var(--muted);font-size:.83rem;text-align:center;padding:1.5rem">해당 기간 기록 없음</div>';
 }
 
 
