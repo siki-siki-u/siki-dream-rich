@@ -674,12 +674,14 @@ tr:hover td{background:rgba(108,138,255,.03)}
       <div class="stat-card blue">
         <div class="stat-label">투자 자산</div>
         <div class="stat-value blue" id="a-invest">₩0</div>
-        <div class="stat-sub" id="a-roi" style="font-size:.75rem;margin-top:.2rem">–</div>
+        <div id="a-invest-profit" style="font-size:.78rem;margin-top:.15rem;font-family:'JetBrains Mono',monospace;color:var(--muted)">–</div>
+        <div class="stat-sub" id="a-roi" style="font-size:.75rem;margin-top:.1rem">–</div>
       </div>
       <div class="stat-card yellow">
         <div class="stat-label">비상금 / 노후</div>
         <div class="stat-value yellow" id="a-reserve">₩0</div>
-        <div class="stat-sub">CMA + 퇴직연금</div>
+        <div id="a-reserve-profit" style="font-size:.78rem;margin-top:.15rem;font-family:'JetBrains Mono',monospace;color:var(--muted)">–</div>
+        <div class="stat-sub" id="a-reserve-roi" style="font-size:.75rem;margin-top:.1rem">–</div>
       </div>
     </div>
     <!-- 총 자산 + 수익률 상세 -->
@@ -2792,10 +2794,48 @@ function renderSnapshotStats() {
   var atroi= document.getElementById('a-total-roi');
   var aprin= document.getElementById('a-principal-val');
   var aprof= document.getElementById('a-profit-val');
+  var aip  = document.getElementById('a-invest-profit');
+  var arp  = document.getElementById('a-reserve-profit');
+  var arroi= document.getElementById('a-reserve-roi');
   if(at) at.textContent = fmtMoney(d.total);
   if(ai) ai.textContent = fmtMoney(d.invest);
   if(ar) ar.textContent = fmtMoney(d.reserve);
-  // 원금 / 수익금 / 수익률
+
+  // 투자 자산 수익금/수익률
+  var investItems = d.allItems.filter(function(i){ return INVEST_CATS.includes(i.category); });
+  var investPrincipal = investItems.reduce(function(s,i){ return s+(i.principal||0); }, 0);
+  var investValue     = investItems.reduce(function(s,i){ return s+(i.value||0); }, 0);
+  if(investPrincipal > 0 && investValue > 0) {
+    var iProfit = investValue - investPrincipal;
+    var iRoi    = iProfit / investPrincipal * 100;
+    var iClr    = iRoi >= 0 ? 'var(--success)' : 'var(--danger)';
+    var iSign   = iProfit >= 0 ? '+' : '-';
+    var iArrow  = iRoi >= 0 ? '▲' : '▼';
+    if(aip) aip.innerHTML = '<span style="color:'+iClr+'">'+iSign+fmtMoney(Math.abs(iProfit))+'</span>';
+    if(aroi) aroi.innerHTML = '<span style="color:'+iClr+'">'+iArrow+' '+(iRoi>=0?'+':'')+iRoi.toFixed(2)+'%</span>';
+  } else {
+    if(aip) aip.textContent = '–';
+    if(aroi) aroi.textContent = '–';
+  }
+
+  // 비상금/노후 수익금/수익률
+  var reserveItems = d.allItems.filter(function(i){ return RESERVE_CATS.includes(i.category); });
+  var reservePrincipal = reserveItems.reduce(function(s,i){ return s+(i.principal||0); }, 0);
+  var reserveValue     = reserveItems.reduce(function(s,i){ return s+(i.value||0); }, 0);
+  if(reservePrincipal > 0 && reserveValue > 0) {
+    var rProfit = reserveValue - reservePrincipal;
+    var rRoi    = rProfit / reservePrincipal * 100;
+    var rClr    = rRoi >= 0 ? 'var(--success)' : 'var(--danger)';
+    var rSign   = rProfit >= 0 ? '+' : '-';
+    var rArrow  = rRoi >= 0 ? '▲' : '▼';
+    if(arp)   arp.innerHTML   = '<span style="color:'+rClr+'">'+rSign+fmtMoney(Math.abs(rProfit))+'</span>';
+    if(arroi) arroi.innerHTML = '<span style="color:'+rClr+'">'+rArrow+' '+(rRoi>=0?'+':'')+rRoi.toFixed(2)+'%</span>';
+  } else {
+    if(arp)   arp.textContent   = '–';
+    if(arroi) arroi.textContent = '–';
+  }
+
+  // 총 원금 / 수익금 / 수익률
   if(d.principal > 0 && d.total > 0) {
     var profit = d.total - d.principal;
     var roi    = profit / d.principal * 100;
@@ -2805,12 +2845,10 @@ function renderSnapshotStats() {
     var roiStr = '<span style="color:'+clr+'">'+arrow+' '+sign+roi.toFixed(2)+'%</span>';
     if(aprin) aprin.textContent = fmtMoney(d.principal);
     if(aprof) aprof.innerHTML   = '<span style="color:'+clr+'">'+(profit>=0?'+':'-')+fmtMoney(Math.abs(profit))+'</span>';
-    if(aroi)  aroi.innerHTML    = roiStr;
     if(atroi) atroi.innerHTML   = roiStr;
   } else {
     if(aprin) aprin.textContent = '–';
     if(aprof) aprof.textContent = '–';
-    if(aroi)  aroi.textContent  = '–';
     if(atroi) atroi.textContent = '';
   }
 }
