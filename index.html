@@ -719,6 +719,11 @@ tr:hover td{background:rgba(108,138,255,.03)}
     <!-- 캡처 드롭박스 -->
     <div class="card" style="margin-bottom:1.5rem">
       <div class="sec-title">📸 투자 캡처 업로드</div>
+      <!-- 업로더 선택 -->
+      <div style="display:flex;gap:.5rem;margin-bottom:.8rem">
+        <button id="uploader-btn-yunsik" class="btn btn-primary" style="flex:1;font-size:.85rem" onclick="selectUploader('윤식')">👨 윤식</button>
+        <button id="uploader-btn-yujin" class="btn btn-ghost" style="flex:1;font-size:.85rem" onclick="selectUploader('유진')">👩 유진</button>
+      </div>
       <div class="toss-drop" id="asset-drop-main"
         ondragover="event.preventDefault();this.classList.add('drag-over')"
         ondragleave="this.classList.remove('drag-over')"
@@ -755,6 +760,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
           <button class="btn btn-ghost" style="font-size:.75rem;padding:.25rem .6rem" onclick="renderAssetTrend('total')" id="trend-btn-total">전체</button>
           <button class="btn btn-ghost" style="font-size:.75rem;padding:.25rem .6rem" onclick="renderAssetTrend('invest')" id="trend-btn-invest">투자</button>
           <button class="btn btn-ghost" style="font-size:.75rem;padding:.25rem .6rem" onclick="renderAssetTrend('reserve')" id="trend-btn-reserve">비상금</button>
+          <button class="btn btn-ghost" style="font-size:.75rem;padding:.25rem .6rem" onclick="renderAssetTrend('roi')" id="trend-btn-roi">수익률%</button>
         </div>
       </div>
       <div id="asset-trend-chart"></div>
@@ -2841,8 +2847,12 @@ function renderAssetBreakdown() {
     html += '<div style="border-top:1px solid var(--border);margin:.7rem 0;padding-top:.7rem;font-size:.78rem;font-weight:600;color:var(--muted)">📈 투자 종목</div>';
     html += investItems.map(function(i){
       var chgStyle = (updSet.has(i.name)||insSet.has(i.name)) ? 'color:var(--accent)' : 'color:var(--muted)';
-      return '<div style="display:flex;justify-content:space-between;font-size:.79rem;padding:.2rem 0;border-bottom:1px solid rgba(42,48,72,.25)">'+
-        '<span style="'+chgStyle+'">'+i.name+chgBadge(i.name)+'</span>'+
+      var itemProfit = (i.principal > 0) ? (i.value - i.principal) : null;
+      var itemRoi    = (i.principal > 0) ? Math.round((i.value - i.principal) / i.principal * 1000) / 10 : null;
+      var roiStr = itemRoi != null ? ' <span style="font-size:.72rem;color:'+(itemRoi>=0?'var(--success)':'var(--danger)')+';">'+(itemRoi>=0?'+':'')+itemRoi+'%</span>' : '';
+      var personTag = i.person ? ' <span style="font-size:.68rem;background:rgba(108,138,255,.15);color:var(--accent);padding:.05rem .3rem;border-radius:3px">'+i.person+'</span>' : '';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.79rem;padding:.2rem 0;border-bottom:1px solid rgba(42,48,72,.25)">'+
+        '<span style="'+chgStyle+'">'+i.name+chgBadge(i.name)+personTag+roiStr+'</span>'+
         '<span style="font-family:JetBrains Mono,monospace;'+(updSet.has(i.name)||insSet.has(i.name)?'color:var(--accent)':'')+'">'+fmtMoney(i.value)+'</span>'+
       '</div>';
     }).join('');
@@ -3633,6 +3643,22 @@ function handleAssetDropMain(e) {
   if(file && file.type.startsWith('image/')) handleAssetShotMain(file);
 }
 
+// 업로더 선택 (윤식/유진)
+window.currentUploader = '윤식';
+function selectUploader(name) {
+  window.currentUploader = name;
+  var names = ['윤식','유진'];
+  names.forEach(function(n){
+    var btn = document.getElementById('uploader-btn-'+( n==='윤식' ? 'yunsik' : 'yujin' ));
+    if(!btn) return;
+    if(n === name) {
+      btn.className = 'btn btn-primary';
+    } else {
+      btn.className = 'btn btn-ghost';
+    }
+  });
+}
+
 function clearAssetShot() {
   pendingAssetMainImg = null;
   document.getElementById('asset-shot-main-inner').innerHTML =
@@ -3649,7 +3675,7 @@ async function analyzeAssetShotMain() {
     resultEl.innerHTML = '<div style="color:var(--danger);font-size:.85rem;padding:.5rem">📸 먼저 캡처를 올려주세요</div>';
     return;
   }
-  var person = 'self';
+  var person = window.currentUploader || '윤식';
   resultEl.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--muted)"><div style="font-size:1.5rem;margin-bottom:.5rem">⏳</div>AI가 분석 중이에요...</div>';
 
   const base64 = img.split(',')[1];
@@ -3687,13 +3713,45 @@ async function analyzeAssetShotMain() {
     var todayStr = today();
     var snapId = Date.now();
     var uploadTotal = newItems.reduce(function(s,i){return s+(i.value||0);}, 0) || result.parsed.total || 0;
-    // 원금을 항목별로 비중 배분 (중복 합산 방지)
-    var snapPrincipal = result.parsed.principal || 0;
-    if(snapPrincipal > 0 && uploadTotal > 0) {
-      newItems = newItems.map(function(item){
-        return Object.assign({}, item, { principal: Math.round(snapPrincipal * (item.value / uploadTotal)) });
-      });
+
+    // 역산 원금: 항목별 profit이 있으면 value - profit, 없으면 전체 principal 비중 배분
+    newItems = newItems.map(function(item){
+      if(item.profit != null) {
+        // 항목별 손익이 파싱된 경우 → 역산
+        return Object.assign({}, item, { principal: Math.round((item.value || 0) - (item.profit || 0)) });
+      }
+      return item;
+    });
+    // 항목별 역산 원금 합산
+    var derivedPrincipal = newItems.reduce(function(s,i){ return s + (i.principal || 0); }, 0);
+    // 전체 원금: 파싱된 값 > 역산 합산 > 전체 profit 역산 순
+    var snapPrincipal = result.parsed.principal > 0 ? result.parsed.principal
+      : derivedPrincipal > 0 ? derivedPrincipal
+      : (result.parsed.profit != null && uploadTotal > 0) ? Math.round(uploadTotal - result.parsed.profit)
+      : 0;
+    // 항목별 principal 없는 항목은 비중으로 배분
+    if(snapPrincipal > 0) {
+      var itemsWithoutPrincipal = newItems.filter(function(i){ return !i.principal; });
+      if(itemsWithoutPrincipal.length > 0) {
+        var assignedPrincipal = newItems.reduce(function(s,i){ return s+(i.principal||0); }, 0);
+        var remaining = snapPrincipal - assignedPrincipal;
+        var remainTotal = itemsWithoutPrincipal.reduce(function(s,i){ return s+(i.value||0); }, 0);
+        newItems = newItems.map(function(item){
+          if(item.principal) return item;
+          return Object.assign({}, item, { principal: remainTotal > 0 ? Math.round(remaining * (item.value / remainTotal)) : 0 });
+        });
+      }
     }
+    // 전체 profit 보정
+    var totalProfitCalc = newItems.reduce(function(s,i){ return s+((i.value||0)-(i.principal||0)); }, 0);
+    result.parsed.principal = snapPrincipal;
+    result.parsed.profit = result.parsed.profit || totalProfitCalc;
+    if(snapPrincipal > 0 && !result.parsed.profit_rate) {
+      result.parsed.profit_rate = Math.round(result.parsed.profit / snapPrincipal * 1000) / 10;
+    }
+
+    // 항목에 person 태그 추가
+    newItems = newItems.map(function(item){ return Object.assign({}, item, { person: person }); });
 
     var snapsForChg = S.get('asset_snapshots') || [];
     var chgResult = detectAssetChanges(newItems, snapsForChg, snapId);
@@ -4006,7 +4064,7 @@ function expandAssetShot(id) {
 var currentTrendMode = 'total';
 function renderAssetTrend(mode) {
   currentTrendMode = mode || currentTrendMode;
-  ['total','invest','reserve'].forEach(function(m){
+  ['total','invest','reserve','roi'].forEach(function(m){
     var b = document.getElementById('trend-btn-'+m);
     if(b) b.style.color = m===currentTrendMode ? 'var(--accent)' : '';
   });
@@ -4028,7 +4086,11 @@ function renderAssetTrend(mode) {
     var reserve = allItems.filter(function(i){return ['savings','pension'].includes(i.category);}).reduce(function(s,i){return s+i.value;},0);
     // 날짜 레이블: MM/DD
     var label = e[0].slice(5).replace('-','/');
-    return { label: label, date: e[0], total: total, invest: invest, reserve: reserve };
+    // 수익률: 각 날짜별 전체 원금 합산 대비 수익
+    var totalPrincipal = daySnaps.reduce(function(s,snap){ return s+(snap.principal||0); }, 0);
+    var totalProfit    = daySnaps.reduce(function(s,snap){ return s+(snap.profit||0); }, 0);
+    var roi = totalPrincipal > 0 ? Math.round(totalProfit / totalPrincipal * 1000) / 10 : 0;
+    return { label: label, date: e[0], total: total, invest: invest, reserve: reserve, roi: roi };
   });
 
   var el = document.getElementById('asset-trend-chart');
@@ -4038,9 +4100,10 @@ function renderAssetTrend(mode) {
     return;
   }
 
+  var isRoi = currentTrendMode === 'roi';
   var vals = entries.map(function(e){ return e[currentTrendMode]; });
-  var maxV = Math.max.apply(null, vals) * 1.1 || 1;
-  var minV = Math.min.apply(null, vals) * 0.9;
+  var maxV = isRoi ? Math.max.apply(null, vals) + 2 : Math.max.apply(null, vals) * 1.1 || 1;
+  var minV = isRoi ? Math.min.apply(null, vals) - 2 : Math.min.apply(null, vals) * 0.9;
   var svgW = 540, svgH = 160, pL = 55, pR = 12, pT = 12, pB = 28;
   var gW = svgW-pL-pR, gH = svgH-pT-pB;
   var n = entries.length;
@@ -4053,7 +4116,7 @@ function renderAssetTrend(mode) {
 
   // y축 레이블 (3단계)
   var ySteps = [minV, (minV+maxV)/2, maxV];
-  var clr = currentTrendMode==='total' ? '#6c8aff' : currentTrendMode==='invest' ? '#52d9a3' : '#ffc850';
+  var clr = currentTrendMode==='total' ? '#6c8aff' : currentTrendMode==='invest' ? '#52d9a3' : currentTrendMode==='roi' ? '#ff7eb3' : '#ffc850';
 
   var svg =
     '<svg viewBox="0 0 '+svgW+' '+svgH+'" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">'+
@@ -4063,7 +4126,7 @@ function renderAssetTrend(mode) {
     '</linearGradient></defs>'+
     ySteps.map(function(v){
       var y = py(v).toFixed(1);
-      var label = v>=100000000 ? (v/100000000).toFixed(1)+'억' : v>=10000 ? Math.round(v/10000)+'만' : v.toLocaleString();
+      var label = isRoi ? v.toFixed(1)+'%' : v>=100000000 ? (v/100000000).toFixed(1)+'억' : v>=10000 ? Math.round(v/10000)+'만' : v.toLocaleString();
       return '<line x1="'+pL+'" y1="'+y+'" x2="'+(pL+gW)+'" y2="'+y+'" stroke="rgba(255,255,255,.06)" stroke-width="1"/>'+
              '<text x="'+(pL-4)+'" y="'+(parseFloat(y)+4)+'" text-anchor="end" font-size="10" fill="rgba(123,130,168,.7)">'+label+'</text>';
     }).join('')+
@@ -4078,7 +4141,7 @@ function renderAssetTrend(mode) {
     // 최신값 라벨
     (function(){
       var last = entries[n-1]; var v = last[currentTrendMode];
-      var label = v>=100000000 ? (v/100000000).toFixed(2)+'억' : v>=10000 ? Math.round(v/10000).toLocaleString()+'만' : v.toLocaleString();
+      var label = isRoi ? (v>=0?'+':'')+v.toFixed(1)+'%' : v>=100000000 ? (v/100000000).toFixed(2)+'억' : v>=10000 ? Math.round(v/10000).toLocaleString()+'만' : v.toLocaleString();
       var cx = px(n-1), cy = py(v);
       return '<text x="'+cx+'" y="'+(cy-8)+'" text-anchor="middle" font-size="10" fill="'+clr+'" font-weight="700">'+label+'</text>';
     })()+
@@ -4087,14 +4150,21 @@ function renderAssetTrend(mode) {
   // 변화량 요약
   var first = vals[0], last2 = vals[n-1];
   var diff = last2 - first;
-  var diffLabel = (diff>=0?'+':'')+( Math.abs(diff)>=10000 ? Math.round(Math.abs(diff)/10000).toLocaleString()+'만' : Math.abs(diff).toLocaleString() )+'원';
   var diffClr = diff>=0 ? 'var(--success)' : 'var(--danger)';
+  var diffLabel, currentLabel;
+  if(isRoi) {
+    diffLabel = (diff>=0?'+':'')+diff.toFixed(1)+'%p';
+    currentLabel = (last2>=0?'+':'')+last2.toFixed(1)+'%';
+  } else {
+    diffLabel = (diff>=0?'+':'')+( Math.abs(diff)>=10000 ? Math.round(Math.abs(diff)/10000).toLocaleString()+'만' : Math.abs(diff).toLocaleString() )+'원';
+    currentLabel = last2>=100000000?(last2/100000000).toFixed(2)+'억':Math.round(last2/10000).toLocaleString()+'만';
+  }
 
   el.innerHTML = svg +
     '<div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted);margin-top:.6rem;padding:.5rem;background:rgba(0,0,0,.15);border-radius:6px">'+
-      '<span>최근 '+n+'일 추이</span>'+
+      '<span>최근 '+n+'회 추이</span>'+
       '<span>변화: <b style="color:'+diffClr+'">'+(diff>=0?'▲':'▼')+' '+diffLabel+'</b></span>'+
-      '<span style="font-family:JetBrains Mono,monospace;color:var(--accent)">현재 '+(last2>=100000000?(last2/100000000).toFixed(2)+'억':Math.round(last2/10000).toLocaleString()+'만')+'</span>'+
+      '<span style="font-family:JetBrains Mono,monospace;color:var(--accent)">현재 '+currentLabel+'</span>'+
     '</div>';
 }
 

@@ -56,15 +56,23 @@ module.exports = async function(req, res) {
 - 연금/IRP/퇴직연금 → category: "pension"
 - 펀드/신탁 → category: "fund"
 - 기타 → category: "etc"
-- total은 화면에 표시된 총 평가금액. 없으면 items 합산값.
-- summary는 화면의 핵심 정보 1줄 (총액, 수익률 등 그대로 인용)
+- 각 항목의 profit: 해당 항목 옆에 표시된 손익금액 (빨간/파란/초록 숫자, +면 양수 -면 음수, 없으면 null)
+- 각 항목의 profit_rate: 해당 항목의 수익률 % 숫자 (없으면 null)
+- total: 화면의 총 평가금액 (없으면 items value 합산)
+- principal: 화면에 원금/투자금액/매수금액이 명시된 경우만 (없으면 0)
+- profit: 전체 평가손익 금액 (없으면 items profit 합산 또는 0)
+- profit_rate: 전체 수익률 % (없으면 null)
+- summary: 총 평가금액·손익·수익률 핵심 1줄
 
 {
   "items": [
-    {"name": "항목명 (앱/계좌명 포함)", "value": 숫자, "category": "investment|crypto|savings|pension|fund|etc"},
+    {"name": "항목명", "value": 숫자, "category": "investment|crypto|savings|pension|fund|etc", "profit": 숫자또는null, "profit_rate": 숫자또는null},
     ...
   ],
   "total": 숫자,
+  "principal": 숫자,
+  "profit": 숫자,
+  "profit_rate": 숫자또는null,
   "summary": "문자열"
 }`;
 
@@ -94,41 +102,25 @@ module.exports = async function(req, res) {
     var parsed = JSON.parse(text1.replace(/```json|```/g, '').trim());
     parsed._person = person;
 
-    // total 보정: items 합산이 더 크면 합산 사용
+    // total 보정
     var itemsSum = (parsed.items || []).reduce(function(s, i) { return s + (i.value || 0); }, 0);
     if (!parsed.total || parsed.total < itemsSum) parsed.total = itemsSum;
+
+    // profit 보정: items의 profit 합산
+    var itemsProfitSum = (parsed.items || []).reduce(function(s, i) { return s + (i.profit || 0); }, 0);
+    if (!parsed.profit && itemsProfitSum !== 0) parsed.profit = itemsProfitSum;
+    // principal 보정: total - profit 역산
+    if (!parsed.principal && parsed.total > 0 && parsed.profit) {
+      parsed.principal = parsed.total - parsed.profit;
+    }
+    if (parsed.principal > 0 && parsed.profit && !parsed.profit_rate) {
+      parsed.profit_rate = Math.round(parsed.profit / parsed.principal * 1000) / 10;
+    }
 
     var activeItems = (parsed.items || []).filter(function(i) { return i.value > 0; });
     var rows = activeItems.map(function(i) { return [i.name, i.value]; });
 
-    if (!activeItems.length) {
-      return res.json({ parsed: parsed, insight: '', rows: [], summary: parsed.summary || '항목을 읽지 못했어요' });
-    }
-
-    // 인사이트 생성
-    var insightPrompt = '아래는 ' + (person === 'yujin' ? '유진' : '윤식') + '의 금융 자산 현황이야:\n'
-      + activeItems.map(function(i) { return i.name + ': ' + Number(i.value).toLocaleString() + '원 (' + i.category + ')'; }).join('\n')
-      + '\n총액: ' + Number(parsed.total).toLocaleString() + '원'
-      + '\n\n아래 형식으로 한국어로 간결하게 분석해줘:\n'
-      + '📊 구성: (자산 분산 1줄)\n'
-      + '💡 긍정적인 점: (1줄)\n'
-      + '⚠️ 개선 제안: (1줄)\n'
-      + '🎯 다음 단계: (1줄)\n'
-      + '투자 권유 아닌 참고 의견으로.';
-
-    var r2 = await post(apiKey, {
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 500,
-      messages: [{ role: 'user', content: insightPrompt }],
-    });
-
-    var insight = '';
-    if (r2.status === 200) {
-      var d2 = JSON.parse(r2.body);
-      insight = d2.content?.[0]?.text || '';
-    }
-
-    res.json({ parsed: parsed, insight: insight, rows: rows, summary: parsed.summary });
+    res.json({ parsed: parsed, rows: rows, summary: parsed.summary });
 
   } catch (e) {
     res.status(500).json({ error: e.message });
