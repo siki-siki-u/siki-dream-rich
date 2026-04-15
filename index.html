@@ -2845,14 +2845,25 @@ function renderAssetBreakdown() {
     if(i.value > 0) catTotals[i.category] = (catTotals[i.category]||0) + i.value;
   });
 
+  // 카테고리별 원금 합산 (ROI 계산용)
+  var catPrincipals = {};
+  d.allItems.forEach(function(i){
+    if(i.value > 0 && i.principal > 0) catPrincipals[i.category] = (catPrincipals[i.category]||0) + i.principal;
+  });
+
   var groups = Object.entries(catTotals).sort(function(a,b){return b[1]-a[1];});
   var html = groups.map(function(g){
-    var pct = d.total > 0 ? Math.round(g[1]/d.total*100) : 0;
-    var lbl = catMap[g[0]] || g[0];
-    var clr = catClr[g[0]] || 'var(--muted)';
+    var pct  = d.total > 0 ? Math.round(g[1]/d.total*100) : 0;
+    var lbl  = catMap[g[0]] || g[0];
+    var clr  = catClr[g[0]] || 'var(--muted)';
+    var prin = catPrincipals[g[0]] || 0;
+    var roi  = prin > 0 ? (g[1] - prin) / prin * 100 : null;
+    var roiStr = roi != null
+      ? ' <span style="font-size:.75rem;color:'+(roi>=0?'var(--success)':'var(--danger)')+'">('+(roi>=0?'+':'')+roi.toFixed(1)+'%)</span>'
+      : '';
     return '<div style="margin-bottom:.7rem">'+
-      '<div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:.25rem">'+
-        '<span>'+lbl+'</span>'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.82rem;margin-bottom:.25rem">'+
+        '<span>'+lbl+roiStr+'</span>'+
         '<span style="font-family:JetBrains Mono,monospace;color:'+clr+'">'+fmtMoney(g[1])+' ('+pct+'%)</span>'+
       '</div>'+
       '<div style="background:var(--border);border-radius:4px;height:7px">'+
