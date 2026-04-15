@@ -2994,22 +2994,19 @@ async function loadVix(range) {
   if(!chartEl) return;
   chartEl.innerHTML = '<span style="color:var(--muted);font-size:.85rem">로딩 중...</span>';
 
-  var url = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d&range='+currentVixRange;
-
   try {
-    var res = await fetchWithProxy(url);
-    if(!res) throw new Error('네트워크 오류');
+    var res = await fetchWithTimeout('/api/vix?range='+currentVixRange, 10000);
+    if(!res || !res.ok) throw new Error('서버 오류');
     var data = await res.json();
-    var result = data.chart && data.chart.result && data.chart.result[0];
-    if(!result) throw new Error('no data');
+    if(data.error) throw new Error(data.error);
 
-    var timestamps = result.timestamp || [];
-    var closes = (result.indicators.quote[0].close) || [];
-    var meta = result.meta || {};
+    var pts = data.pts || [];
+    var timestamps = pts.map(function(p){ return p.ts; });
+    var closes = pts.map(function(p){ return p.v; });
 
     // 현재값
-    var current = meta.regularMarketPrice || closes[closes.length-1] || 0;
-    var prev = meta.chartPreviousClose || closes[closes.length-2] || current;
+    var current = data.current || 0;
+    var prev = data.prev || current;
     var chg = current - prev;
     var chgPct = prev ? (chg/prev*100) : 0;
 
@@ -3030,9 +3027,6 @@ async function loadVix(range) {
 
     // 유효한 데이터만 필터
     var pts = [];
-    for(var i=0; i<timestamps.length; i++){
-      if(closes[i] != null) pts.push({ts: timestamps[i], v: closes[i]});
-    }
     if(pts.length < 2){ chartEl.innerHTML='<span style="color:var(--muted);font-size:.8rem">데이터 없음</span>'; return; }
 
     // SVG 차트
