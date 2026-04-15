@@ -1559,12 +1559,15 @@ async function syncFromSupabase() {
         });
       }
     });
-    // DB에만 있는 것 → 로컬에 병합
+    // DB에만 있는 것 → 로컬에 병합 (대응하는 shot이 DB에 있는 경우만)
     if(assetSnaps && assetSnaps.length > 0) {
       var localIds = new Set(localSnaps.map(function(s){return s.id;}));
       var merged = localSnaps.slice();
+      var localShots2 = S.get('asset_shots') || [];
+      var localShotIdSet = new Set(localShots2.map(function(s){return s.id;}));
       assetSnaps.forEach(function(s){
-        if(!localIds.has(s.id)) {
+        if(!localIds.has(s.id) && localShotIdSet.has(s.id)) {
+          // shot이 로컬에 있을 때만 snapshot 복원
           merged.push({ id:s.id, person:s.person, date:s.date, total:s.total||0,
             principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate,
             items:s.items||[], summary:s.summary||'', rows:s.rows||[] });
@@ -3865,12 +3868,20 @@ function renderAssetShotHistory() {
   }).join('');
 }
 
-function deleteAssetShot(id) {
+async function deleteAssetShot(id) {
   if(!confirm('이 캡처와 관련 자산 데이터를 삭제하시겠습니까?')) return;
-  S.set('asset_shots', (S.get('asset_shots')||[]).filter(function(s){return s.id!==id;}));
+  // 로컬 즉시 삭제
+  S.set('asset_shots',     (S.get('asset_shots')    ||[]).filter(function(s){return s.id!==id;}));
   S.set('asset_snapshots', (S.get('asset_snapshots')||[]).filter(function(s){return s.id!==id;}));
-  dbDelete('asset_snapshots', id);
-  dbDelete('asset_shots', id);
+  // DB 삭제 await (완료 후 렌더)
+  await Promise.all([dbDelete('asset_snapshots', id), dbDelete('asset_shots', id)]);
+  // shot이 하나도 없으면 snapshot도 전부 정리 (DB 포함)
+  var remainShots = S.get('asset_shots') || [];
+  if(remainShots.length === 0) {
+    var orphanSnaps = S.get('asset_snapshots') || [];
+    for(var i=0; i<orphanSnaps.length; i++) await dbDelete('asset_snapshots', orphanSnaps[i].id);
+    S.set('asset_snapshots', []);
+  }
   renderAssetShotHistory();
   renderSnapshotStats();
   renderAssetBreakdown();
