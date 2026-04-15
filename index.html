@@ -2877,8 +2877,11 @@ function renderAssetBreakdown() {
     }).join('');
   }
 
-  // 삭제된 항목 (strikethrough)
-  var removedToShow = d.removedItems.filter(function(i){ return showChg && remSet.has(i.name); });
+  // 삭제된 항목 (strikethrough) — allItems에 살아있는 항목은 제외 (다른 계좌 중복 방지)
+  var activeNames = new Set(d.allItems.map(function(i){ return i.name; }));
+  var removedToShow = d.removedItems.filter(function(i){
+    return showChg && remSet.has(i.name) && !activeNames.has(i.name);
+  });
   if(removedToShow.length) {
     html += removedToShow.map(function(i){
       return '<div style="display:flex;justify-content:space-between;font-size:.79rem;padding:.2rem 0;border-bottom:1px solid rgba(42,48,72,.25);opacity:.55">'+
@@ -2888,14 +2891,18 @@ function renderAssetBreakdown() {
     }).join('');
   }
 
-  // 비상금/노후 구분선
+  // 비상금/노후 구분선 (원금/수익률 포함)
   var reserveItems = d.allItems.filter(function(i){ return RESERVE_CATS.includes(i.category) && i.value > 0; });
   if(reserveItems.length) {
-    html += '<div style="border-top:1px solid var(--border);margin:.7rem 0;padding-top:.7rem;font-size:.78rem;font-weight:600;color:var(--muted)">💰 비상금/노후 (총 자산 제외)</div>';
+    html += '<div style="border-top:1px solid var(--border);margin:.7rem 0;padding-top:.7rem;font-size:.78rem;font-weight:600;color:var(--muted)">💰 비상금/노후</div>';
     html += reserveItems.map(function(i){
       var chgStyle = (updSet.has(i.name)||insSet.has(i.name)) ? 'color:var(--accent)' : 'color:var(--muted)';
-      return '<div style="display:flex;justify-content:space-between;font-size:.79rem;padding:.2rem 0;border-bottom:1px solid rgba(42,48,72,.25)">'+
-        '<span style="'+chgStyle+'">'+i.name+chgBadge(i.name)+'</span>'+
+      var itemProfit = (i.principal > 0) ? (i.value - i.principal) : null;
+      var itemRoi    = (i.principal > 0) ? Math.round((i.value - i.principal) / i.principal * 1000) / 10 : null;
+      var roiStr = itemRoi != null ? ' <span style="font-size:.72rem;color:'+(itemRoi>=0?'var(--success)':'var(--danger)')+';">'+(itemRoi>=0?'+':'')+itemRoi+'%</span>' : '';
+      var personTag = i.person ? ' <span style="font-size:.68rem;background:rgba(108,138,255,.15);color:var(--accent);padding:.05rem .3rem;border-radius:3px">'+i.person+'</span>' : '';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.79rem;padding:.2rem 0;border-bottom:1px solid rgba(42,48,72,.25)">'+
+        '<span style="'+chgStyle+'">'+i.name+chgBadge(i.name)+personTag+roiStr+'</span>'+
         '<span style="font-family:JetBrains Mono,monospace">'+fmtMoney(i.value)+'</span>'+
       '</div>';
     }).join('');
