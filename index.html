@@ -2874,11 +2874,18 @@ function renderAssetBreakdown() {
   // 전체 종목 목록 (카테고리별 구분선)
   function itemRow(i) {
     var chgStyle = (updSet.has(i.name)||insSet.has(i.name)) ? 'color:var(--accent)' : 'color:var(--muted)';
-    var itemRoi = (i.principal > 0) ? Math.round((i.value - i.principal) / i.principal * 1000) / 10 : null;
-    var roiStr  = itemRoi != null ? ' <span style="font-size:.72rem;color:'+(itemRoi>=0?'var(--success)':'var(--danger)')+';">'+(itemRoi>=0?'+':'')+itemRoi+'%</span>' : '';
+    var profit  = (i.principal > 0) ? (i.value - i.principal) : null;
+    var itemRoi = (i.principal > 0) ? Math.round(profit / i.principal * 1000) / 10 : null;
+    var roiClr  = itemRoi != null ? (itemRoi >= 0 ? 'var(--success)' : 'var(--danger)') : '';
+    var profitStr = profit != null
+      ? ' <span style="font-size:.72rem;color:'+roiClr+';">'+(profit>=0?'+':'-')+fmtMoney(Math.abs(profit))+'</span>'
+      : '';
+    var roiStr = itemRoi != null
+      ? ' <span style="font-size:.72rem;color:'+roiClr+';">('+(itemRoi>=0?'+':'')+itemRoi+'%)</span>'
+      : '';
     var personTag = i.person ? ' <span style="font-size:.68rem;background:rgba(108,138,255,.15);color:var(--accent);padding:.05rem .3rem;border-radius:3px">'+i.person+'</span>' : '';
     return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.79rem;padding:.2rem 0;border-bottom:1px solid rgba(42,48,72,.25)">'+
-      '<span style="'+chgStyle+'">'+i.name+chgBadge(i.name)+personTag+roiStr+'</span>'+
+      '<span style="'+chgStyle+'">'+i.name+chgBadge(i.name)+personTag+profitStr+roiStr+'</span>'+
       '<span style="font-family:JetBrains Mono,monospace;'+(updSet.has(i.name)||insSet.has(i.name)?'color:var(--accent)':'')+'">'+fmtMoney(i.value)+'</span>'+
     '</div>';
   }
