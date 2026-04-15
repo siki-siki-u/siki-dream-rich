@@ -2839,10 +2839,10 @@ function renderAssetBreakdown() {
     return '';
   }
 
-  // 투자 항목 카테고리별 합산
+  // 전체 항목 카테고리별 합산 (투자 + 비상금/노후 모두 포함)
   var catTotals = {};
-  d.allItems.filter(function(i){ return INVEST_CATS.includes(i.category); }).forEach(function(i){
-    catTotals[i.category] = (catTotals[i.category]||0) + i.value;
+  d.allItems.forEach(function(i){
+    if(i.value > 0) catTotals[i.category] = (catTotals[i.category]||0) + i.value;
   });
 
   var groups = Object.entries(catTotals).sort(function(a,b){return b[1]-a[1];});
@@ -2860,53 +2860,43 @@ function renderAssetBreakdown() {
       '</div></div>';
   }).join('');
 
-  // 세부 항목 (투자)
-  var investItems = d.allItems.filter(function(i){ return INVEST_CATS.includes(i.category) && i.value > 0; });
-  if(investItems.length) {
-    html += '<div style="border-top:1px solid var(--border);margin:.7rem 0;padding-top:.7rem;font-size:.78rem;font-weight:600;color:var(--muted)">📈 투자 종목</div>';
-    html += investItems.map(function(i){
-      var chgStyle = (updSet.has(i.name)||insSet.has(i.name)) ? 'color:var(--accent)' : 'color:var(--muted)';
-      var itemProfit = (i.principal > 0) ? (i.value - i.principal) : null;
-      var itemRoi    = (i.principal > 0) ? Math.round((i.value - i.principal) / i.principal * 1000) / 10 : null;
-      var roiStr = itemRoi != null ? ' <span style="font-size:.72rem;color:'+(itemRoi>=0?'var(--success)':'var(--danger)')+';">'+(itemRoi>=0?'+':'')+itemRoi+'%</span>' : '';
-      var personTag = i.person ? ' <span style="font-size:.68rem;background:rgba(108,138,255,.15);color:var(--accent);padding:.05rem .3rem;border-radius:3px">'+i.person+'</span>' : '';
-      return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.79rem;padding:.2rem 0;border-bottom:1px solid rgba(42,48,72,.25)">'+
-        '<span style="'+chgStyle+'">'+i.name+chgBadge(i.name)+personTag+roiStr+'</span>'+
-        '<span style="font-family:JetBrains Mono,monospace;'+(updSet.has(i.name)||insSet.has(i.name)?'color:var(--accent)':'')+'">'+fmtMoney(i.value)+'</span>'+
-      '</div>';
-    }).join('');
+  // 전체 종목 목록 (카테고리별 구분선)
+  function itemRow(i) {
+    var chgStyle = (updSet.has(i.name)||insSet.has(i.name)) ? 'color:var(--accent)' : 'color:var(--muted)';
+    var itemRoi = (i.principal > 0) ? Math.round((i.value - i.principal) / i.principal * 1000) / 10 : null;
+    var roiStr  = itemRoi != null ? ' <span style="font-size:.72rem;color:'+(itemRoi>=0?'var(--success)':'var(--danger)')+';">'+(itemRoi>=0?'+':'')+itemRoi+'%</span>' : '';
+    var personTag = i.person ? ' <span style="font-size:.68rem;background:rgba(108,138,255,.15);color:var(--accent);padding:.05rem .3rem;border-radius:3px">'+i.person+'</span>' : '';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.79rem;padding:.2rem 0;border-bottom:1px solid rgba(42,48,72,.25)">'+
+      '<span style="'+chgStyle+'">'+i.name+chgBadge(i.name)+personTag+roiStr+'</span>'+
+      '<span style="font-family:JetBrains Mono,monospace;'+(updSet.has(i.name)||insSet.has(i.name)?'color:var(--accent)':'')+'">'+fmtMoney(i.value)+'</span>'+
+    '</div>';
   }
 
-  // 삭제된 항목 (strikethrough) — allItems에 살아있는 항목은 제외 (다른 계좌 중복 방지)
+  var investItems  = d.allItems.filter(function(i){ return INVEST_CATS.includes(i.category)  && i.value > 0; });
+  var reserveItems = d.allItems.filter(function(i){ return RESERVE_CATS.includes(i.category) && i.value > 0; });
+
+  if(investItems.length) {
+    html += '<div style="border-top:1px solid var(--border);margin:.7rem 0;padding-top:.7rem;font-size:.78rem;font-weight:600;color:var(--muted)">📈 투자 종목</div>';
+    html += investItems.map(itemRow).join('');
+  }
+
+  // 삭제된 항목 (strikethrough) — allItems에 살아있는 항목 제외
   var activeNames = new Set(d.allItems.map(function(i){ return i.name; }));
-  var removedToShow = d.removedItems.filter(function(i){
-    return showChg && remSet.has(i.name) && !activeNames.has(i.name);
-  });
+  var removedToShow = d.removedItems.filter(function(i){ return showChg && remSet.has(i.name) && !activeNames.has(i.name); });
   if(removedToShow.length) {
     html += removedToShow.map(function(i){
       return '<div style="display:flex;justify-content:space-between;font-size:.79rem;padding:.2rem 0;border-bottom:1px solid rgba(42,48,72,.25);opacity:.55">'+
-        '<span style="text-decoration:line-through;color:var(--accent)">'+i.name+' <span style="font-size:.7rem">(변경)</span></span>'+
+        '<span style="text-decoration:line-through;color:var(--muted)">'+i.name+' <span style="font-size:.7rem">(변경)</span></span>'+
         '<span style="font-family:JetBrains Mono,monospace;text-decoration:line-through">'+fmtMoney(i.value)+'</span>'+
       '</div>';
     }).join('');
   }
 
-  // 비상금/노후 구분선 (원금/수익률 포함)
-  var reserveItems = d.allItems.filter(function(i){ return RESERVE_CATS.includes(i.category) && i.value > 0; });
   if(reserveItems.length) {
     html += '<div style="border-top:1px solid var(--border);margin:.7rem 0;padding-top:.7rem;font-size:.78rem;font-weight:600;color:var(--muted)">💰 비상금/노후</div>';
-    html += reserveItems.map(function(i){
-      var chgStyle = (updSet.has(i.name)||insSet.has(i.name)) ? 'color:var(--accent)' : 'color:var(--muted)';
-      var itemProfit = (i.principal > 0) ? (i.value - i.principal) : null;
-      var itemRoi    = (i.principal > 0) ? Math.round((i.value - i.principal) / i.principal * 1000) / 10 : null;
-      var roiStr = itemRoi != null ? ' <span style="font-size:.72rem;color:'+(itemRoi>=0?'var(--success)':'var(--danger)')+';">'+(itemRoi>=0?'+':'')+itemRoi+'%</span>' : '';
-      var personTag = i.person ? ' <span style="font-size:.68rem;background:rgba(108,138,255,.15);color:var(--accent);padding:.05rem .3rem;border-radius:3px">'+i.person+'</span>' : '';
-      return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.79rem;padding:.2rem 0;border-bottom:1px solid rgba(42,48,72,.25)">'+
-        '<span style="'+chgStyle+'">'+i.name+chgBadge(i.name)+personTag+roiStr+'</span>'+
-        '<span style="font-family:JetBrains Mono,monospace">'+fmtMoney(i.value)+'</span>'+
-      '</div>';
-    }).join('');
+    html += reserveItems.map(itemRow).join('');
   }
+
   el.innerHTML = html;
 }
 
