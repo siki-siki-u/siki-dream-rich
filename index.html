@@ -3870,22 +3870,38 @@ async function analyzeAssetShotMain() {
 function detectAssetChanges(newItems, snaps, currentId) {
   var newDate = today();
   var monthKey = newDate.slice(0,7);
-  // 같은 월에서 현재 스냅보다 이전 스냅 찾기
+  // 같은 사람의 같은 월 이전 스냅 찾기
+  var newPerson = (newItems[0] && newItems[0].person) || null;
   var prev = null;
-  snaps.filter(function(s){ return s.id !== currentId && (s.date||'').startsWith(monthKey); })
+  snaps.filter(function(s){
+    if(s.id === currentId) return false;
+    if(!(s.date||'').startsWith(monthKey)) return false;
+    // 같은 사람의 스냅만 비교
+    if(newPerson && s.person && s.person !== newPerson) return false;
+    return true;
+  })
     .sort(function(a,b){ return b.id - a.id; })
     .forEach(function(s,i){ if(i===0) prev = s; });
   if(!prev) return null;
   var prevActiveItems = (prev.items||[]).filter(function(i){ return !i.removed; });
+
+  // 겹치는 종목이 하나도 없으면 완전히 다른 계좌 → removed 처리 안 함
+  var hasOverlap = newItems.some(function(ni){
+    return prevActiveItems.find(function(pi){ return pi.name === ni.name; });
+  });
+
   var updated = [], inserted = [], removed = [];
   newItems.forEach(function(ni){
     var pi = prevActiveItems.find(function(p){ return p.name === ni.name; });
     if(!pi) inserted.push(ni.name);
     else if(pi.value !== ni.value) updated.push(ni.name);
   });
-  prevActiveItems.forEach(function(pi){
-    if(!newItems.find(function(n){ return n.name === pi.name; })) removed.push(pi.name);
-  });
+  if(hasOverlap) {
+    // 같은 계좌 업데이트 → 없어진 종목은 removed
+    prevActiveItems.forEach(function(pi){
+      if(!newItems.find(function(n){ return n.name === pi.name; })) removed.push(pi.name);
+    });
+  }
   if(!updated.length && !inserted.length && !removed.length) return null;
   return { updated, inserted, removed, changedAt: Date.now() };
 }
