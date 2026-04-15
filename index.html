@@ -2772,6 +2772,10 @@ function getLatestSnapshotData() {
   activateSnaps.forEach(function(s){
     (s.items||[]).forEach(function(item){
       if(item.removed) { removedItems.push(item); return; }
+      // 금 카테고리 보정 (기존 데이터 etc → gold)
+      if(item.category === 'etc' && /금현물|금 현물|금99|gold|골드/i.test(item.name)) {
+        item = Object.assign({}, item, { category: 'gold' });
+      }
       // 같은 종목: 최신 값으로 덮어씀 (합산 아님)
       var idx = allItems.findIndex(function(i){ return i.name === item.name; });
       if(idx >= 0) allItems[idx] = item; else allItems.push(item);
@@ -3847,6 +3851,14 @@ async function analyzeAssetShotMain() {
     if(snapPrincipal > 0 && !result.parsed.profit_rate) {
       result.parsed.profit_rate = Math.round(result.parsed.profit / snapPrincipal * 1000) / 10;
     }
+
+    // 금 카테고리 보정: 이름에 금 관련 키워드가 있으면 gold로
+    newItems = newItems.map(function(item){
+      if(item.category === 'etc' && /금현물|금 현물|금99|gold|골드/i.test(item.name)) {
+        return Object.assign({}, item, { category: 'gold' });
+      }
+      return item;
+    });
 
     // 항목에 person 태그 추가
     newItems = newItems.map(function(item){ return Object.assign({}, item, { person: person }); });

@@ -55,7 +55,7 @@ module.exports = async function(req, res) {
 - 적금/예금/CMA → category: "savings"
 - 연금/IRP/퇴직연금 → category: "pension"
 - 펀드/신탁 → category: "fund"
-- 금/골드/금현물/금99.99/Gold → category: "gold"
+- 금/골드/금현물/금99.99/Gold/KRX금/금현물계좌/금계좌 → category: "gold" (절대 etc로 분류하지 말 것)
 - 기타 → category: "etc"
 - 각 항목의 profit: 해당 항목 옆에 표시된 손익금액 (빨간/파란/초록 숫자, +면 양수 -면 음수, 없으면 null)
 - 각 항목의 profit_rate: 해당 항목의 수익률 % 숫자 (없으면 null)
