@@ -3679,7 +3679,14 @@ async function analyzeAssetShotMain() {
     return;
   }
   var person = window.currentUploader || '윤식';
-  resultEl.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--muted)"><div style="font-size:1.5rem;margin-bottom:.5rem">⏳</div>AI가 분석 중이에요...</div>';
+  var loadSteps = ['📸 이미지 읽는 중...', '🔍 금액 파싱 중...', '💾 데이터 입력 중...'];
+  var loadIdx = 0;
+  resultEl.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--muted)"><div style="font-size:1.5rem;margin-bottom:.5rem">⏳</div><div id="asset-load-msg">'+loadSteps[0]+'</div></div>';
+  var loadTimer = setInterval(function(){
+    loadIdx = (loadIdx+1) % loadSteps.length;
+    var msgEl = document.getElementById('asset-load-msg');
+    if(msgEl) msgEl.textContent = loadSteps[loadIdx];
+  }, 1200);
 
   const base64 = img.split(',')[1];
   const mediaType = img.split(';')[0].split(':')[1];
@@ -3689,11 +3696,13 @@ async function analyzeAssetShotMain() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image: base64, mediaType }),
     });
+    clearInterval(loadTimer);
     if(!res || !res.ok) { const err = await res.json().catch(function(){return {};}); throw new Error(err.error || 'HTTP '+res.status); }
     const result = await res.json();
     if(checkCreditError(result)) throw new Error('크레딧 부족');
     aiParsedData = result.parsed;
     applyAiToAssets();
+    var msgEl2 = document.getElementById('asset-load-msg'); if(msgEl2) msgEl2.textContent = '✅ 입력 완료!';
 
     var rowsHtml = result.rows.map(function(r){
       return '<div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.83rem">'+
@@ -3803,6 +3812,7 @@ async function analyzeAssetShotMain() {
     setTimeout(clearAssetShot, 800); // 업로드 완료 후 자동 초기화
 
   } catch(err) {
+    clearInterval(loadTimer);
     resultEl.innerHTML = '<div style="color:var(--danger);padding:1rem;font-size:.85rem">⚠️ 분석 실패: '+err.message+'</div>';
   }
 }
