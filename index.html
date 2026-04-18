@@ -3958,9 +3958,13 @@ function detectAssetChanges(newItems, snaps, currentId) {
     else if(pi.value !== ni.value) updated.push(ni.name);
   });
   if(hasOverlap) {
-    // 같은 계좌 업데이트 → 없어진 종목은 removed
+    // 새 업로드에 포함된 카테고리에 해당하는 것만 removed 후보
+    // (다른 계좌 카테고리 - 금/퇴직연금 등 - 은 없어도 removed 처리 안 함)
+    var newCats = new Set(newItems.map(function(ni){ return ni.category; }));
     prevActiveItems.forEach(function(pi){
-      if(!newItems.find(function(n){ return n.name === pi.name; })) removed.push(pi.name);
+      if(newCats.has(pi.category) && !newItems.find(function(n){ return n.name === pi.name; })) {
+        removed.push(pi.name);
+      }
     });
   }
   if(!updated.length && !inserted.length && !removed.length) return null;
