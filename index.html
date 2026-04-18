@@ -1619,6 +1619,37 @@ async function syncFromSupabase() {
       localYt.sort(function(a,b){return (b.savedAt||'').localeCompare(a.savedAt||'');});
       S.set('yt_summaries', localYt.slice(0,50));
     }
+    // 싱크 후 gold/pension 잘못된 removed:true 복구
+    (function(){
+      var snaps2 = S.get('asset_snapshots') || [];
+      var changed2 = false;
+      snaps2.forEach(function(snap){
+        (snap.items||[]).forEach(function(item){
+          if(item.removed && (item.category === 'gold' || item.category === 'pension' ||
+             /금현물|금 현물|금99|골드/i.test(item.name) || /연금|irp|퇴직/i.test(item.name))) {
+            delete item.removed;
+            changed2 = true;
+          }
+        });
+        if(snap.changes && snap.changes.removed) {
+          var origLen = snap.changes.removed.length;
+          snap.changes.removed = snap.changes.removed.filter(function(name){
+            var it = (snap.items||[]).find(function(i){ return i.name === name; });
+            return !(it && (it.category === 'gold' || it.category === 'pension' ||
+              /금현물|금 현물|금99|골드/i.test(name) || /연금|irp|퇴직/i.test(name)));
+          });
+          if(snap.changes.removed.length !== origLen) changed2 = true;
+        }
+      });
+      if(changed2) {
+        S.set('asset_snapshots', snaps2);
+        snaps2.forEach(function(snap){
+          dbUpsert('asset_snapshots', {id:snap.id, person:snap.person, date:snap.date,
+            total:snap.total||0, principal:snap.principal||0, profit:snap.profit||0,
+            profit_rate:snap.profit_rate||null, items:snap.items||[], summary:snap.summary||'', rows:snap.rows||[]});
+        });
+      }
+    })();
     // re-render
     renderStocks(); fetchAllPrices();
     renderBudget(); refreshDashboard();
@@ -2753,43 +2784,38 @@ function recalcAssets() { renderSnapshotStats(); }
 var RESERVE_CATS = ['savings','pension'];
 var INVEST_CATS  = ['investment','fund','crypto','gold','etc'];
 
-// 사람별 최신 스냅샷 기준 집계 (윤식/유진 각자 최신 날짜 따로 → 합산)
+// 항목별 최신 값 기준 집계 (날짜 관계없이 각 종목의 가장 최근 스냅샷 값 사용)
 function getLatestSnapshotData() {
   var snaps = S.get('asset_snapshots') || [];
   if(!snaps.length) return { total:0, invest:0, reserve:0, allItems:[], removedItems:[], principal:0, changes:null };
 
-  // 사람별 최신 업로드 날짜 파악
-  var personLatestDate = {};
-  snaps.forEach(function(s){
-    var p = s.person || 'self';
-    if(!personLatestDate[p] || s.date > personLatestDate[p]) personLatestDate[p] = s.date;
-  });
+  // 모든 스냅샷을 오래된 순 정렬 → 최신이 나중에 덮어씀
+  var sorted = snaps.slice().sort(function(a,b){ return a.id - b.id; });
 
-  // 각 사람의 최신 날짜 스냅샷만 수집 → id 오름차순 정렬 (최신이 나중에 덮어씀)
-  var activateSnaps = [];
-  Object.keys(personLatestDate).forEach(function(p){
-    var latestDate = personLatestDate[p];
-    var personSnaps = snaps.filter(function(s){ return (s.person||'self') === p && s.date === latestDate; })
-      .sort(function(a,b){ return a.id - b.id; }); // 오름차순: 최신이 마지막 → 덮어씀
-    activateSnaps = activateSnaps.concat(personSnaps);
-  });
-
-  var allItems = [], removedItems = [];
-  var latestSnap = activateSnaps.reduce(function(a,b){ return a.id > b.id ? a : b; }, activateSnaps[0]);
-  var changes = latestSnap && latestSnap.changes ? latestSnap.changes : null;
-
-  activateSnaps.forEach(function(s){
+  // 항목명 → 가장 최신 항목 (removed 포함)
+  var itemMap = {};
+  sorted.forEach(function(s){
     (s.items||[]).forEach(function(item){
-      if(item.removed) { removedItems.push(item); return; }
-      // 금 카테고리 보정 (기존 데이터 etc → gold)
-      if(item.category === 'etc' && /금현물|금 현물|금99|gold|골드/i.test(item.name)) {
-        item = Object.assign({}, item, { category: 'gold' });
+      var it = item;
+      // 금 카테고리 보정
+      if(it.category === 'etc' && /금현물|금 현물|금99|gold|골드/i.test(it.name)) {
+        it = Object.assign({}, it, { category: 'gold' });
       }
-      // 같은 종목: 최신 값으로 덮어씀 (합산 아님)
-      var idx = allItems.findIndex(function(i){ return i.name === item.name; });
-      if(idx >= 0) allItems[idx] = item; else allItems.push(item);
+      itemMap[it.name] = it;
     });
   });
+
+  // removed 항목은 같은 사람의 더 최신 스냅에서 active로 복구될 수 있음 → 최종 상태만 반영
+  var allItems = [], removedItems = [];
+  Object.keys(itemMap).forEach(function(name){
+    var item = itemMap[name];
+    if(item.removed) removedItems.push(item);
+    else allItems.push(item);
+  });
+
+  // changes: 가장 최신 스냅의 changes
+  var latestSnap = sorted[sorted.length - 1];
+  var changes = latestSnap && latestSnap.changes ? latestSnap.changes : null;
 
   var totalPrincipal = allItems.reduce(function(s,i){ return s + (i.principal || 0); }, 0);
   var invest  = allItems.filter(function(i){ return INVEST_CATS.includes(i.category); }).reduce(function(s,i){ return s+i.value; },0);
