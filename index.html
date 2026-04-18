@@ -5151,6 +5151,38 @@ function deleteApt(id) {
     var fShots = shots.filter(function(s){ return s.date !== '2026-04-01'; });
     if(fShots.length !== shots.length) { S.set('asset_shots', fShots); }
   })();
+  // gold/pension 잘못된 removed:true 복구 (카테고리 버그 수정 후 일회성)
+  (function(){
+    if(S.get('_fix_gold_pension_removed')) return;
+    var snaps = S.get('asset_snapshots') || [];
+    var changed = false;
+    snaps.forEach(function(snap){
+      (snap.items||[]).forEach(function(item){
+        if(item.removed && (item.category === 'gold' || item.category === 'pension')) {
+          delete item.removed;
+          changed = true;
+        }
+      });
+      if(snap.changes && snap.changes.removed) {
+        var before = snap.changes.removed.length;
+        snap.changes.removed = snap.changes.removed.filter(function(name){
+          var found = (snap.items||[]).find(function(i){ return i.name === name; });
+          return !(found && (found.category === 'gold' || found.category === 'pension'));
+        });
+        if(snap.changes.removed.length !== before) changed = true;
+      }
+    });
+    if(changed) {
+      S.set('asset_snapshots', snaps);
+      snaps.forEach(function(snap){
+        if(supa) supa.from('asset_snapshots').upsert({id:snap.id, person:snap.person, date:snap.date,
+          total:snap.total||0, principal:snap.principal||0, profit:snap.profit||0,
+          profit_rate:snap.profit_rate||null, items:snap.items||[], summary:snap.summary||'', rows:snap.rows||[]
+        }).then(function(){}).catch(function(){});
+      });
+    }
+    S.set('_fix_gold_pension_removed', '1');
+  })();
   syncFromSupabase();
 })();
 
