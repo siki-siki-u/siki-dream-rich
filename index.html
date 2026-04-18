@@ -1550,44 +1550,55 @@ async function syncFromSupabase() {
       else if(s.key === 'cq_account')  S.set('cq_account',  parseInt(s.value)||0);
       else if(s.key === 'yt_last_seen_id') S.set('yt_last_seen_id', s.value);
     });
-    // asset_shots — 양방향 sync (snapshots보다 먼저, img 제외)
+    // asset_shots — DB 기준 양방향 sync (삭제 전파 포함)
     var localShots = S.get('asset_shots') || [];
+    var seenShotIds = new Set(S.get('_seen_shot_ids') || []);
     const { data: dbShots } = await supa.from('asset_shots').select('*').order('id', {ascending:false}).limit(500);
-    // 로컬 전체를 DB에 upsert (실패했던 것 재시도 포함)
-    localShots.forEach(function(s){
-      dbUpsert('asset_shots', {id:s.id, person:s.person||'self', date:s.date, total:s.total||0, principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate||null, summary:s.summary||'', rows:s.rows||[]});
+    var dbShotIdSet = new Set((dbShots||[]).map(function(s){return s.id;}));
+    // DB에서 본 ID 누적 기록
+    (dbShots||[]).forEach(function(s){ seenShotIds.add(s.id); });
+    // 로컬에만 있는 것: 한번도 DB에 없었으면 신규 업로드 → DB에 push / 이전에 DB에 있었으면 삭제된 것 → 로컬에서도 제거
+    var newLocalShots = localShots.filter(function(s){
+      if(dbShotIdSet.has(s.id)) return true; // DB에 있음 → 유지
+      if(!seenShotIds.has(s.id)) { // 한번도 DB에 없었음 → 신규, DB에 업로드
+        dbUpsert('asset_shots', {id:s.id, person:s.person||'self', date:s.date, total:s.total||0, principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate||null, summary:s.summary||'', rows:s.rows||[]});
+        seenShotIds.add(s.id);
+        return true;
+      }
+      return false; // DB에서 삭제된 것 → 로컬에서도 제거
     });
-    if(dbShots && dbShots.length > 0) {
-      var localShotIds = new Set(localShots.map(function(s){return s.id;}));
-      dbShots.forEach(function(s){ if(!localShotIds.has(s.id)) localShots.push({id:s.id, person:s.person||'self', date:s.date, total:s.total||0, principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate, summary:s.summary||'', rows:s.rows||[], img:null}); });
-      localShots.sort(function(a,b){return b.id-a.id;});
-      S.set('asset_shots', localShots.slice(0,50));
-    }
-    // asset_snapshots — 양방향 sync (shots 싱크 이후 실행)
+    // DB에만 있는 것 → 로컬에 추가
+    var localShotIdSet = new Set(newLocalShots.map(function(s){return s.id;}));
+    (dbShots||[]).forEach(function(s){ if(!localShotIdSet.has(s.id)) newLocalShots.push({id:s.id, person:s.person||'self', date:s.date, total:s.total||0, principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate, summary:s.summary||'', rows:s.rows||[], img:null}); });
+    newLocalShots.sort(function(a,b){return b.id-a.id;});
+    S.set('asset_shots', newLocalShots.slice(0,50));
+    S.set('_seen_shot_ids', Array.from(seenShotIds));
+
+    // asset_snapshots — DB 기준 양방향 sync (삭제 전파 포함)
     var localSnaps = S.get('asset_snapshots') || [];
+    var seenSnapIds = new Set(S.get('_seen_snap_ids') || []);
     const { data: assetSnaps } = await supa.from('asset_snapshots').select('*').order('id', {ascending: false}).limit(500);
-    // 로컬 전체를 DB에 upsert (실패했던 것 재시도 포함)
-    localSnaps.forEach(function(s){
-      dbUpsert('asset_snapshots', {
-        id:s.id, person:s.person, date:s.date, total:s.total||0,
-        principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate||null,
-        items:s.items||[], summary:s.summary||'', rows:s.rows||[]
-      });
+    var dbSnapIdSet = new Set((assetSnaps||[]).map(function(s){return s.id;}));
+    // DB에서 본 ID 누적 기록
+    (assetSnaps||[]).forEach(function(s){ seenSnapIds.add(s.id); });
+    // 로컬에만 있는 것: 신규면 push, 이전에 봤으면 삭제된 것
+    var newLocalSnaps = localSnaps.filter(function(s){
+      if(dbSnapIdSet.has(s.id)) return true;
+      if(!seenSnapIds.has(s.id)) {
+        dbUpsert('asset_snapshots', {id:s.id, person:s.person, date:s.date, total:s.total||0, principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate||null, items:s.items||[], summary:s.summary||'', rows:s.rows||[]});
+        seenSnapIds.add(s.id);
+        return true;
+      }
+      return false;
     });
-    // DB에만 있는 것 → 로컬에 병합
-    if(assetSnaps && assetSnaps.length > 0) {
-      var localIds = new Set(localSnaps.map(function(s){return s.id;}));
-      var merged = localSnaps.slice();
-      assetSnaps.forEach(function(s){
-        if(!localIds.has(s.id)) {
-          merged.push({ id:s.id, person:s.person, date:s.date, total:s.total||0,
-            principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate,
-            items:s.items||[], summary:s.summary||'', rows:s.rows||[] });
-        }
-      });
-      merged.sort(function(a,b){return b.id-a.id;});
-      S.set('asset_snapshots', merged.slice(0,100));
-    }
+    // DB에만 있는 것 → 로컬에 추가
+    var localSnapIdSet = new Set(newLocalSnaps.map(function(s){return s.id;}));
+    (assetSnaps||[]).forEach(function(s){
+      if(!localSnapIdSet.has(s.id)) newLocalSnaps.push({id:s.id, person:s.person, date:s.date, total:s.total||0, principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate, items:s.items||[], summary:s.summary||'', rows:s.rows||[]});
+    });
+    newLocalSnaps.sort(function(a,b){return b.id-a.id;});
+    S.set('asset_snapshots', newLocalSnaps.slice(0,100));
+    S.set('_seen_snap_ids', Array.from(seenSnapIds));
     // events — 양방향 sync
     const { data: dbEvents } = await supa.from('events').select('*');
     var localEvents = S.get('events') || [];
