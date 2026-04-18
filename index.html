@@ -1550,60 +1550,53 @@ async function syncFromSupabase() {
       else if(s.key === 'cq_account')  S.set('cq_account',  parseInt(s.value)||0);
       else if(s.key === 'yt_last_seen_id') S.set('yt_last_seen_id', s.value);
     });
-    // asset_shots — DB 기준 양방향 sync (삭제 전파 포함)
+    // asset_shots — DB 기준 양방향 sync (삭제 전파)
+    // pending: 이 디바이스에서 업로드했지만 DB 확인 안 된 ID
     var localShots = S.get('asset_shots') || [];
-    var seenShotIds = new Set(S.get('_seen_shot_ids') || []);
+    var pendingShotIds = new Set(S.get('_pending_shot_ids') || []);
     const { data: dbShots } = await supa.from('asset_shots').select('*').order('id', {ascending:false}).limit(500);
     var dbShotIdSet = new Set((dbShots||[]).map(function(s){return s.id;}));
-    // DB에서 본 ID 누적 기록
-    (dbShots||[]).forEach(function(s){ seenShotIds.add(s.id); });
-    // 로컬에만 있는 것: 한번도 DB에 없었으면 신규 업로드 → DB에 push / 이전에 DB에 있었으면 삭제된 것 → 로컬에서도 제거
     var newLocalShots = localShots.filter(function(s){
-      if(dbShotIdSet.has(s.id)) return true; // DB에 있음 → 유지
-      if(!seenShotIds.has(s.id)) { // 한번도 DB에 없었음 → 신규, DB에 업로드
+      if(dbShotIdSet.has(s.id)) { pendingShotIds.delete(s.id); return true; } // DB에 있음 → 유지, pending 해제
+      if(pendingShotIds.has(s.id)) { // 이 디바이스에서 올렸는데 DB에 없음 → 재시도
         dbUpsert('asset_shots', {id:s.id, person:s.person||'self', date:s.date, total:s.total||0, principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate||null, summary:s.summary||'', rows:s.rows||[]});
-        seenShotIds.add(s.id);
         return true;
       }
-      return false; // DB에서 삭제된 것 → 로컬에서도 제거
+      return false; // 다른 디바이스에서 삭제된 것 → 로컬에서도 제거
     });
     // DB에만 있는 것 → 로컬에 추가
     var localShotIdSet = new Set(newLocalShots.map(function(s){return s.id;}));
     (dbShots||[]).forEach(function(s){ if(!localShotIdSet.has(s.id)) newLocalShots.push({id:s.id, person:s.person||'self', date:s.date, total:s.total||0, principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate, summary:s.summary||'', rows:s.rows||[], img:null}); });
     newLocalShots.sort(function(a,b){return b.id-a.id;});
     S.set('asset_shots', newLocalShots.slice(0,50));
-    S.set('_seen_shot_ids', Array.from(seenShotIds));
+    S.set('_pending_shot_ids', Array.from(pendingShotIds));
 
-    // asset_snapshots — DB 기준 양방향 sync (shot 존재하는 것만 허용)
-    // 유효한 shot ID 집합 (싱크 완료된 shots 기준)
+    // asset_snapshots — shot 기반 동기화
     var validShotIds = new Set(newLocalShots.map(function(s){return s.id;}));
     var localSnaps = S.get('asset_snapshots') || [];
-    var seenSnapIds = new Set(S.get('_seen_snap_ids') || []);
+    var pendingSnapIds = new Set(S.get('_pending_snap_ids') || []);
     const { data: assetSnaps } = await supa.from('asset_snapshots').select('*').order('id', {ascending: false}).limit(500);
     var dbSnapIdSet = new Set((assetSnaps||[]).map(function(s){return s.id;}));
-    // DB에서 본 ID 누적 기록 (shot이 있는 것만)
-    (assetSnaps||[]).forEach(function(s){ if(validShotIds.has(s.id)) seenSnapIds.add(s.id); });
-    // 로컬에만 있는 것: 신규면 push, 이전에 봤으면 삭제된 것
     var newLocalSnaps = localSnaps.filter(function(s){
-      if(!validShotIds.has(s.id)) return false; // shot 없는 스냅샷 제거
-      if(dbSnapIdSet.has(s.id)) return true;
-      if(!seenSnapIds.has(s.id)) {
+      if(!validShotIds.has(s.id)) return false; // shot 없는 스냅샷 무조건 제거
+      if(dbSnapIdSet.has(s.id)) { pendingSnapIds.delete(s.id); return true; }
+      if(pendingSnapIds.has(s.id)) {
         dbUpsert('asset_snapshots', {id:s.id, person:s.person, date:s.date, total:s.total||0, principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate||null, items:s.items||[], summary:s.summary||'', rows:s.rows||[]});
-        seenSnapIds.add(s.id);
         return true;
       }
-      return false;
+      return false; // 다른 디바이스에서 삭제됨
     });
-    // DB에만 있는 것 → shot이 있는 경우만 로컬에 추가
+    // DB에만 있는 것 → shot 있는 경우만 추가
     var localSnapIdSet = new Set(newLocalSnaps.map(function(s){return s.id;}));
     (assetSnaps||[]).forEach(function(s){
       if(!localSnapIdSet.has(s.id) && validShotIds.has(s.id))
         newLocalSnaps.push({id:s.id, person:s.person, date:s.date, total:s.total||0, principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate, items:s.items||[], summary:s.summary||'', rows:s.rows||[]});
     });
-    // DB에서 orphan 스냅샷(shot 없는 것) 정리
+    // DB orphan 스냅샷 정리
     (assetSnaps||[]).forEach(function(s){ if(!validShotIds.has(s.id)) dbDelete('asset_snapshots', s.id); });
     newLocalSnaps.sort(function(a,b){return b.id-a.id;});
     S.set('asset_snapshots', newLocalSnaps.slice(0,100));
+    S.set('_pending_snap_ids', Array.from(pendingSnapIds));
     S.set('_seen_snap_ids', Array.from(seenSnapIds));
     // events — 양방향 sync
     const { data: dbEvents } = await supa.from('events').select('*');
@@ -3908,6 +3901,9 @@ async function analyzeAssetShotMain() {
     shots.unshift({ id:snapId, person:person, img:img, summary:snap.summary, rows:result.rows, date:todayStr,
       total:uploadTotal, principal:snap.principal, profit:snap.profit, profit_rate:snap.profit_rate });
     S.set('asset_shots', shots.slice(0, 50));
+    // pending 마킹: 업로드 즉시 DB 확인 전까지 보호
+    var pShots = new Set(S.get('_pending_shot_ids') || []); pShots.add(snapId); S.set('_pending_shot_ids', Array.from(pShots));
+    var pSnaps = new Set(S.get('_pending_snap_ids') || []); pSnaps.add(snapId); S.set('_pending_snap_ids', Array.from(pSnaps));
     dbUpsert('asset_shots', {id:snapId, person:person, date:todayStr, total:uploadTotal,
       principal:snap.principal||0, profit:snap.profit||0, profit_rate:snap.profit_rate||null,
       summary:snap.summary||'', rows:result.rows||[]});
@@ -4178,6 +4174,8 @@ function saveManualAsset() {
   shots.unshift({id:snapId, person:'self', img:null, summary:'수동입력', rows:snap.rows, date:todayStr,
     total:investTotal, principal, profit, profit_rate:snap.profit_rate});
   S.set('asset_shots', shots.slice(0,50));
+  var mpShots = new Set(S.get('_pending_shot_ids') || []); mpShots.add(snapId); S.set('_pending_shot_ids', Array.from(mpShots));
+  var mpSnaps = new Set(S.get('_pending_snap_ids') || []); mpSnaps.add(snapId); S.set('_pending_snap_ids', Array.from(mpSnaps));
   dbUpsert('asset_shots', {id:snapId, person:'self', date:todayStr, total:investTotal, principal, profit,
     profit_rate:snap.profit_rate, summary:'수동입력', rows:snap.rows});
   var overlay = document.getElementById('manual-asset-overlay');
