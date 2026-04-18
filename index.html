@@ -1574,15 +1574,18 @@ async function syncFromSupabase() {
     S.set('asset_shots', newLocalShots.slice(0,50));
     S.set('_seen_shot_ids', Array.from(seenShotIds));
 
-    // asset_snapshots — DB 기준 양방향 sync (삭제 전파 포함)
+    // asset_snapshots — DB 기준 양방향 sync (shot 존재하는 것만 허용)
+    // 유효한 shot ID 집합 (싱크 완료된 shots 기준)
+    var validShotIds = new Set(newLocalShots.map(function(s){return s.id;}));
     var localSnaps = S.get('asset_snapshots') || [];
     var seenSnapIds = new Set(S.get('_seen_snap_ids') || []);
     const { data: assetSnaps } = await supa.from('asset_snapshots').select('*').order('id', {ascending: false}).limit(500);
     var dbSnapIdSet = new Set((assetSnaps||[]).map(function(s){return s.id;}));
-    // DB에서 본 ID 누적 기록
-    (assetSnaps||[]).forEach(function(s){ seenSnapIds.add(s.id); });
+    // DB에서 본 ID 누적 기록 (shot이 있는 것만)
+    (assetSnaps||[]).forEach(function(s){ if(validShotIds.has(s.id)) seenSnapIds.add(s.id); });
     // 로컬에만 있는 것: 신규면 push, 이전에 봤으면 삭제된 것
     var newLocalSnaps = localSnaps.filter(function(s){
+      if(!validShotIds.has(s.id)) return false; // shot 없는 스냅샷 제거
       if(dbSnapIdSet.has(s.id)) return true;
       if(!seenSnapIds.has(s.id)) {
         dbUpsert('asset_snapshots', {id:s.id, person:s.person, date:s.date, total:s.total||0, principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate||null, items:s.items||[], summary:s.summary||'', rows:s.rows||[]});
@@ -1591,11 +1594,14 @@ async function syncFromSupabase() {
       }
       return false;
     });
-    // DB에만 있는 것 → 로컬에 추가
+    // DB에만 있는 것 → shot이 있는 경우만 로컬에 추가
     var localSnapIdSet = new Set(newLocalSnaps.map(function(s){return s.id;}));
     (assetSnaps||[]).forEach(function(s){
-      if(!localSnapIdSet.has(s.id)) newLocalSnaps.push({id:s.id, person:s.person, date:s.date, total:s.total||0, principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate, items:s.items||[], summary:s.summary||'', rows:s.rows||[]});
+      if(!localSnapIdSet.has(s.id) && validShotIds.has(s.id))
+        newLocalSnaps.push({id:s.id, person:s.person, date:s.date, total:s.total||0, principal:s.principal||0, profit:s.profit||0, profit_rate:s.profit_rate, items:s.items||[], summary:s.summary||'', rows:s.rows||[]});
     });
+    // DB에서 orphan 스냅샷(shot 없는 것) 정리
+    (assetSnaps||[]).forEach(function(s){ if(!validShotIds.has(s.id)) dbDelete('asset_snapshots', s.id); });
     newLocalSnaps.sort(function(a,b){return b.id-a.id;});
     S.set('asset_snapshots', newLocalSnaps.slice(0,100));
     S.set('_seen_snap_ids', Array.from(seenSnapIds));
