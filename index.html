@@ -4700,7 +4700,12 @@ function importExcelToBudget() {
   parsedExcelRows = [];
   document.getElementById('excel-preview').innerHTML =
     '<div style="color:var(--accent3);padding:2rem;text-align:center;font-size:.95rem">✅ '+added+'건이 가계부에 추가됐어요!</div>';
-  alert('✅ '+added+'건이 '+targetKey+' 가계부에 추가됐어요!');
+  // 카테고리별 지출 바로 갱신 + 해당 통장으로 필터
+  renderBudget();
+  if(sourceAccount) setCatFilter(sourceAccount);
+  // 카테고리별 지출 섹션으로 스크롤
+  var chartEl = document.getElementById('b-cat-chart');
+  if(chartEl) chartEl.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 // ── 투자 일지 ──
