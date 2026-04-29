@@ -2695,19 +2695,20 @@ function _budgetPopup(titleHtml, bodyHtml, id) {
 function showExpensePopup() {
   var key = budgetKey();
   var txs = S.get('txs_'+key) || [];
-  var catMap = {};
-  txs.forEach(function(t){ if(t.amount>0) catMap[t.cat] = (catMap[t.cat]||0)+t.amount; });
-  var total = Object.values(catMap).reduce(function(s,v){return s+v;},0);
-  var catColors={'식료품':'var(--accent)','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)','교통/자동차':'var(--accent4)','편의점':'#a78bfa','의료':'#f87171','구독비':'#34d399','관리비':'#60a5fa','경조사':'#f472b6','여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'var(--muted)','입금/환급':'var(--success)'};
-  var rows = Object.entries(catMap).sort(function(a,b){return b[1]-a[1];}).map(function(e){
-    var clr = catColors[e[0]]||'var(--muted)';
+  var srcMap = {};
+  txs.forEach(function(t){ if(t.amount>0 && t.source) srcMap[t.source] = (srcMap[t.source]||0)+t.amount; });
+  var total = Object.values(srcMap).reduce(function(s,v){return s+v;},0);
+  var srcColors = {'공용생활비':'#60a5fa','여분통장':'#34d399','관리비':'#f472b6','경조사':'#f472b6','가족 선물/지원':'#a78bfa','여행비':'#fb923c'};
+  // 지출 있는 통장 내림차순 정렬
+  var rows = Object.entries(srcMap).sort(function(a,b){return b[1]-a[1];}).map(function(e){
+    var clr = srcColors[e[0]]||'var(--muted)';
     var pct = total>0?Math.round(e[1]/total*100):0;
-    return '<div onclick="closeCatPopup();showCatPopup(\''+e[0]+'\')" style="display:flex;justify-content:space-between;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--border);cursor:pointer">'+
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--border)">'+
       '<span style="color:'+clr+';font-size:.85rem">'+e[0]+'</span>'+
       '<span style="font-family:JetBrains Mono,monospace;font-size:.82rem;color:'+clr+'">'+Number(e[1]).toLocaleString()+' <span style="color:var(--muted);font-size:.75rem">('+pct+'%)</span></span>'+
     '</div>';
   }).join('');
-  var titleHtml = '<div><div style="font-size:.75rem;color:var(--muted)">'+budgetYear+'년 '+budgetMonth+'월 총 지출</div>'+
+  var titleHtml = '<div><div style="font-size:.75rem;color:var(--muted)">'+budgetYear+'년 '+budgetMonth+'월 통장별 지출</div>'+
     '<div style="font-weight:700;color:var(--accent2)">'+fmtMoney(total)+'</div></div>';
   _budgetPopup(titleHtml, rows||'<div style="color:var(--muted);text-align:center;padding:2rem">지출 내역 없음</div>', 'expense-popup');
 }
@@ -2719,27 +2720,27 @@ function showOverPopup() {
   txs.forEach(function(t){ if(t.amount>0 && t.source) srcMap[t.source] = (srcMap[t.source]||0)+t.amount; });
   var BUDGET_ACCOUNTS2 = ['공용생활비','여분통장','관리비','경조사','여행비','가족 선물/지원'];
   var fixedList = getFixedCosts();
-  var overItems = [];
-  fixedList.forEach(function(fc){
-    if(!BUDGET_ACCOUNTS2.includes(fc.label)) return;
-    var spent = srcMap[fc.label]||0;
-    var over = spent - fc.amount;
-    overItems.push({label:fc.label, budget:fc.amount, spent:spent, over:over});
+  var fixedMap = {};
+  fixedList.forEach(function(fc){ fixedMap[fc.label] = fc.amount; });
+  var overItems = BUDGET_ACCOUNTS2.map(function(label){
+    var budget = fixedMap[label] || 0;
+    var spent = srcMap[label] || 0;
+    return {label:label, budget:budget, spent:spent, over:spent-budget};
   });
+  // 6개 전부 표시 (초과 없어도), 초과 내림차순
   overItems.sort(function(a,b){return b.over-a.over;});
   var totalOver = overItems.reduce(function(s,i){return s+(i.over>0?i.over:0);},0);
-  // 팝업에는 초과된 항목만 표시
-  var overOnly = overItems.filter(function(i){return i.over>0;});
-  var rows = overOnly.map(function(i){
+  var rows = overItems.map(function(i){
+    var clr = i.over>0?'#fb923c':(i.over<0?'var(--success)':'var(--muted)');
+    var sign = i.over>0?'+':'';
     return '<div style="padding:.45rem 0;border-bottom:1px solid var(--border)">'+
       '<div style="display:flex;justify-content:space-between;font-size:.83rem;margin-bottom:.2rem">'+
         '<span style="color:var(--text)">'+i.label+'</span>'+
-        '<span style="font-family:JetBrains Mono,monospace;color:#fb923c;font-weight:600">+'+Number(i.over).toLocaleString()+'</span>'+
+        '<span style="font-family:JetBrains Mono,monospace;color:'+clr+';font-weight:600">'+sign+Number(i.over).toLocaleString()+'</span>'+
       '</div>'+
       '<div style="font-size:.72rem;color:var(--muted)">예산 '+Number(i.budget).toLocaleString()+' / 지출 '+Number(i.spent).toLocaleString()+'</div>'+
     '</div>';
   }).join('');
-  if(!rows) rows = '<div style="color:var(--success);text-align:center;padding:2rem;font-size:.85rem">초과 항목 없음 </div>';
   var titleHtml = '<div><div style="font-size:.75rem;color:var(--muted)">'+budgetYear+'년 '+budgetMonth+'월 초과 금액</div>'+
     '<div style="font-weight:700;color:#fb923c">'+fmtMoney(totalOver)+'</div></div>';
   _budgetPopup(titleHtml, rows, 'over-popup');
