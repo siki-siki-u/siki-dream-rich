@@ -556,7 +556,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <input type="date" id="tx-date" style="width:150px;min-width:0;flex:1 1 130px"/>
         <select id="tx-cat" style="width:130px;min-width:0;flex:1 1 120px">
           <option value="식료품">🛒 식료품</option>
-          <option value="식비">🍽️ 식비</option>
+          <option value="식비(외식)">🍽️ 식비(외식)</option>
           <option value="취미여가">🎮 취미여가</option>
           <option value="교통/자동차">🚗 교통/자동차</option>
           <option value="편의점">🏪 편의점</option>
@@ -569,9 +569,17 @@ tr:hover td{background:rgba(108,138,255,.03)}
           <option value="대출/충당">💳 대출/충당</option>
           <option value="기타">📦 기타</option>
         </select>
+        <select id="tx-source" style="width:130px;min-width:0;flex:1 1 120px">
+          <option value="공용생활비">💳 공용생활비</option>
+          <option value="여분통장">💰 여분통장</option>
+          <option value="관리비">🏠 관리비</option>
+          <option value="경조사통장">💐 경조사통장</option>
+          <option value="가족선물/지원">🎁 가족선물/지원</option>
+          <option value="여행비용">✈️ 여행비용</option>
+        </select>
         <input type="number" id="tx-amount" placeholder="금액" style="width:140px;min-width:0;flex:1 1 110px"/>
         <input type="text" id="tx-desc" placeholder="세부내용 (선택)" style="flex:1;min-width:150px"/>
-        <button class="btn btn-primary" onclick="addTransaction()">추가 ＋</button>
+        <button class="btn btn-primary" onclick="addToPreview()">미리보기 추가 ＋</button>
       </div>
     </div>
 
@@ -586,8 +594,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem">
           <label style="font-size:.82rem;color:var(--muted);min-width:60px;flex-shrink:0">어느 통장?</label>
           <select id="excel-source-account" style="flex:1;font-size:.85rem">
-            <option value="">선택 안 함</option>
-            <option value="공용생활비">💳 공용생활비</option>
+            <option value="공용생활비">���� 공용생활비</option>
             <option value="여분통장">💰 여분통장</option>
             <option value="관리비">🏠 관리비</option>
             <option value="경조사통장">💐 경조사통장</option>
@@ -2572,22 +2579,78 @@ function autoSaveIncome() {
 
 function saveIncome() { autoSaveIncome(); }
 
-function addTransaction() {
-  const date   = document.getElementById('tx-date').value || today();
-  const cat    = document.getElementById('tx-cat').value;
-  const amount = parseFloat(document.getElementById('tx-amount').value);
-  const desc   = document.getElementById('tx-desc').value.trim();
-  if(!amount || isNaN(amount)) return;
-  const key = budgetKey();
-  const txs = S.get('txs_'+key) || [];
-  const newTx = {id:Date.now(), date, cat, amount, desc};
-  txs.push(newTx);
-  S.set('txs_'+key, txs);
-  dbUpsert('transactions', {id: newTx.id, budget_key: key, date, cat, amount, descr: desc});
+function addTransaction() { addToPreview(); } // legacy alias
+
+function addToPreview() {
+  var date   = document.getElementById('tx-date').value || today();
+  var cat    = document.getElementById('tx-cat').value;
+  var source = document.getElementById('tx-source').value;
+  var amount = parseFloat(document.getElementById('tx-amount').value);
+  var desc   = document.getElementById('tx-desc').value.trim() || cat;
+  if(!amount || isNaN(amount)) { alert('금액을 입력해 주세요.'); return; }
+  // 엑셀 미리보기 대상월을 현재 가계부 월로 맞추기
+  var excelSel = document.getElementById('excel-target-month');
+  if(excelSel) excelSel.value = budgetKey();
+  // 엑셀 통장도 맞추기
+  var srcSel = document.getElementById('excel-source-account');
+  if(srcSel) srcSel.value = source;
+  parsedExcelRows.push({ date: date, desc: desc, amount: amount, cat: cat, _source: source });
+  renderExcelPreview();
   document.getElementById('tx-amount').value = '';
   document.getElementById('tx-desc').value   = '';
-  recalcBudget();
-  renderTransactions();
+  // 미리보기 섹션으로 스크롤
+  var previewEl = document.getElementById('excel-preview');
+  if(previewEl) previewEl.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+function showCatPopup(catName) {
+  var key = budgetKey();
+  var txs = S.get('txs_'+key) || [];
+  var items = txs.filter(function(t){ return t.cat === catName; })
+    .sort(function(a,b){ return b.date.localeCompare(a.date); });
+  var total = items.reduce(function(s,t){ return s + Math.abs(t.amount); }, 0);
+  var catColors = {
+    '식료품':'var(--accent)','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
+    '교통/자동차':'var(--accent4)','편의점':'#a78bfa','의료':'#f87171',
+    '구독비':'#34d399','관리비':'#60a5fa','경조사':'#f472b6',
+    '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'var(--muted)','입금/환급':'var(--success)'
+  };
+  var clr = catColors[catName] || 'var(--accent)';
+  var rows = items.map(function(t){
+    return '<tr style="border-bottom:1px solid var(--border)">'+
+      '<td style="padding:.4rem .5rem;font-size:.78rem;color:var(--muted);font-family:JetBrains Mono,monospace">'+t.date+'</td>'+
+      '<td style="padding:.4rem .5rem;font-size:.82rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+t.desc+'">'+t.desc+'</td>'+
+      '<td style="padding:.4rem .5rem;font-size:.82rem;text-align:right;font-family:JetBrains Mono,monospace;color:'+(t.amount<0?'var(--success)':'var(--danger)')+'">'+
+        (t.amount<0?'+':'')+Number(Math.abs(t.amount)).toLocaleString()+'</td>'+
+    '</tr>';
+  }).join('');
+  var html =
+    '<div id="cat-popup-overlay" onclick="if(event.target===this)closeCatPopup()" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem">'+
+      '<div style="background:var(--card);border-radius:16px;width:100%;max-width:420px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.4)">'+
+        '<div style="padding:1rem 1.2rem .7rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)">'+
+          '<div>'+
+            '<div style="font-size:.78rem;color:var(--muted);margin-bottom:.1rem">'+budgetYear+'년 '+budgetMonth+'월</div>'+
+            '<div style="font-weight:700;font-size:1rem;color:'+clr+'">'+catName+'</div>'+
+          '</div>'+
+          '<div style="display:flex;align-items:center;gap:.8rem">'+
+            '<span style="font-family:JetBrains Mono,monospace;font-weight:700;color:'+clr+'">'+fmtMoney(total)+'</span>'+
+            '<button onclick="closeCatPopup()" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;line-height:1">✕</button>'+
+          '</div>'+
+        '</div>'+
+        '<div style="overflow-y:auto;flex:1">'+
+          (rows ? '<table style="width:100%;border-collapse:collapse">'+rows+'</table>'
+                : '<div style="padding:2rem;text-align:center;color:var(--muted);font-size:.85rem">내역이 없어요</div>')+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  var div = document.createElement('div');
+  div.id = 'cat-popup-wrap';
+  div.innerHTML = html;
+  document.body.appendChild(div);
+}
+function closeCatPopup() {
+  var el = document.getElementById('cat-popup-wrap');
+  if(el) el.remove();
 }
 
 var currentCatFilter = '';
@@ -2613,7 +2676,7 @@ function renderTransactions() {
   });
   const total = txs.reduce(function(s,t){return s+t.amount;},0);
   const catColors = {
-    '식료품':'var(--accent)','식비':'var(--accent2)','취미여가':'var(--accent3)',
+    '식료품':'var(--accent)','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
     '교통/자동차':'var(--accent4)','편의점':'#a78bfa','의료':'#f87171',
     '구독비':'#34d399','관리비':'#60a5fa','경조사':'#f472b6',
     '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'var(--muted)',
@@ -2629,7 +2692,7 @@ function renderTransactions() {
         var pct = total>0 ? Math.round(e[1]/total*100) : 0;
         var barW = Math.min(pct, 100);
         var clr = catColors[e[0]]||'var(--muted)';
-        return '<div style="margin-bottom:.7rem">'+
+        return '<div style="margin-bottom:.7rem;cursor:pointer" onclick="showCatPopup(\''+e[0]+'\')">'+
           '<div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:.25rem">'+
             '<span style="color:var(--text)">'+e[0]+'</span>'+
             '<span style="font-family:JetBrains Mono,monospace;color:'+clr+'">'+fmtMoney(e[1])+' ('+pct+'%)</span>'+
@@ -2644,7 +2707,7 @@ function renderTransactions() {
 
   const tbody = document.getElementById('tx-body');
   if(tbody) {
-    var catOpts = ['식료품','식비','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
+    var catOpts = ['식료품','식비(외식)','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
     var srcColors = {'공용생활비':'#60a5fa','여분통장':'#34d399','관리비':'#f472b6','경조사통장':'#f472b6','가족선물/지원':'#a78bfa','여행비용':'#fb923c'};
     tbody.innerHTML = txs.length ? txs.map(function(t){
       var clr = catColors[t.cat]||'var(--muted)';
@@ -4503,7 +4566,7 @@ try {
 function classifyTx(desc) {
   desc = (desc||'').toLowerCase();
   if(/코스트코|마트|이마트|홈플러스|롯데마트|쿠팡|gs25|cu |세븐|편의점/.test(desc)) return '식료품';
-  if(/배달|배민|요기|쿠팡이츠|식당|카페|맥도|버거|피자|치킨|스타벅스/.test(desc)) return '식비';
+  if(/배달|배민|요기|쿠팡이츠|식당|카페|맥도|버거|피자|치킨|스타벅스/.test(desc)) return '식비(외식)';
   if(/주차|하이패스|주유|자동차|카세|세차/.test(desc)) return '교통/자동차';
   if(/지하철|버스|택시|카카오t/.test(desc)) return '교통/자동차';
   if(/넷플|티빙|왓챠|유튜브|애플|구독|멜론|스포티/.test(desc)) return '구독비';
@@ -4639,7 +4702,7 @@ function renderExcelPreview(detectedHeaders) {
     return;
   }
   var catColors = {
-    '식료품':'var(--accent)','식비':'var(--accent2)','취미여가':'var(--accent3)',
+    '식료품':'var(--accent)','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
     '교통/자동차':'var(--accent4)','편의점':'#a78bfa','의료':'#f87171',
     '구독비':'#34d399','관리비':'#60a5fa','경조사':'#f472b6',
     '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'var(--muted)','입금/환급':'var(--success)'
@@ -4658,7 +4721,7 @@ function renderExcelPreview(detectedHeaders) {
     '</tr></thead><tbody>'+
     parsedExcelRows.map(function(r,i){
       var clr = catColors[r.cat]||'var(--muted)';
-      var catOpts = ['식료품','식비','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
+      var catOpts = ['식료품','식비(외식)','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
       var isIncome = r.amount < 0;
       var amtClr = isIncome ? 'var(--success)' : 'var(--danger)';
       var amtTxt = (isIncome ? '+' : '-') + fmtMoney(Math.abs(r.amount));
@@ -4692,7 +4755,7 @@ function importExcelToBudget() {
   var added = 0;
   parsedExcelRows.forEach(function(r){
     var tx = { id: Date.now()+Math.random(), date:r.date, cat:r.cat, amount:r.amount, desc:r.desc };
-    if(sourceAccount) tx.source = sourceAccount;
+    tx.source = r._source || sourceAccount || '';
     existing.push(tx);
     dbUpsert('transactions', {id:tx.id, budget_key:targetKey, date:tx.date, cat:tx.cat, amount:tx.amount, descr:tx.desc, source:sourceAccount||null});
     added++;
@@ -5225,6 +5288,30 @@ function deleteApt(id) {
       });
     }
     S.set('_fix_gold_pension_removed', '1');
+  })();
+  // 식비 → 식비(외식) 마이그레이션
+  (function(){
+    if(S.get('_fix_sikbi_migration')) return;
+    var migrated = false;
+    for(var k in localStorage) {
+      if(k.startsWith('txs_')) {
+        var txs = S.get(k) || [];
+        var changed = false;
+        txs = txs.map(function(t){ if(t.cat === '식비') { changed = true; return Object.assign({}, t, {cat:'식비(외식)'}); } return t; });
+        if(changed) { S.set(k, txs); migrated = true; }
+      }
+    }
+    if(migrated) {
+      // DB도 업데이트 — transactions 테이블 cat 컬럼 수정
+      for(var k2 in localStorage) {
+        if(k2.startsWith('txs_')) {
+          (S.get(k2)||[]).forEach(function(t){
+            if(t.cat === '식비(외식)') dbUpsert('transactions', {id:t.id, budget_key:k2.replace('txs_',''), date:t.date, cat:t.cat, amount:t.amount, descr:t.desc||'', source:t.source||null});
+          });
+        }
+      }
+    }
+    S.set('_fix_sikbi_migration', '1');
   })();
   syncFromSupabase();
 })();
