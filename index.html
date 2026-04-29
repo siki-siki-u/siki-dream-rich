@@ -5422,6 +5422,32 @@ function deleteApt(id) {
     }
     S.set('_fix_sikbi_migration', '1');
   })();
+  // 부모님 → 가족 선물/지원 마이그레이션 (고정비 + 트랜잭션 source)
+  (function(){
+    if(S.get('_fix_bumonim_migration')) return;
+    // fixed_costs
+    var fc = S.get('fixed_costs');
+    if(fc) {
+      var fcChanged = false;
+      fc = fc.map(function(c){ if(c.label === '부모님') { fcChanged = true; return Object.assign({}, c, {label:'가족 선물/지원'}); } return c; });
+      if(fcChanged) S.set('fixed_costs', fc);
+    }
+    // txs source
+    for(var k in localStorage) {
+      if(k.startsWith('txs_')) {
+        var txs = S.get(k) || [];
+        var changed = false;
+        txs = txs.map(function(t){ if(t.source === '부모님') { changed = true; return Object.assign({}, t, {source:'가족 선물/지원'}); } return t; });
+        if(changed) {
+          S.set(k, txs);
+          txs.forEach(function(t){
+            if(t.source === '가족 선물/지원') dbUpsert('transactions', {id:t.id, budget_key:k.replace('txs_',''), date:t.date, cat:t.cat, amount:t.amount, descr:t.desc||'', source:t.source});
+          });
+        }
+      }
+    }
+    S.set('_fix_bumonim_migration', '1');
+  })();
   syncFromSupabase();
 })();
 
