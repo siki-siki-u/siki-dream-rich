@@ -2851,7 +2851,7 @@ function updateTxCat(id, newCat) {
   if(!tx) return;
   tx.cat = newCat;
   S.set('txs_'+key, txs);
-  dbUpsert('transactions', {id:tx.id, budget_key:key, date:tx.date, cat:newCat, amount:tx.amount, descr:tx.desc||''});
+  dbUpsert('transactions', {id:tx.id, budget_key:key, date:tx.date, cat:newCat, amount:tx.amount, descr:tx.desc||'', source:tx.source||null});
   renderTransactions();
   recalcBudget();
 }
@@ -4942,7 +4942,7 @@ function importExcelToBudget() {
   var existing  = S.get('txs_'+targetKey) || [];
   var added = 0;
   parsedExcelRows.forEach(function(r){
-    var tx = { id: Date.now()+Math.random(), date:r.date, cat:r.cat, amount:r.amount, desc:r.desc };
+    var tx = { id: Date.now() * 1000 + Math.floor(Math.random() * 999), date:r.date, cat:r.cat, amount:r.amount, desc:r.desc };
     tx.source = r._source || sourceAccount || '';
     existing.push(tx);
     dbUpsert('transactions', {id:tx.id, budget_key:targetKey, date:tx.date, cat:tx.cat, amount:tx.amount, descr:tx.desc, source:sourceAccount||null});
@@ -5526,6 +5526,27 @@ function deleteApt(id) {
       }
     }
     S.set('_fix_bumonim_migration', '1');
+  })();
+  // float ID → 정수 변환 + 전체 DB push (크롬↔엣지 동기화 보장)
+  (function(){
+    if(S.get('_fix_float_id_migration')) return;
+    for(var k in localStorage) {
+      if(!k.startsWith('txs_')) continue;
+      var bk = k.replace(/^txs_/, '');
+      var txs = S.get(k) || [];
+      var changed = false;
+      txs = txs.map(function(t){
+        var newId = Number.isInteger(t.id) ? t.id : Math.floor(t.id);
+        if(newId !== t.id) { changed = true; return Object.assign({}, t, {id: newId}); }
+        return t;
+      });
+      if(changed) S.set(k, txs);
+      // 전체 push — float ID였던 것들이 DB에 없었으므로 강제 upsert
+      txs.forEach(function(t){
+        dbUpsert('transactions', {id:t.id, budget_key:bk, date:t.date, cat:t.cat, amount:t.amount, descr:t.desc||'', source:t.source||null});
+      });
+    }
+    S.set('_fix_float_id_migration', '1');
   })();
   syncFromSupabase();
 })();
