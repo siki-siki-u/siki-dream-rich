@@ -1548,7 +1548,13 @@ async function syncFromSupabase() {
     // settings (고정비, 사용자 설정 등)
     const { data: settings } = await supa.from('settings').select('*');
     if(settings && settings.length > 0) settings.forEach(function(s){
-      if(s.key === 'fixed_costs') { try { S.set('fixed_costs', JSON.parse(s.value)); } catch(e){} }
+      if(s.key === 'fixed_costs') { try {
+        var fc2 = JSON.parse(s.value);
+        var fc2Changed = false;
+        fc2 = fc2.map(function(c){ if(c.label==='부모님'){fc2Changed=true;return Object.assign({},c,{label:'가족 선물/지원'});}return c; });
+        S.set('fixed_costs', fc2);
+        if(fc2Changed) dbUpsert('settings', {key:'fixed_costs', value:JSON.stringify(fc2)});
+      } catch(e){} }
       else if(s.key === 'anniversary') S.set('anniversary', s.value);
       else if(s.key === 'myname')      S.set('myname', s.value);
       else if(s.key === 'goal_amount') S.set('goal_amount', parseFloat(s.value)||0);
@@ -5503,7 +5509,7 @@ function deleteApt(id) {
     if(fc) {
       var fcChanged = false;
       fc = fc.map(function(c){ if(c.label === '부모님') { fcChanged = true; return Object.assign({}, c, {label:'가족 선물/지원'}); } return c; });
-      if(fcChanged) S.set('fixed_costs', fc);
+      if(fcChanged) { S.set('fixed_costs', fc); dbUpsert('settings', {key:'fixed_costs', value:JSON.stringify(fc)}); }
     }
     // txs source
     for(var k in localStorage) {
