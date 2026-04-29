@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>식식이와징구네 🏠</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<title>식식징구월드 🏠</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Gugi&display=swap" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/gh/webfontworld/SCoreDream/SCoreDream.css" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -31,7 +31,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-seri
 /* SIDEBAR */
 .sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:0;z-index:100;transition:transform .3s}
 .sidebar-logo{padding:1.5rem 1.5rem 1rem;border-bottom:1px solid var(--border)}
-.sidebar-logo h1{font-family:'DM Serif Display',serif;font-size:1.3rem;color:var(--accent);letter-spacing:.02em}
+.sidebar-logo h1{font-family:'Gugi',cursive;font-size:1.25rem;color:var(--accent);letter-spacing:.04em}
 .sidebar-logo p{font-size:.72rem;color:var(--muted);margin-top:.2rem}
 .nav-section{padding:.8rem 0}
 .nav-label{font-size:.65rem;letter-spacing:.15em;color:var(--muted);padding:.3rem 1.5rem .5rem;text-transform:uppercase}
@@ -321,7 +321,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
 <!-- LOCK SCREEN -->
 <div class="lock-screen" id="lock-screen">
   <div class="lock-icon">🔐</div>
-  <h1>식식이와징구네 🏠</h1>
+  <h1>식식징구월드 🏠</h1>
   <p>입장 코드를 입력해 주세요</p>
   <div class="lock-input-wrap">
     <input class="lock-input" type="password" id="lock-input" maxlength="10" placeholder="• • • • • •" onkeydown="if(event.key==='Enter')checkLock()"/>
@@ -336,7 +336,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
 <!-- SIDEBAR -->
 <nav class="sidebar" id="sidebar">
   <div class="sidebar-logo">
-    <h1>🏠 식식이와징구</h1>
+    <h1>🏠 식식징구월드</h1>
     <p>나만의 개인 대시보드</p>
   </div>
   <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch">
@@ -375,8 +375,8 @@ tr:hover td{background:rgba(108,138,255,.03)}
   <!-- DASHBOARD -->
   <div class="page active" id="page-dashboard">
     <div class="page-header">
-      <h2>안녕하세요 👋</h2>
-      <p id="today-str">오늘도 좋은 하루 되세요!</p>
+      <h2 style="font-family:'Gugi',cursive;letter-spacing:.04em">윤정아 윤정아 🎹</h2>
+      <p id="today-str">피아노방에서 부자되자 — 알겠어요 쌤!</p>
     </div>
     <div class="dday-banner">
       <div>
@@ -405,6 +405,14 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div class="stat-label">관심 종목</div>
         <div class="stat-value yellow" id="dash-stocks">0개</div>
         <div class="stat-sub">주식 공부 중</div>
+      </div>
+    </div>
+    <!-- 미니 캘린더 + 특별한 날 -->
+    <div class="card" style="margin-bottom:1.5rem">
+      <div class="sec-title" style="margin-bottom:1rem">🗓️ 이달의 달력</div>
+      <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start">
+        <div id="dash-mini-cal" style="flex:0 0 auto"></div>
+        <div id="dash-special-days" style="flex:1;min-width:170px;display:flex;flex-direction:column;gap:.6rem"></div>
       </div>
     </div>
     <div class="grid2">
@@ -3476,6 +3484,78 @@ async function getPortfolioAI(btn) {
 
 // 투자현황 initialized in safeInit
 
+// ── DASHBOARD 미니 캘린더 ──
+var SPECIAL_DATES = [
+  { month:9,  day:26, label:'윤식 생일',     icon:'🎂', color:'#60a5fa' },
+  { month:5,  day:18, label:'유진 생일',     icon:'🎂', color:'#f472b6' },
+  { month:9,  day:28, label:'결혼기념일',    icon:'💍', color:'#a78bfa' },
+];
+
+function renderDashMiniCal() {
+  var now = new Date();
+  var y = now.getFullYear(), m = now.getMonth(); // 0-based
+  var today = now.getDate();
+  var firstDay = new Date(y, m, 1).getDay(); // 0=일
+  var daysInMonth = new Date(y, m+1, 0).getDate();
+
+  // 이달의 특별한 날 (month는 1-based로 저장)
+  var specialSet = {};
+  SPECIAL_DATES.forEach(function(s){
+    if(s.month === m+1) specialSet[s.day] = s;
+  });
+
+  var dayNames = ['일','월','화','수','목','금','토'];
+  var headerHtml = dayNames.map(function(d,i){
+    return '<div style="text-align:center;font-size:.65rem;color:'+(i===0?'#f87171':i===6?'#60a5fa':'var(--muted)')+';font-weight:600;padding:.2rem 0">'+d+'</div>';
+  }).join('');
+
+  var cells = '';
+  for(var i=0;i<firstDay;i++) cells += '<div></div>';
+  for(var d=1;d<=daysInMonth;d++){
+    var sp = specialSet[d];
+    var isToday = d===today;
+    var dow = (firstDay+d-1)%7;
+    var txtClr = dow===0?'#f87171':dow===6?'#60a5fa':'var(--text)';
+    if(isToday) txtClr = '#0f1117';
+    var bg = isToday ? 'var(--accent)' : (sp ? sp.color+'22' : 'transparent');
+    var border = sp && !isToday ? '1px solid '+sp.color+'66' : 'none';
+    cells += '<div style="text-align:center;padding:.18rem .1rem;border-radius:50%;background:'+bg+';border:'+border+';position:relative;cursor:default"'+
+      (sp?' title="'+sp.label+'"':'')+'>'+
+      '<span style="font-size:.72rem;font-weight:'+(isToday?'700':'400')+';color:'+txtClr+'">'+d+'</span>'+
+      (sp?'<div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-size:.5rem;line-height:1">'+sp.icon+'</div>':'')+
+    '</div>';
+  }
+
+  var calEl = document.getElementById('dash-mini-cal');
+  if(calEl) {
+    calEl.innerHTML =
+      '<div style="font-size:.75rem;font-weight:600;color:var(--muted);text-align:center;margin-bottom:.4rem">'+
+        y+'년 '+(m+1)+'월'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(7,28px);gap:2px">'+
+        headerHtml+cells+
+      '</div>';
+  }
+
+  // D-day 카드
+  var sdEl = document.getElementById('dash-special-days');
+  if(sdEl) {
+    var rows = SPECIAL_DATES.map(function(s){
+      var next = new Date(y, s.month-1, s.day);
+      if(next < now && !(next.getMonth()===now.getMonth()&&next.getDate()===now.getDate())) {
+        next = new Date(y+1, s.month-1, s.day);
+      }
+      var diff = Math.ceil((next - new Date(y, now.getMonth(), today)) / 86400000);
+      var ddayTxt = diff===0 ? 'D-Day 🎉' : 'D-'+diff;
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.45rem .7rem;border-radius:10px;background:'+s.color+'18;border:1px solid '+s.color+'44">'+
+        '<span style="font-size:.82rem;color:var(--text)">'+s.icon+' '+s.label+'</span>'+
+        '<span style="font-family:JetBrains Mono,monospace;font-size:.8rem;font-weight:700;color:'+s.color+'">'+ddayTxt+'</span>'+
+      '</div>';
+    });
+    sdEl.innerHTML = rows.join('');
+  }
+}
+
 // ── DASHBOARD REFRESH ──
 function refreshDashboard() {
   // 가계부: 현재 달 기준
@@ -3505,6 +3585,9 @@ function refreshDashboard() {
       '</div>';
     }).join('') : '<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:1.5rem 0">지출 내역이 없어요</div>';
   }
+
+  // 미니 캘린더
+  renderDashMiniCal();
 
   // 이번달 일정
   var now = new Date();
