@@ -2627,14 +2627,15 @@ function renderTransactions() {
     } else {
       chartEl.innerHTML = Object.entries(catMap).sort(function(a,b){return b[1]-a[1];}).map(function(e){
         var pct = total>0 ? Math.round(e[1]/total*100) : 0;
+        var barW = Math.min(pct, 100);
         var clr = catColors[e[0]]||'var(--muted)';
         return '<div style="margin-bottom:.7rem">'+
           '<div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:.25rem">'+
             '<span style="color:var(--text)">'+e[0]+'</span>'+
             '<span style="font-family:JetBrains Mono,monospace;color:'+clr+'">'+fmtMoney(e[1])+' ('+pct+'%)</span>'+
           '</div>'+
-          '<div style="background:var(--border);border-radius:4px;height:6px">'+
-            '<div style="background:'+clr+';width:'+pct+'%;height:100%;border-radius:4px;transition:width .5s"></div>'+
+          '<div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden">'+
+            '<div style="background:'+clr+';width:'+barW+'%;height:100%;border-radius:4px;transition:width .5s"></div>'+
           '</div>'+
         '</div>';
       }).join('');
@@ -2660,7 +2661,7 @@ function renderTransactions() {
           opts+'</select></td>'+
         '<td style="color:var(--muted);font-size:.82rem">'+t.desc+'</td>'+
         '<td>'+srcHtml+'</td>'+
-        '<td style="font-family:JetBrains Mono,monospace;color:'+(t.amount<0?'var(--success)':'var(--danger)')+';font-weight:600">'+(t.amount<0?'+':'-')+fmtMoney(Math.abs(t.amount))+'</td>'+
+        '<td style="font-family:JetBrains Mono,monospace;color:'+(t.amount<0?'var(--success)':'var(--danger)')+';font-weight:600">'+(t.amount<0?'+':'-')+Number(Math.abs(t.amount)).toLocaleString()+'</td>'+
         '<td><button onclick="deleteTx('+t.id+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:.1rem .2rem" title="삭제">✕</button></td>'+
       '</tr>';
     }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">지출 내역이 없어요</td></tr>';
