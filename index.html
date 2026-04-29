@@ -1611,7 +1611,6 @@ async function syncFromSupabase() {
     newLocalSnaps.sort(function(a,b){return b.id-a.id;});
     S.set('asset_snapshots', newLocalSnaps.slice(0,100));
     S.set('_pending_snap_ids', Array.from(pendingSnapIds));
-    S.set('_seen_snap_ids', Array.from(seenSnapIds));
     // events — 양방향 sync
     const { data: dbEvents } = await supa.from('events').select('*');
     var localEvents = S.get('events') || [];
@@ -1664,13 +1663,13 @@ async function syncFromSupabase() {
         });
       }
     })();
-    // re-render
-    renderStocks(); fetchAllPrices();
-    renderBudget(); refreshDashboard();
-    renderJournal(); renderRealty();
-    renderCalendar(); renderEventList(); renderYtLibrary();
-    renderSnapshotStats(); renderAssetBreakdown(); renderAssetHistory(); renderAssetTrend(); renderAssetShotHistory();
-  } catch(e) { console.warn('[Supabase sync]', e.message); }
+  } catch(e) { console.warn('[Supabase sync error]', e.message); }
+  // re-render — try/catch 밖에서 항상 실행 (sync 일부 실패해도 렌더는 반드시)
+  try { renderStocks(); fetchAllPrices(); } catch(e){}
+  try { renderBudget(); refreshDashboard(); recalcBudget(); } catch(e){}
+  try { renderJournal(); renderRealty(); } catch(e){}
+  try { renderCalendar(); renderEventList(); renderYtLibrary(); } catch(e){}
+  try { renderSnapshotStats(); renderAssetBreakdown(); renderAssetHistory(); renderAssetTrend(); renderAssetShotHistory(); } catch(e){}
 }
 
 // ── STORAGE HELPERS ──
