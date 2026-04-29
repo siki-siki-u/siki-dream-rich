@@ -611,11 +611,13 @@ tr:hover td{background:rgba(108,138,255,.03)}
             <label style="font-size:.82rem;color:var(--muted);min-width:60px">대상 월</label>
             <select id="excel-target-month" style="flex:1"></select>
           </div>
-          <button class="btn btn-success" onclick="importExcelToBudget()">📥 가계부에 자동 입력하기</button>
         </div>
       </div>
       <div class="card">
-        <div class="sec-title">👀 미리보기 & 분류</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem">
+          <div class="sec-title" style="margin:0">👀 미리보기 & 분류</div>
+          <button class="btn btn-success" style="font-size:.8rem;padding:.35rem .8rem" onclick="importExcelToBudget()">📥 미리보기 내용 가계부에 적용</button>
+        </div>
         <div id="excel-preview" style="max-height:500px;overflow-y:auto">
           <div style="color:var(--muted);font-size:.85rem;text-align:center;padding:3rem 1rem">
             <div style="font-size:2rem;margin-bottom:.8rem">📋</div>
@@ -2659,7 +2661,7 @@ function renderTransactions() {
         '<td style="color:var(--muted);font-size:.82rem">'+t.desc+'</td>'+
         '<td>'+srcHtml+'</td>'+
         '<td style="font-family:JetBrains Mono,monospace;color:'+(t.amount<0?'var(--success)':'var(--danger)')+';font-weight:600">'+(t.amount<0?'+':'-')+fmtMoney(Math.abs(t.amount))+'</td>'+
-        '<td><button onclick="deleteTx('+t.id+')" class="btn btn-danger" style="padding:.2rem .45rem;font-size:.72rem">삭제</button></td>'+
+        '<td><button onclick="deleteTx('+t.id+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:.1rem .2rem" title="삭제">✕</button></td>'+
       '</tr>';
     }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">지출 내역이 없어요</td></tr>';
   }
@@ -4661,7 +4663,7 @@ function renderExcelPreview(detectedHeaders) {
       var amtTxt = (isIncome ? '+' : '-') + fmtMoney(Math.abs(r.amount));
       return '<tr>'+
         '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4);color:var(--muted);font-family:JetBrains Mono,monospace;font-size:.75rem">'+r.date+'</td>'+
-        '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.desc+'</td>'+
+        '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+r.desc.replace(/"/g,'&quot;')+'">'+r.desc+'</td>'+
         '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4)">'+
           '<select onchange="parsedExcelRows['+i+'].cat=this.value" style="font-size:.75rem;padding:.15rem .3rem;background:'+clr+'22;color:'+clr+';border:1px solid '+clr+'44;border-radius:4px">'+
           catOpts.map(function(o){return '<option value="'+o+'"'+(o===r.cat?' selected':'')+'>'+o+'</option>';}).join('')+
