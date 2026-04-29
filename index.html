@@ -554,22 +554,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
       <div class="sec-title">🧾 지출 입력</div>
       <div style="display:flex;gap:.7rem;flex-wrap:wrap;align-items:center">
         <input type="date" id="tx-date" style="width:150px;min-width:0;flex:1 1 130px"/>
-        <select id="tx-cat" style="width:130px;min-width:0;flex:1 1 120px">
-          <option value="식료품">🛒 식료품</option>
-          <option value="식비(외식)">🍽️ 식비(외식)</option>
-          <option value="취미여가">🎮 취미여가</option>
-          <option value="교통/자동차">🚗 교통/자동차</option>
-          <option value="편의점">🏪 편의점</option>
-          <option value="의료">💊 의료</option>
-          <option value="구독비">📱 구독비</option>
-          <option value="관리비">🏠 관리비</option>
-          <option value="경조사">💐 경조사</option>
-          <option value="여행비">✈️ 여행비</option>
-          <option value="부모님">👨‍👩‍👧 부모님</option>
-          <option value="대출/충당">💳 대출/충당</option>
-          <option value="기타">📦 기타</option>
-        </select>
-        <select id="tx-source" style="width:130px;min-width:0;flex:1 1 120px">
+        <select id="tx-source" style="width:150px;min-width:0;flex:1 1 130px">
           <option value="공용생활비">💳 공용생활비</option>
           <option value="여분통장">💰 여분통장</option>
           <option value="관리비">🏠 관리비</option>
@@ -2602,10 +2587,10 @@ function addTransaction() { addToPreview(); } // legacy alias
 
 function addToPreview() {
   var date   = document.getElementById('tx-date').value || today();
-  var cat    = document.getElementById('tx-cat').value;
   var source = document.getElementById('tx-source').value;
   var amount = parseFloat(document.getElementById('tx-amount').value);
-  var desc   = document.getElementById('tx-desc').value.trim() || cat;
+  var desc   = document.getElementById('tx-desc').value.trim() || source;
+  var cat    = '기타';
   if(!amount || isNaN(amount)) { alert('금액을 입력해 주세요.'); return; }
   // 엑셀 미리보기 대상월을 현재 가계부 월로 맞추기
   var excelSel = document.getElementById('excel-target-month');
