@@ -2625,8 +2625,10 @@ function addToPreview() {
 function showCatPopup(catName) {
   var key = budgetKey();
   var txs = S.get('txs_'+key) || [];
-  var items = txs.filter(function(t){ return t.cat === catName; })
-    .sort(function(a,b){ return b.date.localeCompare(a.date); });
+  var srcFilter = currentCatFilter || '';
+  var items = txs.filter(function(t){
+    return t.cat === catName && (!srcFilter || t.source === srcFilter);
+  }).sort(function(a,b){ return b.date.localeCompare(a.date); });
   var total = items.reduce(function(s,t){ return s + Math.abs(t.amount); }, 0);
   var catColors = {
     '식료품':'var(--accent)','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
@@ -2643,13 +2645,14 @@ function showCatPopup(catName) {
         (t.amount<0?'+':'')+Number(Math.abs(t.amount)).toLocaleString()+'</td>'+
     '</tr>';
   }).join('');
+  var subTitle = srcFilter ? '<span style="color:var(--muted);font-size:.72rem;margin-left:.4rem">· '+srcFilter+'</span>' : '';
   var html =
     '<div id="cat-popup-overlay" onclick="if(event.target===this)closeCatPopup()" style="position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem">'+
       '<div style="background:#1e2235;border:1px solid var(--border);border-radius:16px;width:100%;max-width:420px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.7)">'+
         '<div style="padding:1rem 1.2rem .7rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)">'+
           '<div>'+
             '<div style="font-size:.78rem;color:var(--muted);margin-bottom:.1rem">'+budgetYear+'년 '+budgetMonth+'월</div>'+
-            '<div style="font-weight:700;font-size:1rem;color:'+clr+'">'+catName+'</div>'+
+            '<div style="font-weight:700;font-size:1rem;color:'+clr+'">'+catName+subTitle+'</div>'+
           '</div>'+
           '<div style="display:flex;align-items:center;gap:.8rem">'+
             '<span style="font-family:JetBrains Mono,monospace;font-weight:700;color:'+clr+'">'+fmtMoney(total)+'</span>'+
@@ -2725,17 +2728,18 @@ function showOverPopup() {
   });
   overItems.sort(function(a,b){return b.over-a.over;});
   var totalOver = overItems.reduce(function(s,i){return s+(i.over>0?i.over:0);},0);
-  var rows = overItems.map(function(i){
-    var clr = i.over>0?'#fb923c':(i.over<0?'var(--success)':'var(--muted)');
-    var sign = i.over>0?'+':'';
+  // 팝업에는 초과된 항목만 표시
+  var overOnly = overItems.filter(function(i){return i.over>0;});
+  var rows = overOnly.map(function(i){
     return '<div style="padding:.45rem 0;border-bottom:1px solid var(--border)">'+
       '<div style="display:flex;justify-content:space-between;font-size:.83rem;margin-bottom:.2rem">'+
         '<span style="color:var(--text)">'+i.label+'</span>'+
-        '<span style="font-family:JetBrains Mono,monospace;color:'+clr+';font-weight:600">'+sign+Number(i.over).toLocaleString()+'</span>'+
+        '<span style="font-family:JetBrains Mono,monospace;color:#fb923c;font-weight:600">+'+Number(i.over).toLocaleString()+'</span>'+
       '</div>'+
       '<div style="font-size:.72rem;color:var(--muted)">예산 '+Number(i.budget).toLocaleString()+' / 지출 '+Number(i.spent).toLocaleString()+'</div>'+
     '</div>';
   }).join('');
+  if(!rows) rows = '<div style="color:var(--success);text-align:center;padding:2rem;font-size:.85rem">초과 항목 없음 </div>';
   var titleHtml = '<div><div style="font-size:.75rem;color:var(--muted)">'+budgetYear+'년 '+budgetMonth+'월 초과 금액</div>'+
     '<div style="font-weight:700;color:#fb923c">'+fmtMoney(totalOver)+'</div></div>';
   _budgetPopup(titleHtml, rows, 'over-popup');
