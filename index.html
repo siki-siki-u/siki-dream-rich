@@ -573,9 +573,9 @@ tr:hover td{background:rgba(108,138,255,.03)}
           <option value="공용생활비">💳 공용생활비</option>
           <option value="여분통장">💰 여분통장</option>
           <option value="관리비">🏠 관리비</option>
-          <option value="경조사통장">💐 경조사통장</option>
-          <option value="가족선물/지원">🎁 가족선물/지원</option>
-          <option value="여행비용">✈️ 여행비용</option>
+          <option value="경조사">💐 경조사</option>
+          <option value="가족 선물/지원">🎁 가족 선물/지원</option>
+          <option value="여행비">✈️ 여행비</option>
         </select>
         <input type="number" id="tx-amount" placeholder="금액" style="width:140px;min-width:0;flex:1 1 110px"/>
         <input type="text" id="tx-desc" placeholder="세부내용 (선택)" style="flex:1;min-width:150px"/>
@@ -597,9 +597,9 @@ tr:hover td{background:rgba(108,138,255,.03)}
             <option value="공용생활비">💳 공용생활비</option>
             <option value="여분통장">💰 여분통장</option>
             <option value="관리비">🏠 관리비</option>
-            <option value="경조사통장">💐 경조사통장</option>
-            <option value="가족선물/지원">🎁 가족 선물/지원</option>
-            <option value="여행비용">✈️ 여행비용</option>
+            <option value="경조사">💐 경조사</option>
+            <option value="가족 선물/지원">🎁 가족 선물/지원</option>
+            <option value="여행비">✈️ 여행비</option>
           </select>
         </div>
         <div class="toss-drop" id="excel-drop"
@@ -644,9 +644,9 @@ tr:hover td{background:rgba(108,138,255,.03)}
             <button onclick="setCatFilter('공용생활비')" id="cf-btn-공용생활비" class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">💳 공용생활비</button>
             <button onclick="setCatFilter('여분통장')"   id="cf-btn-여분통장"   class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">💰 여분통장</button>
             <button onclick="setCatFilter('관리비')"     id="cf-btn-관리비"     class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">🏠 관리비</button>
-            <button onclick="setCatFilter('경조사통장')" id="cf-btn-경조사통장" class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">💐 경조사통장</button>
-            <button onclick="setCatFilter('가족선물/지원')" id="cf-btn-가족선물/지원" class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">🎁 가족선물/지원</button>
-            <button onclick="setCatFilter('여행비용')"   id="cf-btn-여행비용"   class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">✈️ 여행비용</button>
+            <button onclick="setCatFilter('경조사')" id="cf-btn-경조사" class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">💐 경조사</button>
+            <button onclick="setCatFilter('가족 선물/지원')" id="cf-btn-가족 선물/지원" class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">🎁 가족 선물/지원</button>
+            <button onclick="setCatFilter('여행비')"   id="cf-btn-여행비"   class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">✈️ 여행비</button>
           </div>
         </div>
         <div id="b-cat-chart"></div>
@@ -2360,7 +2360,7 @@ var DEFAULT_FIXED_COSTS = [
   {id:9, label:'여분통장',     amount:100000},
   {id:10,label:'관리비',       amount:430000},
   {id:11,label:'경조사',       amount:300000},
-  {id:12,label:'여행비용',     amount:300000},
+  {id:12,label:'여행비',     amount:300000},
   {id:13,label:'가족 선물/지원',amount:300000},
 ];
 
@@ -2378,10 +2378,13 @@ function renderFixedCosts() {
   var list = getFixedCosts();
   var el = document.getElementById('fixed-cost-list');
   if(!el) return;
+  var BUDGET_ACCS = ['공용생활비','여분통장','관리비','경조사','여행비','가족 선물/지원'];
   el.innerHTML = list.map(function(c){
+    var isBudget = BUDGET_ACCS.includes(c.label);
+    var lblClr = isBudget ? '#7dd3fc' : 'var(--muted)';
     return '<div onclick="openFixedCostPopup('+c.id+')" style="display:flex;justify-content:space-between;align-items:center;padding:.35rem .5rem;border-radius:7px;cursor:pointer;transition:background .15s" '+
       'onmouseover="this.style.background=\'rgba(255,255,255,.05)\'" onmouseout="this.style.background=\'\'">'+
-      '<span style="color:var(--muted)">'+c.label+'</span>'+
+      '<span style="color:'+lblClr+'">'+(isBudget?'💳 ':'')+c.label+'</span>'+
       '<span style="font-family:JetBrains Mono,monospace;color:var(--text)">'+fmtMoney(c.amount)+'</span>'+
     '</div>';
   }).join('');
@@ -2545,15 +2548,15 @@ function recalcBudget() {
   const totalExp = txs.reduce(function(s,t){return s+(t.amount>0?t.amount:0);},0);
   const investable = totalIn - fixedTotal - totalExp;
 
-  // 초과 금액 계산 (고정비 라벨과 카테고리 지출 비교)
-  var fixedMap = {'공용생활비':'공용생활비','여분통장':'여분통장','관리비':'관리비','경조사':'경조사','여행비용':'여행비용','가족 선물/지원':'가족선물/지원'};
-  var catExpMap = {};
-  txs.forEach(function(t){ if(t.amount>0) catExpMap[t.source||''] = (catExpMap[t.source||'']||0)+t.amount; });
+  // 초과 금액 계산 — 6개 통장만 비교
+  var BUDGET_ACCOUNTS = ['공용생활비','여분통장','관리비','경조사','여행비','가족 선물/지원'];
+  var srcExpMap = {};
+  txs.forEach(function(t){ if(t.amount>0 && t.source) srcExpMap[t.source] = (srcExpMap[t.source]||0)+t.amount; });
   var fixedList = getFixedCosts();
   var totalOver = 0;
   fixedList.forEach(function(fc){
-    var src = fc.label;
-    var spent = catExpMap[src] || 0;
+    if(!BUDGET_ACCOUNTS.includes(fc.label)) return;
+    var spent = srcExpMap[fc.label] || 0;
     if(spent > fc.amount) totalOver += (spent - fc.amount);
   });
 
@@ -2711,9 +2714,11 @@ function showOverPopup() {
   var txs = S.get('txs_'+key) || [];
   var srcMap = {};
   txs.forEach(function(t){ if(t.amount>0 && t.source) srcMap[t.source] = (srcMap[t.source]||0)+t.amount; });
+  var BUDGET_ACCOUNTS2 = ['공용생활비','여분통장','관리비','경조사','여행비','가족 선물/지원'];
   var fixedList = getFixedCosts();
   var overItems = [];
   fixedList.forEach(function(fc){
+    if(!BUDGET_ACCOUNTS2.includes(fc.label)) return;
     var spent = srcMap[fc.label]||0;
     var over = spent - fc.amount;
     overItems.push({label:fc.label, budget:fc.amount, spent:spent, over:over});
@@ -2739,7 +2744,7 @@ function showOverPopup() {
 var currentCatFilter = '';
 function setCatFilter(src) {
   currentCatFilter = src;
-  ['all','공용생활비','여분통장','관리비','경조사통장','가족선물/지원','여행비용'].forEach(function(k){
+  ['all','공용생활비','여분통장','관리비','경조사','가족 선물/지원','여행비'].forEach(function(k){
     var b = document.getElementById('cf-btn-'+(k==='all'?'all':k));
     if(b) b.style.color = (src===''&&k==='all'||src===k) ? 'var(--accent)' : '';
   });
@@ -2785,17 +2790,34 @@ function renderTransactions() {
           '</div>'+
         '</div>';
       }).join('')+
-      '<div style="border-top:1px solid var(--border);margin-top:.5rem;padding-top:.6rem;display:flex;justify-content:space-between;font-size:.83rem;font-weight:700">'+
-        '<span style="color:var(--muted)">전체 합계</span>'+
-        '<span style="font-family:JetBrains Mono,monospace;color:var(--accent2)">'+fmtMoney(total)+'</span>'+
-      '</div>';
+      (function(){
+        var BUDGET_ACCS3 = ['공용생활비','여분통장','관리비','경조사','여행비','가족 선물/지원'];
+        var overUnderHtml = '';
+        if(currentCatFilter && BUDGET_ACCS3.includes(currentCatFilter)) {
+          var fc = getFixedCosts().find(function(f){ return f.label === currentCatFilter; });
+          if(fc) {
+            var diff = total - fc.amount;
+            if(diff > 0) {
+              overUnderHtml = '<span style="font-size:.72rem;color:#f97316;margin-left:.5rem">+'+Number(diff).toLocaleString()+' 초과</span>';
+            } else if(diff < 0) {
+              overUnderHtml = '<span style="font-size:.72rem;color:var(--success);margin-left:.5rem">'+Number(Math.abs(diff)).toLocaleString()+' 절감</span>';
+            } else {
+              overUnderHtml = '<span style="font-size:.72rem;color:var(--muted);margin-left:.5rem">딱 맞음</span>';
+            }
+          }
+        }
+        return '<div style="border-top:1px solid var(--border);margin-top:.5rem;padding-top:.6rem;display:flex;justify-content:space-between;font-size:.83rem;font-weight:700">'+
+          '<span style="color:var(--muted)">전체 합계</span>'+
+          '<span style="display:flex;align-items:center;font-family:JetBrains Mono,monospace;color:var(--accent2)">'+fmtMoney(total)+overUnderHtml+'</span>'+
+        '</div>';
+      })();
     }
   }
 
   const tbody = document.getElementById('tx-body');
   if(tbody) {
     var catOpts = ['식료품','식비(외식)','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
-    var srcColors = {'공용생활비':'#60a5fa','여분통장':'#34d399','관리비':'#f472b6','경조사통장':'#f472b6','가족선물/지원':'#a78bfa','여행비용':'#fb923c'};
+    var srcColors = {'공용생활비':'#60a5fa','여분통장':'#34d399','관리비':'#f472b6','경조사':'#f472b6','가족 선물/지원':'#a78bfa','여행비':'#fb923c'};
     tbody.innerHTML = txs.length ? txs.map(function(t){
       var clr = catColors[t.cat]||'var(--muted)';
       var opts = catOpts.map(function(c){
