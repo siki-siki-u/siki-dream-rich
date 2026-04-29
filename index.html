@@ -235,12 +235,17 @@ tr:hover td{background:rgba(108,138,255,.03)}
 }
 @media(max-width:480px){
   .stats-row{grid-template-columns:1fr 1fr}
-  .stat-value{font-size:1.2rem}
-  .stat-card{padding:.9rem}
-  .main{padding:.7rem;padding-top:3.6rem}
-  .page-header{margin-bottom:1rem}
-  .page-header h2{font-size:1.1rem}
-  .page-header p{font-size:.78rem}
+  .stat-value{font-size:1.1rem}
+  .stat-card{padding:.75rem}
+  .stat-label{font-size:.68rem}
+  .stat-sub{font-size:.65rem}
+  .main{padding:.6rem;padding-top:3.5rem;padding-bottom:5.5rem}
+  .page-header{margin-bottom:.8rem}
+  .page-header h2{font-size:1rem}
+  .page-header p{font-size:.75rem}
+  .card{padding:.85rem;border-radius:12px}
+  .sec-title{font-size:.8rem}
+  .grid2{gap:.8rem}
   .toss-drop{padding:1.5rem}
   #apt-address-display{font-size:.78rem}
   .stock-card{padding:.9rem}
@@ -269,6 +274,16 @@ tr:hover td{background:rgba(108,138,255,.03)}
 ::-webkit-scrollbar{width:5px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* BOTTOM NAV (모바일) */
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:200;padding:.35rem 0;padding-bottom:env(safe-area-inset-bottom,0px)}
+.bn-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:.1rem;padding:.3rem .1rem;cursor:pointer;color:var(--muted);font-size:.62rem;transition:color .2s;user-select:none;-webkit-tap-highlight-color:transparent}
+.bn-item span:first-child{font-size:1.3rem;line-height:1}
+.bn-item.active{color:var(--accent)}
+@media(max-width:900px){
+  .bottom-nav{display:flex}
+  .main{padding-bottom:5.5rem}
+}
 
 /* D-DAY banner */
 .dday-banner{background:linear-gradient(135deg,rgba(108,138,255,.15),rgba(255,126,179,.1));border:1px solid rgba(108,138,255,.2);border-radius:14px;padding:1.2rem 1.5rem;display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem}
@@ -317,6 +332,15 @@ tr:hover td{background:rgba(108,138,255,.03)}
   </div>
   <button onclick="document.getElementById('credit-alert-banner').style.display='none'" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:.3rem .7rem;cursor:pointer;font-size:.82rem;white-space:nowrap">닫기 ✕</button>
 </div>
+
+<!-- BOTTOM NAV (모바일) -->
+<nav class="bottom-nav" id="bottom-nav">
+  <div class="bn-item active" id="bn-dashboard" onclick="showPage('dashboard',null)"><span>🏠</span><span>홈</span></div>
+  <div class="bn-item" id="bn-budget" onclick="showPage('budget',null)"><span>💰</span><span>가계부</span></div>
+  <div class="bn-item" id="bn-assets" onclick="showPage('assets',null)"><span>🏦</span><span>자산</span></div>
+  <div class="bn-item" id="bn-market" onclick="showPage('market',null)"><span>📊</span><span>마켓</span></div>
+  <div class="bn-item" id="bn-more" onclick="toggleSidebar()"><span>☰</span><span>더보기</span></div>
+</nav>
 
 <!-- LOCK SCREEN -->
 <div class="lock-screen" id="lock-screen">
@@ -632,7 +656,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.4rem">
           <div class="sec-title" style="margin:0">📊 카테고리별 지출</div>
-          <div style="display:flex;gap:.3rem;flex-wrap:wrap">
+          <div style="display:flex;gap:.3rem;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:.2rem;max-width:100%;flex-wrap:nowrap">
             <button onclick="setCatFilter('')"  id="cf-btn-all"  class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">전체</button>
             <button onclick="setCatFilter('공용생활비')" id="cf-btn-공용생활비" class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">💳 공용생활비</button>
             <button onclick="setCatFilter('여분통장')"   id="cf-btn-여분통장"   class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">💰 여분통장</button>
@@ -647,7 +671,10 @@ tr:hover td{background:rgba(108,138,255,.03)}
       <!-- 지출 내역 -->
       <div class="card">
         <div class="sec-title">📋 지출 내역</div>
-        <div class="table-wrap" style="max-height:380px;overflow-y:auto">
+        <!-- 모바일: 카드형 -->
+        <div id="tx-card-list" style="display:none"></div>
+        <!-- PC: 테이블형 -->
+        <div class="table-wrap">
           <table>
             <thead><tr><th>날짜</th><th>카테고리</th><th>내용</th><th>통장</th><th>금액</th><th></th></tr></thead>
             <tbody id="tx-body"></tbody>
@@ -1694,6 +1721,13 @@ function showPage(id, el) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   if(el) el.classList.add('active');
+  // 바텀 네비 active 동기화
+  ['dashboard','budget','assets','market'].forEach(function(k){
+    var b = document.getElementById('bn-'+k);
+    if(b) b.classList.toggle('active', k===id);
+  });
+  var more = document.getElementById('bn-more');
+  if(more) more.classList.toggle('active', !['dashboard','budget','assets','market'].includes(id));
   if(id==='dashboard') refreshDashboard();
   if(id==='calendar') renderCalendar();
   if(id==='budget') { renderBudget(); }
@@ -2818,28 +2852,56 @@ function renderTransactions() {
   }
 
   const tbody = document.getElementById('tx-body');
-  if(tbody) {
-    var catOpts = ['식료품','식비(외식)','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
-    var srcColors = {'공용생활비':'#60a5fa','여분통장':'#34d399','관리비':'#f472b6','경조사':'#f472b6','가족 선물/지원':'#a78bfa','여행비':'#fb923c'};
-    tbody.innerHTML = txs.length ? txs.map(function(t){
+  const txListEl = document.getElementById('tx-card-list');
+  var catOpts = ['식료품','식비(외식)','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
+  var srcColors = {'공용생활비':'#60a5fa','여분통장':'#34d399','관리비':'#f472b6','경조사':'#f472b6','가족 선물/지원':'#a78bfa','여행비':'#fb923c'};
+  var isMobile = window.innerWidth <= 640;
+
+  if(isMobile && txListEl) {
+    // 모바일: 카드형 리스트
+    txListEl.style.display = '';
+    if(tbody) tbody.closest('table').parentElement.style.display = 'none';
+    txListEl.innerHTML = txs.length ? txs.map(function(t){
       var clr = catColors[t.cat]||'var(--muted)';
-      var opts = catOpts.map(function(c){
-        return '<option value="'+c+'"'+(c===t.cat?' selected':'')+'>'+c+'</option>';
-      }).join('');
-      var srcHtml = t.source
-        ? '<span style="font-size:.68rem;padding:.1rem .35rem;border-radius:4px;background:'+(srcColors[t.source]||'var(--muted)')+'22;color:'+(srcColors[t.source]||'var(--muted)')+';white-space:nowrap">'+t.source+'</span>'
-        : '<span style="color:var(--border);font-size:.72rem">—</span>';
-      return '<tr>'+
-        '<td style="font-family:JetBrains Mono,monospace;font-size:.78rem">'+t.date+'</td>'+
-        '<td><select onchange="updateTxCat('+t.id+',this.value)" '+
-          'style="background:'+clr+'22;color:'+clr+';border:1px solid '+clr+'44;border-radius:5px;font-size:.75rem;padding:.15rem .3rem;font-weight:600;cursor:pointer;max-width:100px">'+
-          opts+'</select></td>'+
-        '<td style="color:var(--muted);font-size:.82rem">'+t.desc+'</td>'+
-        '<td>'+srcHtml+'</td>'+
-        '<td style="font-family:JetBrains Mono,monospace;color:'+(t.amount<0?'var(--success)':'var(--danger)')+';font-weight:600">'+(t.amount<0?'+':'-')+Number(Math.abs(t.amount)).toLocaleString()+'</td>'+
-        '<td><button onclick="deleteTx('+t.id+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:.1rem .2rem" title="삭제">✕</button></td>'+
-      '</tr>';
-    }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">지출 내역이 없어요</td></tr>';
+      var srcClr = srcColors[t.source]||'var(--muted)';
+      var opts = catOpts.map(function(c){ return '<option value="'+c+'"'+(c===t.cat?' selected':'')+'>'+c+'</option>'; }).join('');
+      return '<div style="display:flex;align-items:center;gap:.6rem;padding:.65rem 0;border-bottom:1px solid var(--border)">'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem">'+
+            '<select onchange="updateTxCat('+t.id+',this.value)" style="background:'+clr+'22;color:'+clr+';border:1px solid '+clr+'44;border-radius:5px;font-size:.72rem;padding:.1rem .25rem;font-weight:600;cursor:pointer">'+opts+'</select>'+
+            (t.source?'<span style="font-size:.65rem;padding:.1rem .3rem;border-radius:4px;background:'+srcClr+'22;color:'+srcClr+'">'+t.source+'</span>':'')+
+          '</div>'+
+          '<div style="font-size:.8rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+t.desc+'</div>'+
+          '<div style="font-size:.68rem;color:var(--border);margin-top:.1rem">'+t.date+'</div>'+
+        '</div>'+
+        '<div style="display:flex;align-items:center;gap:.5rem;flex-shrink:0">'+
+          '<span style="font-family:JetBrains Mono,monospace;font-size:.88rem;font-weight:700;color:'+(t.amount<0?'var(--success)':'var(--danger)')+'">'+(t.amount<0?'+':'-')+Number(Math.abs(t.amount)).toLocaleString()+'</span>'+
+          '<button onclick="deleteTx('+t.id+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;padding:.2rem;line-height:1" title="삭제">✕</button>'+
+        '</div>'+
+      '</div>';
+    }).join('') : '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:.85rem">지출 내역이 없어요</div>';
+  } else {
+    // PC: 기존 테이블
+    if(txListEl) txListEl.style.display = 'none';
+    var tableWrap = tbody ? tbody.closest('table').parentElement : null;
+    if(tableWrap) tableWrap.style.display = '';
+    if(tbody) {
+      tbody.innerHTML = txs.length ? txs.map(function(t){
+        var clr = catColors[t.cat]||'var(--muted)';
+        var opts = catOpts.map(function(c){ return '<option value="'+c+'"'+(c===t.cat?' selected':'')+'>'+c+'</option>'; }).join('');
+        var srcHtml = t.source
+          ? '<span style="font-size:.68rem;padding:.1rem .35rem;border-radius:4px;background:'+(srcColors[t.source]||'var(--muted)')+'22;color:'+(srcColors[t.source]||'var(--muted)')+';white-space:nowrap">'+t.source+'</span>'
+          : '<span style="color:var(--border);font-size:.72rem">—</span>';
+        return '<tr>'+
+          '<td style="font-family:JetBrains Mono,monospace;font-size:.78rem">'+t.date+'</td>'+
+          '<td><select onchange="updateTxCat('+t.id+',this.value)" style="background:'+clr+'22;color:'+clr+';border:1px solid '+clr+'44;border-radius:5px;font-size:.75rem;padding:.15rem .3rem;font-weight:600;cursor:pointer;max-width:100px">'+opts+'</select></td>'+
+          '<td style="color:var(--muted);font-size:.82rem">'+t.desc+'</td>'+
+          '<td>'+srcHtml+'</td>'+
+          '<td style="font-family:JetBrains Mono,monospace;color:'+(t.amount<0?'var(--success)':'var(--danger)')+';font-weight:600">'+(t.amount<0?'+':'-')+Number(Math.abs(t.amount)).toLocaleString()+'</td>'+
+          '<td><button onclick="deleteTx('+t.id+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:.1rem .2rem" title="삭제">✕</button></td>'+
+        '</tr>';
+      }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">지출 내역이 없어요</td></tr>';
+    }
   }
 }
 
