@@ -2486,6 +2486,9 @@ function renderBudget() {
   document.getElementById('b-month-label').textContent = budgetYear+'년 '+budgetMonth+'월';
   document.getElementById('b-period-label').textContent =
     budgetYear+'년 '+budgetMonth+'월 21일 ~ '+(budgetMonth===12?budgetYear+1:budgetYear)+'년'+(budgetMonth%12+1)+'월 20일';
+  // 엑셀 가져오기 대상월 동기화
+  var excelSel = document.getElementById('excel-target-month');
+  if(excelSel) excelSel.value = key;
 
   // 수입 불러오기
   const income = S.get('income_'+key) || {};
