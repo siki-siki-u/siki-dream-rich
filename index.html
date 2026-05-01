@@ -309,11 +309,11 @@ tr:hover td{background:rgba(108,138,255,.03)}
 .toss-del-btn{position:absolute;top:.5rem;right:.5rem;background:rgba(0,0,0,.6);border:none;color:white;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center}
 
 /* YOUTUBE */
-.yt-card{background:var(--surface2);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:all .25s;cursor:default}
+.yt-card{background:var(--surface2);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:all .25s;cursor:default;display:flex;flex-direction:column}
 .yt-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 12px 32px rgba(0,0,0,.2)}
 .yt-thumb{width:100%;aspect-ratio:16/9;object-fit:cover;display:block}
 .yt-thumb-placeholder{width:100%;aspect-ratio:16/9;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:2rem}
-.yt-info{padding:1rem}
+.yt-info{padding:1rem;display:flex;flex-direction:column;flex:1}
 .yt-title{font-size:.88rem;font-weight:600;color:var(--text);line-height:1.5;margin-bottom:.4rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .yt-date{font-size:.73rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:.7rem}
 .yt-summary-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem;margin-top:.8rem;font-size:.82rem;line-height:1.8;color:var(--text)}
@@ -3760,7 +3760,7 @@ function renderYtVideoGrid() {
         (alreadySaved
           ? '<div style="color:var(--accent3);font-size:.78rem;margin-bottom:.4rem">✅ 분석 완료</div>'+
             '<div class="yt-summary-box" style="font-size:.8rem;white-space:pre-wrap">'+alreadySaved.summary+'</div>'
-          : '<button class="btn btn-primary" style="width:100%;font-size:.82rem;padding:.5rem" onclick="analyzeYtVideo(\''+v.videoId+'\',\''+v.title.replace(/'/g,'\\\'').replace(/"/g,'&quot;')+'\',\''+v.published+'\',\''+v.thumb+'\',this)">🤖 AI 분석하기</button>'
+          : '<button class="btn btn-primary" style="width:100%;font-size:.82rem;padding:.5rem;margin-top:auto" onclick="analyzeYtVideo(\''+v.videoId+'\',\''+v.title.replace(/'/g,'\\\'').replace(/"/g,'&quot;')+'\',\''+v.published+'\',\''+v.thumb+'\',this)">🤖 AI 분석하기</button>'
         )+
       '</div>'+
     '</div>';
