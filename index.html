@@ -3739,27 +3739,41 @@ async function fetchYoutubeVideos() {
 
 function showAllYtVideos() { renderYtVideoGrid(); }
 
-function renderYtVideoGrid() {
+function toggleYtSummary(videoId) {
+  var box = document.getElementById('yts-' + videoId);
+  var btn = document.getElementById('ytt-' + videoId);
+  if (!box || !btn) return;
+  var opening = box.style.display === 'none';
+  box.style.display = opening ? 'block' : 'none';
+  btn.textContent = opening ? '📕 접기' : '📖 분석 보기';
+}
+
+function renderYtVideoGrid(expandId) {
   var el = document.getElementById('yt-video-grid');
   if(!ytVideos.length) { el.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--muted)">영상을 찾지 못했어요</div>'; return; }
   var lastSavedId = S.get('yt_last_seen_id');
   var saved = S.get('yt_summaries') || [];
   el.innerHTML = ytVideos.map(function(v) {
     var alreadySaved = saved.find(function(s){return s.videoId===v.videoId;});
+    var isExpanded = expandId === v.videoId;
     return '<div class="yt-card">'+
       '<a href="https://www.youtube.com/watch?v='+v.videoId+'" target="_blank">'+
         '<img class="yt-thumb" src="'+v.thumb+'" onerror="this.style.display=\'none\'" loading="lazy"/>'+
       '</a>'+
       '<div class="yt-info">'+
         '<div class="yt-title">'+
-          (v.videoId === lastSavedId && ytVideos.indexOf(v)===0 ? '' : '')+
           (ytVideos.indexOf(v)===0 ? '<span class="yt-new-badge">NEW</span> ' : '')+
           v.title+
         '</div>'+
         '<div class="yt-date">'+v.published+'</div>'+
         (alreadySaved
-          ? '<div style="color:var(--accent3);font-size:.78rem;margin-bottom:.4rem">✅ 분석 완료</div>'+
-            '<div class="yt-summary-box" style="font-size:.8rem;white-space:pre-wrap">'+alreadySaved.summary+'</div>'
+          ? '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem;margin-top:auto">'+
+              '<span style="color:var(--accent3);font-size:.75rem">✅ 분석 완료</span>'+
+              '<button id="ytt-'+v.videoId+'" class="btn btn-ghost" style="font-size:.72rem;padding:.2rem .6rem" onclick="toggleYtSummary(\''+v.videoId+'\')">'+
+                (isExpanded ? '📕 접기' : '📖 분석 보기')+
+              '</button>'+
+            '</div>'+
+            '<div id="yts-'+v.videoId+'" class="yt-summary-box" style="font-size:.8rem;white-space:pre-wrap;display:'+(isExpanded?'block':'none')+'">'+alreadySaved.summary+'</div>'
           : '<button class="btn btn-primary" style="width:100%;font-size:.82rem;padding:.5rem;margin-top:auto" onclick="analyzeYtVideo(\''+v.videoId+'\',\''+v.title.replace(/'/g,'\\\'').replace(/"/g,'&quot;')+'\',\''+v.published+'\',\''+v.thumb+'\',this)">🤖 AI 분석하기</button>'
         )+
       '</div>'+
@@ -3852,7 +3866,7 @@ async function analyzeYtVideo(videoId, title, published, thumb, btn) {
       btn
     );
 
-    renderYtVideoGrid();
+    renderYtVideoGrid(videoId);
 
   } catch(err) {
     btn.textContent = '❌ 다시 시도';
