@@ -1794,14 +1794,22 @@ function nowTime() {
 })();
 
 // ── D-DAY ──
+(function(){
+  if(!S.get('anniversary')) {
+    S.set('anniversary', '2025-09-28');
+    dbUpsert('settings', {key:'anniversary', value:'2025-09-28'});
+  }
+})();
+
 function updateDday() {
-  const ann = S.get('anniversary');
-  if(!ann) return;
+  const ann = S.get('anniversary') || '2025-09-28';
   const start = new Date(ann);
-  const now = new Date();
-  const diff = Math.floor((now - start) / 86400000);
+  const now   = new Date();
+  now.setHours(0,0,0,0);
+  const diff  = Math.floor((now - start) / 86400000) + 1;
   document.getElementById('dday-count').textContent = diff.toLocaleString();
-  document.getElementById('dday-since').textContent = ann + ' 부터';
+  const [y,m,d] = ann.split('-');
+  document.getElementById('dday-since').textContent = y+'년 '+Number(m)+'월 '+Number(d)+'일 결혼 💍';
 }
 try { updateDday(); } catch(e){}
 
