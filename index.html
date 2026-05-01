@@ -3685,7 +3685,7 @@ function renderDashMiniCal() {
       var next = new Date(y, s.month-1, s.day);
       if(next < todayMidnight) next = new Date(y+1, s.month-1, s.day);
       var diff = Math.round((next - todayMidnight) / 86400000);
-      if(diff > 7) return null;
+      if(diff > 3) return null;
       var msg, bg, border;
       if(diff === 0) {
         msg = '🎉 오늘은 <b style="color:'+s.color+'">'+s.label+'</b>이에요! 축하해줘요 🎂';
