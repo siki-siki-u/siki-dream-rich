@@ -5228,19 +5228,28 @@ async function getJournalFeedback(id, btn) {
 
   var priceInfo='';
   if(j.tickers){
-    var tList=j.tickers.split(',').map(function(t){return t.trim();}).slice(0,3);
+    var tList=j.tickers.split(',').map(function(t){return t.trim();}).filter(Boolean).slice(0,3);
     var pResults=await Promise.all(tList.map(async function(t){
-      var r=await fetchStockPrice(t,'US');
-      if(!r) r=await fetchStockPrice(t,'KR');
-      if(r) return t+': '+(r.currency==='USD'?'$':'₩')+r.price.toLocaleString(undefined,{maximumFractionDigits:2})+(r.changeP!=null?' ('+(r.changeP>=0?'+':'')+r.changeP.toFixed(1)+'%)':'');
-      return null;
+      try{
+        var pr=await Promise.race([
+          fetch('/api/stock-price?ticker='+encodeURIComponent(t)+'&type=US'),
+          new Promise(function(_,r){setTimeout(function(){r(new Error('t'));},5000);})
+        ]);
+        if(!pr.ok) return null;
+        var pd=await pr.json();
+        if(!pd||!pd.price) return null;
+        return t+': '+(pd.currency==='USD'?'$':'₩')+pd.price.toLocaleString(undefined,{maximumFractionDigits:2})+(pd.changeP!=null?' ('+(pd.changeP>=0?'+':'')+pd.changeP.toFixed(1)+'%)':'');
+      }catch(e){return null;}
     }));
     priceInfo=pResults.filter(Boolean).join('\n');
   }
   try{
+    var ctrl=new AbortController();
+    var aTimer=setTimeout(function(){ctrl.abort();},18000);
     var res=await fetch('/api/claude',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
+      signal:ctrl.signal,
       body:JSON.stringify({
         model:'claude-haiku-4-5-20251001',max_tokens:600,
         messages:[{role:'user',content:
@@ -5253,8 +5262,11 @@ async function getJournalFeedback(id, btn) {
         }]
       })
     });
+    clearTimeout(aTimer);
+    if(!res.ok){var errTxt=await res.text().catch(function(){return 'HTTP '+res.status;}); throw new Error(errTxt);}
     var data=await res.json();
     var text=data.content?.[0]?.text||'';
+    if(!text) throw new Error(JSON.stringify(data));
     var fbM=text.match(/\[피드백\]([\s\S]*?)(?=\[조언\]|$)/);
     var adM=text.match(/\[조언\]([\s\S]*?)$/);
     var feedback=fbM?fbM[1].trim():text;
@@ -5262,7 +5274,11 @@ async function getJournalFeedback(id, btn) {
     journals=journals.map(function(x){return x.id===id?Object.assign({},x,{feedback:feedback,advice:advice}):x;});
     S.set('journals',journals);
     renderJournal();
-  } catch(err){btn.textContent='❌ 실패 - 다시 시도';btn.disabled=false;}
+  } catch(err){
+    btn.textContent=(err.name==='AbortError'?'⏱️ 시간초과':'❌ 실패')+' - 다시 시도';
+    btn.disabled=false;
+    console.error('[AI피드백]',err);
+  }
 }
 
 function deleteJournal(id){
