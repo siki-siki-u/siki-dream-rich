@@ -4990,7 +4990,7 @@ function renderExcelPreview(detectedHeaders) {
   for(var oi=0; oi<parsedExcelRows.length; oi++) {
     for(var oj=oi+1; oj<parsedExcelRows.length; oj++) {
       var ra = parsedExcelRows[oi], rb = parsedExcelRows[oj];
-      if(Math.abs(ra.amount) === Math.abs(rb.amount) && isSimilar(ra.desc, rb.desc)) {
+      if(Math.abs(ra.amount) === Math.abs(rb.amount) && ra.amount * rb.amount < 0 && isSimilar(ra.desc, rb.desc)) {
         offsetIdx.add(oi); offsetIdx.add(oj);
       }
     }
