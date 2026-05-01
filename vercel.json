@@ -15,6 +15,7 @@
   ],
   "functions": {
     "api/analyze-image.js": { "maxDuration": 30 },
-    "api/claude.js": { "maxDuration": 30 }
+    "api/claude.js": { "maxDuration": 30 },
+    "api/youtube-rss.js": { "maxDuration": 30 }
   }
 }

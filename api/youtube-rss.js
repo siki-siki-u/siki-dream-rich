@@ -1,31 +1,36 @@
 const https = require('https');
 
-function get(rawUrl) {
+function get(rawUrl, timeoutMs) {
   return new Promise(function(resolve, reject) {
     var parsed;
     try { parsed = new URL(rawUrl); } catch(e) { return reject(e); }
     var opts = {
       hostname: parsed.hostname,
       path: parsed.pathname + parsed.search,
+      method: 'GET',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-        'Accept': 'application/json, text/xml, application/rss+xml, */*',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+        'Cache-Control': 'no-cache',
       },
     };
     var req = https.get(opts, function(res) {
+      // 리다이렉트 처리
+      if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
+        return get(res.headers.location, timeoutMs).then(resolve).catch(reject);
+      }
       var chunks = [];
       res.on('data', function(c) { chunks.push(c); });
       res.on('end', function() { resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString('utf8') }); });
     });
     req.on('error', reject);
-    req.setTimeout(9000, function() { req.destroy(); reject(new Error('timeout')); });
+    req.setTimeout(timeoutMs || 8000, function() { req.destroy(); reject(new Error('timeout')); });
   });
 }
 
 function fromRSSXML(body) {
   var videos = [];
-  // Atom format (YouTube native / RSSHub)
   var re = /<entry>([\s\S]*?)<\/entry>/g, m;
   while ((m = re.exec(body)) !== null) {
     var e = m[1];
@@ -41,7 +46,7 @@ function fromRSSXML(body) {
       .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/,'$1').replace(/<[^>]*>/g,'').slice(0, 300);
     videos.push({ videoId: vid, title, published: pub, desc, thumb: 'https://img.youtube.com/vi/' + vid + '/mqdefault.jpg' });
   }
-  // RSS 2.0 format fallback
+  // RSS 2.0 fallback
   if (!videos.length) {
     var re2 = /<item>([\s\S]*?)<\/item>/g;
     while ((m = re2.exec(body)) !== null) {
@@ -65,6 +70,30 @@ function fromInvidious(body) {
   }).filter(function(v){ return !!v.videoId; });
 }
 
+function fromRss2Json(body) {
+  var d = JSON.parse(body);
+  if (!d.items || !d.items.length) return [];
+  return d.items.map(function(item) {
+    var vid = (item.link || '').split('v=')[1] || '';
+    return { videoId: vid, title: item.title || '', published: (item.pubDate || '').split(' ')[0], desc: (item.description || '').replace(/<[^>]*>/g,'').slice(0,300), thumb: 'https://img.youtube.com/vi/' + vid + '/mqdefault.jpg' };
+  }).filter(function(v){ return !!v.videoId; });
+}
+
+// 첫 번째 성공한 결과를 반환 (병렬 race)
+function raceSuccess(tasks) {
+  return new Promise(function(resolve, reject) {
+    var failed = 0;
+    var settled = false;
+    tasks.forEach(function(task) {
+      task().then(function(result) {
+        if (!settled) { settled = true; resolve(result); }
+      }).catch(function() {
+        if (++failed === tasks.length && !settled) { reject(new Error('all failed')); }
+      });
+    });
+  });
+}
+
 module.exports = async function(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -73,35 +102,42 @@ module.exports = async function(req, res) {
   var errors = [];
 
   var attempts = [
-    { name: 'rsshub',       url: 'https://rsshub.app/youtube/channel/' + CH,              parse: fromRSSXML },
-    { name: 'rsshub-2',     url: 'https://rsshub.rssforever.com/youtube/channel/' + CH,   parse: fromRSSXML },
-    { name: 'invidious-jing', url: 'https://invidious.jing.rocks/api/v1/channels/' + CH + '/videos', parse: fromInvidious },
-    { name: 'invidious-art',  url: 'https://yt.artemislena.eu/api/v1/channels/' + CH + '/videos',    parse: fromInvidious },
-    { name: 'invidious-fdn',  url: 'https://invidious.fdn.fr/api/v1/channels/' + CH + '/videos',     parse: fromInvidious },
-    { name: 'yt-rss',       url: 'https://www.youtube.com/feeds/videos.xml?channel_id=' + CH,        parse: fromRSSXML },
-    { name: 'rss2json',     url: 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent('https://www.youtube.com/feeds/videos.xml?channel_id=' + CH), parse: function(b) {
-      var d = JSON.parse(b);
-      if (!d.items) return [];
-      return d.items.map(function(item) {
-        var vid = (item.link || '').split('v=')[1] || '';
-        return { videoId: vid, title: item.title || '', published: (item.pubDate || '').split(' ')[0], desc: (item.description || '').replace(/<[^>]*>/g,'').slice(0,300), thumb: 'https://img.youtube.com/vi/' + vid + '/mqdefault.jpg' };
-      }).filter(function(v){ return !!v.videoId; });
-    }},
+    // 가장 안정적인 소스 먼저
+    { name: 'yt-rss-direct',  url: 'https://www.youtube.com/feeds/videos.xml?channel_id=' + CH, parse: fromRSSXML },
+    { name: 'rss2json',       url: 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent('https://www.youtube.com/feeds/videos.xml?channel_id=' + CH), parse: fromRss2Json },
+    { name: 'rsshub',         url: 'https://rsshub.app/youtube/channel/' + CH,              parse: fromRSSXML },
+    { name: 'rsshub-2',       url: 'https://rsshub.rssforever.com/youtube/channel/' + CH,   parse: fromRSSXML },
+    { name: 'invidious-yewtu',  url: 'https://yewtu.be/api/v1/channels/' + CH + '/videos',               parse: fromInvidious },
+    { name: 'invidious-jing',   url: 'https://invidious.jing.rocks/api/v1/channels/' + CH + '/videos',   parse: fromInvidious },
+    { name: 'invidious-privr',  url: 'https://invidious.privacyredirect.com/api/v1/channels/' + CH + '/videos', parse: fromInvidious },
+    { name: 'invidious-art',    url: 'https://yt.artemislena.eu/api/v1/channels/' + CH + '/videos',      parse: fromInvidious },
   ];
 
-  for (var i = 0; i < attempts.length; i++) {
-    try {
-      var r = await get(attempts[i].url);
-      if (r.status === 200) {
-        var videos = attempts[i].parse(r.body);
-        if (videos.length) return res.json({ videos: videos, source: attempts[i].name });
-        errors.push(attempts[i].name + ': 0 videos');
-      } else {
-        errors.push(attempts[i].name + ': HTTP ' + r.status);
-      }
-    } catch(e) {
-      errors.push(attempts[i].name + ': ' + e.message);
-    }
+  // 배치 1: 가장 빠른 2개 먼저 시도 (병렬)
+  var batch1 = attempts.slice(0, 2);
+  var batch2 = attempts.slice(2);
+
+  async function tryOne(attempt) {
+    var r = await get(attempt.url, 8000);
+    if (r.status !== 200) throw new Error(attempt.name + ': HTTP ' + r.status);
+    var videos = attempt.parse(r.body);
+    if (!videos.length) throw new Error(attempt.name + ': 0 videos');
+    return { videos, source: attempt.name };
+  }
+
+  try {
+    var result = await raceSuccess(batch1.map(function(a){ return function(){ return tryOne(a); }; }));
+    return res.json(result);
+  } catch(e) {
+    errors.push(e.message);
+  }
+
+  // 배치 1 전부 실패 → 배치 2 병렬 시도
+  try {
+    var result2 = await raceSuccess(batch2.map(function(a){ return function(){ return tryOne(a); }; }));
+    return res.json(result2);
+  } catch(e) {
+    errors.push(e.message);
   }
 
   res.status(500).json({ error: '모든 방법 실패', details: errors });
