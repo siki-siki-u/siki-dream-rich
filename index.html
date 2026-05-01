@@ -2516,9 +2516,13 @@ function deleteFixedCostRow(id) {
 let budgetYear, budgetMonth;
 
 (function(){
-  const d = new Date();
-  budgetYear  = d.getDate() >= 21 ? d.getFullYear() : (d.getMonth()===0 ? d.getFullYear()-1 : d.getFullYear());
-  budgetMonth = d.getDate() >= 21 ? d.getMonth()+1 : (d.getMonth()===0 ? 12 : d.getMonth());
+  // 기준: 21일~다음달 20일이 한 달 → 입력 시점은 대상월 다음 달
+  // 오늘 21일↑: today - 1달, 오늘 20일↓: today - 2달
+  var d = new Date();
+  var monthsAgo = d.getDate() >= 21 ? 1 : 2;
+  var ref = new Date(d.getFullYear(), d.getMonth() - monthsAgo, 1);
+  budgetYear  = ref.getFullYear();
+  budgetMonth = ref.getMonth() + 1;
 })();
 
 function budgetKey() { return budgetYear+'-'+String(budgetMonth).padStart(2,'0'); }
