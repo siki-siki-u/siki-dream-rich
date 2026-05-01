@@ -78,6 +78,8 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-seri
 /* GRID LAYOUTS */
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem}
+/* 지출내역: PC=테이블, 모바일=카드 (CSS 제어) */
+#tx-card-list{display:none}
 
 /* FORM ELEMENTS */
 .form-row{display:flex;gap:.8rem;margin-bottom:1rem;align-items:center;flex-wrap:wrap}
@@ -268,6 +270,28 @@ tr:hover td{background:rgba(108,138,255,.03)}
   #page-budget .stats-row{grid-template-columns:1fr 1fr}
   /* 투자일지 flex row */
   .journal-header{flex-direction:column;gap:.5rem}
+
+  /* ── 가계부 모바일 전용 ── */
+  /* 가로 overflow 완전 차단 */
+  #page-budget{overflow-x:hidden;max-width:100vw}
+  /* 지출 입력 form: 세로 2열 그리드 */
+  #budget-input-row{display:grid!important;grid-template-columns:1fr 1fr;gap:.5rem}
+  #budget-input-row #tx-date{grid-column:1/2}
+  #budget-input-row #tx-source{grid-column:2/3}
+  #budget-input-row .tx-type-wrap{grid-column:1/2}
+  #budget-input-row #tx-amount{grid-column:2/3}
+  #budget-input-row #tx-desc{grid-column:1/3}
+  #budget-input-row .btn-add-preview{grid-column:1/3;width:100%}
+  /* 엑셀 미리보기 테이블 가로 스크롤 허용 */
+  #excel-preview{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+  #excel-preview table{min-width:0;width:100%;font-size:.72rem}
+  /* 지출내역 테이블 숨기고 카드만 */
+  #page-budget .table-wrap{display:none!important}
+  #page-budget #tx-card-list{display:block!important}
+  /* 카테고리 차트 라벨 축소 */
+  #page-budget .stat-value{font-size:.95rem}
+  #page-budget .stat-label{font-size:.67rem}
+  #page-budget .stat-sub{font-size:.6rem}
 }
 
 /* SCROLLBAR */
@@ -585,7 +609,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
     <!-- 지출 입력 -->
     <div class="card" style="margin-bottom:1.5rem">
       <div class="sec-title">🧾 지출 입력</div>
-      <div style="display:flex;gap:.7rem;flex-wrap:wrap;align-items:center">
+      <div id="budget-input-row" style="display:flex;gap:.7rem;flex-wrap:wrap;align-items:center">
         <input type="date" id="tx-date" style="width:150px;min-width:0;flex:1 1 130px"/>
         <select id="tx-source" style="width:150px;min-width:0;flex:1 1 130px">
           <option value="공용생활비">💳 공용생활비</option>
@@ -595,13 +619,13 @@ tr:hover td{background:rgba(108,138,255,.03)}
           <option value="가족 선물/지원">🎁 가족 선물/지원</option>
           <option value="여행비">✈️ 여행비</option>
         </select>
-        <div style="display:flex;gap:0;border-radius:8px;overflow:hidden;border:1px solid var(--border);flex-shrink:0">
+        <div class="tx-type-wrap" style="display:flex;gap:0;border-radius:8px;overflow:hidden;border:1px solid var(--border);flex-shrink:0">
           <button id="tx-type-out" onclick="setTxType('out')" style="padding:.45rem .75rem;font-size:.78rem;font-weight:600;background:#ef44441a;color:#ef4444;border:none;cursor:pointer;transition:all .15s">출금</button>
           <button id="tx-type-in"  onclick="setTxType('in')"  style="padding:.45rem .75rem;font-size:.78rem;font-weight:600;background:transparent;color:var(--muted);border:none;cursor:pointer;transition:all .15s">입금</button>
         </div>
         <input type="text" id="tx-amount" inputmode="numeric" placeholder="금액" style="width:140px;min-width:0;flex:1 1 110px" oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')"/>
         <input type="text" id="tx-desc" placeholder="세부내용 (선택)" style="flex:1;min-width:150px"/>
-        <button class="btn btn-primary" onclick="addToPreview()">미리보기 추가 ＋</button>
+        <button class="btn btn-primary btn-add-preview" onclick="addToPreview()">미리보기 추가 ＋</button>
       </div>
     </div>
 
@@ -676,9 +700,9 @@ tr:hover td{background:rgba(108,138,255,.03)}
       <!-- 지출 내역 -->
       <div class="card">
         <div class="sec-title">📋 지출 내역</div>
-        <!-- 모바일: 카드형 -->
-        <div id="tx-card-list" style="display:none"></div>
-        <!-- PC: 테이블형 -->
+        <!-- 모바일: 카드형 (CSS로 제어) -->
+        <div id="tx-card-list"></div>
+        <!-- PC: 테이블형 (CSS로 제어) -->
         <div class="table-wrap">
           <table>
             <thead><tr><th>날짜</th><th>카테고리</th><th>내용</th><th>통장</th><th>금액</th><th></th></tr></thead>
@@ -2885,53 +2909,46 @@ function renderTransactions() {
   const txListEl = document.getElementById('tx-card-list');
   var catOpts = ['식료품','식비(외식)','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
   var srcColors = {'공용생활비':'#60a5fa','여분통장':'#34d399','관리비':'#f472b6','경조사':'#f472b6','가족 선물/지원':'#a78bfa','여행비':'#fb923c'};
-  var isMobile = window.innerWidth <= 640;
-
-  if(isMobile && txListEl) {
-    // 모바일: 카드형 리스트
-    txListEl.style.display = '';
-    if(tbody) tbody.closest('table').parentElement.style.display = 'none';
+  // 카드형 (모바일 CSS가 제어) — 항상 렌더링
+  if(txListEl) {
     txListEl.innerHTML = txs.length ? txs.map(function(t){
       var clr = catColors[t.cat]||'var(--muted)';
       var srcClr = srcColors[t.source]||'var(--muted)';
       var opts = catOpts.map(function(c){ return '<option value="'+c+'"'+(c===t.cat?' selected':'')+'>'+c+'</option>'; }).join('');
-      return '<div style="display:flex;align-items:center;gap:.6rem;padding:.65rem 0;border-bottom:1px solid var(--border)">'+
+      return '<div style="display:flex;align-items:center;gap:.6rem;padding:.7rem 0;border-bottom:1px solid var(--border)">'+
         '<div style="flex:1;min-width:0">'+
-          '<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem">'+
+          '<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.25rem;flex-wrap:wrap">'+
             '<select onchange="updateTxCat('+t.id+',this.value)" style="background:'+clr+'22;color:'+clr+';border:1px solid '+clr+'44;border-radius:5px;font-size:.72rem;padding:.1rem .25rem;font-weight:600;cursor:pointer">'+opts+'</select>'+
-            (t.source?'<span style="font-size:.65rem;padding:.1rem .3rem;border-radius:4px;background:'+srcClr+'22;color:'+srcClr+'">'+t.source+'</span>':'')+
+            (t.source?'<span style="font-size:.65rem;padding:.1rem .35rem;border-radius:4px;background:'+srcClr+'22;color:'+srcClr+'">'+t.source+'</span>':'')+
+            '<span style="font-size:.65rem;color:var(--muted);font-family:JetBrains Mono,monospace">'+t.date+'</span>'+
           '</div>'+
-          '<div style="font-size:.8rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+t.desc+'</div>'+
-          '<div style="font-size:.68rem;color:var(--border);margin-top:.1rem">'+t.date+'</div>'+
+          '<div style="font-size:.82rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+t.desc+'</div>'+
         '</div>'+
         '<div style="display:flex;align-items:center;gap:.5rem;flex-shrink:0">'+
-          '<span style="font-family:JetBrains Mono,monospace;font-size:.88rem;font-weight:700;color:'+(t.amount<0?'var(--success)':'var(--danger)')+'">'+(t.amount<0?'+':'-')+Number(Math.abs(t.amount)).toLocaleString()+'</span>'+
-          '<button onclick="deleteTx('+t.id+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;padding:.2rem;line-height:1" title="삭제">✕</button>'+
+          '<span style="font-family:JetBrains Mono,monospace;font-size:.9rem;font-weight:700;color:'+(t.amount<0?'var(--success)':'var(--danger)')+'">'+(t.amount<0?'+':'-')+Number(Math.abs(t.amount)).toLocaleString()+'</span>'+
+          '<button onclick="deleteTx('+t.id+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;padding:.2rem;line-height:1">✕</button>'+
         '</div>'+
       '</div>';
     }).join('') : '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:.85rem">지출 내역이 없어요</div>';
-  } else {
-    // PC: 기존 테이블
-    if(txListEl) txListEl.style.display = 'none';
-    var tableWrap = tbody ? tbody.closest('table').parentElement : null;
-    if(tableWrap) tableWrap.style.display = '';
-    if(tbody) {
-      tbody.innerHTML = txs.length ? txs.map(function(t){
-        var clr = catColors[t.cat]||'var(--muted)';
-        var opts = catOpts.map(function(c){ return '<option value="'+c+'"'+(c===t.cat?' selected':'')+'>'+c+'</option>'; }).join('');
-        var srcHtml = t.source
-          ? '<span style="font-size:.68rem;padding:.1rem .35rem;border-radius:4px;background:'+(srcColors[t.source]||'var(--muted)')+'22;color:'+(srcColors[t.source]||'var(--muted)')+';white-space:nowrap">'+t.source+'</span>'
-          : '<span style="color:var(--border);font-size:.72rem">—</span>';
-        return '<tr>'+
-          '<td style="font-family:JetBrains Mono,monospace;font-size:.78rem">'+t.date+'</td>'+
-          '<td><select onchange="updateTxCat('+t.id+',this.value)" style="background:'+clr+'22;color:'+clr+';border:1px solid '+clr+'44;border-radius:5px;font-size:.75rem;padding:.15rem .3rem;font-weight:600;cursor:pointer;max-width:100px">'+opts+'</select></td>'+
-          '<td style="color:var(--muted);font-size:.82rem">'+t.desc+'</td>'+
-          '<td>'+srcHtml+'</td>'+
-          '<td style="font-family:JetBrains Mono,monospace;color:'+(t.amount<0?'var(--success)':'var(--danger)')+';font-weight:600">'+(t.amount<0?'+':'-')+Number(Math.abs(t.amount)).toLocaleString()+'</td>'+
-          '<td><button onclick="deleteTx('+t.id+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:.1rem .2rem" title="삭제">✕</button></td>'+
-        '</tr>';
-      }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">지출 내역이 없어요</td></tr>';
-    }
+  }
+
+  // 테이블형 (PC CSS가 제어) — 항상 렌더링
+  if(tbody) {
+    tbody.innerHTML = txs.length ? txs.map(function(t){
+      var clr = catColors[t.cat]||'var(--muted)';
+      var opts = catOpts.map(function(c){ return '<option value="'+c+'"'+(c===t.cat?' selected':'')+'>'+c+'</option>'; }).join('');
+      var srcHtml = t.source
+        ? '<span style="font-size:.68rem;padding:.1rem .35rem;border-radius:4px;background:'+(srcColors[t.source]||'var(--muted)')+'22;color:'+(srcColors[t.source]||'var(--muted)')+';white-space:nowrap">'+t.source+'</span>'
+        : '<span style="color:var(--border);font-size:.72rem">—</span>';
+      return '<tr>'+
+        '<td style="font-family:JetBrains Mono,monospace;font-size:.78rem">'+t.date+'</td>'+
+        '<td><select onchange="updateTxCat('+t.id+',this.value)" style="background:'+clr+'22;color:'+clr+';border:1px solid '+clr+'44;border-radius:5px;font-size:.75rem;padding:.15rem .3rem;font-weight:600;cursor:pointer;max-width:100px">'+opts+'</select></td>'+
+        '<td style="color:var(--muted);font-size:.82rem">'+t.desc+'</td>'+
+        '<td>'+srcHtml+'</td>'+
+        '<td style="font-family:JetBrains Mono,monospace;color:'+(t.amount<0?'var(--success)':'var(--danger)')+';font-weight:600">'+(t.amount<0?'+':'-')+Number(Math.abs(t.amount)).toLocaleString()+'</td>'+
+        '<td><button onclick="deleteTx('+t.id+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:.1rem .2rem">✕</button></td>'+
+      '</tr>';
+    }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">지출 내역이 없어요</td></tr>';
   }
 }
 
