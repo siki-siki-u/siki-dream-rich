@@ -434,6 +434,8 @@ tr:hover td{background:rgba(108,138,255,.03)}
       </div>
       <div style="font-size:2.5rem">💑</div>
     </div>
+    <!-- 생일 알림 배너 -->
+    <div id="bday-alert" style="display:none;margin-bottom:1.5rem"></div>
     <div class="stats-row">
       <div class="stat-card blue">
         <div class="stat-label">이번 달 수입</div>
@@ -3608,8 +3610,8 @@ async function getPortfolioAI(btn) {
 
 // ── DASHBOARD 미니 캘린더 ──
 var SPECIAL_DATES = [
-  { month:9,  day:26, label:'윤식 생일',     icon:'🎂', color:'#60a5fa' },
-  { month:5,  day:18, label:'유진 생일',     icon:'🎂', color:'#f472b6' },
+  { month:9,  day:26, label:'식식이 생일',   icon:'🎂', color:'#60a5fa' },
+  { month:5,  day:18, label:'징구 생일',     icon:'🎂', color:'#f472b6' },
   { month:9,  day:28, label:'결혼기념일',    icon:'💍', color:'#a78bfa' },
 ];
 
@@ -3660,14 +3662,13 @@ function renderDashMiniCal() {
   }
 
   // D-day 카드
+  var todayMidnight = new Date(y, now.getMonth(), today);
   var sdEl = document.getElementById('dash-special-days');
   if(sdEl) {
     var rows = SPECIAL_DATES.map(function(s){
       var next = new Date(y, s.month-1, s.day);
-      if(next < now && !(next.getMonth()===now.getMonth()&&next.getDate()===now.getDate())) {
-        next = new Date(y+1, s.month-1, s.day);
-      }
-      var diff = Math.ceil((next - new Date(y, now.getMonth(), today)) / 86400000);
+      if(next < todayMidnight) next = new Date(y+1, s.month-1, s.day);
+      var diff = Math.round((next - todayMidnight) / 86400000);
       var ddayTxt = diff===0 ? 'D-Day 🎉' : 'D-'+diff;
       return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.45rem .7rem;border-radius:10px;background:'+s.color+'18;border:1px solid '+s.color+'44">'+
         '<span style="font-size:.82rem;color:var(--text)">'+s.icon+' '+s.label+'</span>'+
@@ -3675,6 +3676,34 @@ function renderDashMiniCal() {
       '</div>';
     });
     sdEl.innerHTML = rows.join('');
+  }
+
+  // 생일 알림 배너 (D-7 ~ D-Day, 생일만)
+  var bdayEl = document.getElementById('bday-alert');
+  if(bdayEl) {
+    var bdayAlerts = SPECIAL_DATES.filter(function(s){ return s.icon==='🎂'; }).map(function(s){
+      var next = new Date(y, s.month-1, s.day);
+      if(next < todayMidnight) next = new Date(y+1, s.month-1, s.day);
+      var diff = Math.round((next - todayMidnight) / 86400000);
+      if(diff > 7) return null;
+      var msg, bg, border;
+      if(diff === 0) {
+        msg = '🎉 오늘은 <b style="color:'+s.color+'">'+s.label+'</b>이에요! 축하해줘요 🎂';
+        bg  = 'linear-gradient(135deg,'+s.color+'33,'+s.color+'18)';
+        border = s.color+'88';
+      } else {
+        msg = s.icon+' <b style="color:'+s.color+'">'+s.label+'</b>까지 <b style="color:'+s.color+'">'+diff+'일</b> 남았어요!';
+        bg  = s.color+'12';
+        border = s.color+'44';
+      }
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.1rem;border-radius:14px;background:'+bg+';border:1px solid '+border+';margin-bottom:.6rem">'+
+        '<div style="font-size:.88rem;color:var(--text);line-height:1.6">'+msg+'</div>'+
+        (diff===0 ? '<div style="font-size:2rem;margin-left:.8rem">🎊</div>' : '<div style="font-family:JetBrains Mono,monospace;font-size:1.1rem;font-weight:700;color:'+s.color+';margin-left:.8rem">D-'+diff+'</div>')+
+      '</div>';
+    }).filter(Boolean);
+
+    bdayEl.style.display = bdayAlerts.length ? '' : 'none';
+    bdayEl.innerHTML = bdayAlerts.join('');
   }
 }
 
