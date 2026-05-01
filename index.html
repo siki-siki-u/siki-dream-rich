@@ -1541,30 +1541,28 @@ async function syncFromSupabase() {
     // assets
     const { data: assets } = await supa.from('assets').select('*');
     if(assets && assets.length > 0) assets.forEach(function(a){ S.set('assets_'+a.month_key, Object.assign({}, a.data, {savedAt:a.saved_at})); });
-    // transactions — 양방향 sync
-    const { data: txs, error: txErr } = await supa.from('transactions').select('*').order('id', {ascending: false}).limit(2000);
-    var dbTxIds = new Set((txs||[]).map(function(t){ return t.id; }));
-    // 로컬에만 있는 것 → DB에 push
-    var allLocalKeys = Object.keys(localStorage).filter(function(k){ return k.startsWith('txs_'); });
-    allLocalKeys.forEach(function(lk){
-      var key = lk.replace(/^txs_/, '');
-      var localTxs = S.get('txs_'+key) || [];
-      localTxs.forEach(function(t){
-        if(!dbTxIds.has(t.id)) {
-          dbUpsert('transactions', {id:t.id, budget_key:key, date:t.date, cat:t.cat, amount:t.amount, descr:t.desc||'', source:t.source||null});
-        }
-      });
-    });
-    // DB에 있는 것 → 로컬에 병합 (id 기준 중복 방지)
-    if(txs && txs.length > 0) {
+    // transactions — DB 기준 단방향 sync (DB가 있는 월은 DB가 정답)
+    const { data: txs, error: txErr } = await supa.from('transactions').select('*').order('id', {ascending: false}).limit(5000);
+    if(!txErr) {
+      // DB 데이터를 budget_key별로 그룹화
       var byKey = {};
-      txs.forEach(function(t){ if(!byKey[t.budget_key]) byKey[t.budget_key]=[]; byKey[t.budget_key].push({id:t.id, date:t.date, cat:t.cat, amount:t.amount, desc:t.descr||'', source:t.source||''}); });
-      Object.keys(byKey).forEach(function(k){
-        var localTxs = S.get('txs_'+k) || [];
-        var localIds = new Set(localTxs.map(function(t){ return t.id; }));
-        byKey[k].forEach(function(t){ if(!localIds.has(t.id)) localTxs.push(t); });
-        S.set('txs_'+k, localTxs);
+      (txs||[]).forEach(function(t){
+        if(!byKey[t.budget_key]) byKey[t.budget_key]=[];
+        byKey[t.budget_key].push({id:t.id, date:t.date, cat:t.cat, amount:t.amount, desc:t.descr||'', source:t.source||''});
       });
+      var dbKeys = new Set(Object.keys(byKey));
+      // DB에 없는 달(새 달/오프라인 입력)만 로컬→DB push
+      Object.keys(localStorage).filter(function(k){ return k.startsWith('txs_'); }).forEach(function(lk){
+        var key = lk.replace(/^txs_/, '');
+        if(dbKeys.has(key)) return; // DB에 해당 월 데이터 있음 → DB가 정답, 로컬 무시
+        (S.get('txs_'+key)||[]).forEach(function(t){
+          dbUpsert('transactions', {id:t.id, budget_key:key, date:t.date, cat:t.cat, amount:t.amount, descr:t.desc||'', source:t.source||null});
+          if(!byKey[key]) byKey[key]=[];
+          byKey[key].push({id:t.id, date:t.date, cat:t.cat, amount:t.amount, desc:t.desc||'', source:t.source||''});
+        });
+      });
+      // 로컬을 DB 기준으로 완전 교체 (수정/삭제된 레코드도 반영)
+      Object.keys(byKey).forEach(function(k){ S.set('txs_'+k, byKey[k]); });
     }
     // income
     const { data: incomes } = await supa.from('income').select('*');
