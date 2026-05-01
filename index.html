@@ -4975,10 +4975,33 @@ function renderExcelPreview(detectedHeaders) {
     '구독비':'#34d399','관리비':'#60a5fa','경조사':'#f472b6',
     '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'var(--muted)','입금/환급':'var(--success)'
   };
+  // 출금/입금 상계 가능 쌍 탐지 (내용 유사 + 금액 동일)
+  var normDesc = function(s) { return (s||'').replace(/\s+/g,'').toLowerCase(); };
+  var isSimilar = function(a, b) {
+    var na = normDesc(a), nb = normDesc(b);
+    if(!na || !nb) return false;
+    if(na === nb) return true;
+    if(na.includes(nb) || nb.includes(na)) return true;
+    var shorter = na.length <= nb.length ? na : nb;
+    var longer  = na.length <= nb.length ? nb : na;
+    return shorter.length >= 3 && longer.includes(shorter.slice(0, Math.ceil(shorter.length * 0.6)));
+  };
+  var offsetIdx = new Set();
+  for(var oi=0; oi<parsedExcelRows.length; oi++) {
+    for(var oj=oi+1; oj<parsedExcelRows.length; oj++) {
+      var ra = parsedExcelRows[oi], rb = parsedExcelRows[oj];
+      if(Math.abs(ra.amount) === Math.abs(rb.amount) && isSimilar(ra.desc, rb.desc)) {
+        offsetIdx.add(oi); offsetIdx.add(oj);
+      }
+    }
+  }
+  var offsetCnt = offsetIdx.size;
+
   var expCnt = parsedExcelRows.filter(function(r){return r.amount>0;}).length;
   var incCnt = parsedExcelRows.filter(function(r){return r.amount<0;}).length;
   el.innerHTML =
-    '<div style="font-size:.82rem;color:var(--accent3);margin-bottom:.8rem">✅ '+parsedExcelRows.length+'건 인식됨 (지출 '+expCnt+'건 · 입금/환급 '+incCnt+'건) — 분류를 확인하고 가져오기 버튼을 눌러주세요</div>'+
+    '<div style="font-size:.82rem;color:var(--accent3);margin-bottom:.5rem">✅ '+parsedExcelRows.length+'건 인식됨 (지출 '+expCnt+'건 · 입금/환급 '+incCnt+'건) — 분류를 확인하고 가져오기 버튼을 눌러주세요</div>'+
+    (offsetCnt ? '<div style="font-size:.78rem;color:#f59e0b;margin-bottom:.8rem;display:flex;align-items:center;gap:.35rem"><span>⚠️</span><span>'+offsetCnt+'건은 출금/입금 상계 가능성이 있어요 (같은 금액·유사 내용). 금액이 <b style="color:#f59e0b">주황색</b>으로 표시된 항목을 확인해 주세요.</span></div>' : '<div style="margin-bottom:.8rem"></div>')+
     '<table style="width:100%;border-collapse:collapse;font-size:.8rem">'+
     '<thead><tr>'+
       '<th style="text-align:left;color:var(--muted);padding:.4rem .3rem;border-bottom:1px solid var(--border)">날짜</th>'+
@@ -4991,9 +5014,11 @@ function renderExcelPreview(detectedHeaders) {
       var clr = catColors[r.cat]||'var(--muted)';
       var catOpts = ['식료품','식비(외식)','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
       var isIncome = r.amount < 0;
-      var amtClr = isIncome ? 'var(--success)' : 'var(--danger)';
+      var isOffset = offsetIdx.has(i);
+      var amtClr = isOffset ? '#f59e0b' : (isIncome ? 'var(--success)' : 'var(--danger)');
       var amtTxt = (isIncome ? '+' : '-') + fmtMoney(Math.abs(r.amount));
-      return '<tr>'+
+      var rowBg = isOffset ? 'background:rgba(245,158,11,.06)' : '';
+      return '<tr style="'+rowBg+'">'+
         '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4);color:var(--muted);font-family:JetBrains Mono,monospace;font-size:.75rem">'+r.date+'</td>'+
         '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+r.desc.replace(/"/g,'&quot;')+'">'+r.desc+'</td>'+
         '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4)">'+
@@ -5001,7 +5026,9 @@ function renderExcelPreview(detectedHeaders) {
           catOpts.map(function(o){return '<option value="'+o+'"'+(o===r.cat?' selected':'')+'>'+o+'</option>';}).join('')+
           '</select>'+
         '</td>'+
-        '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4);text-align:right;font-family:JetBrains Mono,monospace;color:'+amtClr+'">'+amtTxt+'</td>'+
+        '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4);text-align:right;font-family:JetBrains Mono,monospace;color:'+amtClr+';font-weight:'+(isOffset?'700':'400')+'">'+
+          amtTxt+(isOffset?' <span title="출금/입금 상계 가능" style="font-size:.7rem">⚠️</span>':'')+
+        '</td>'+
         '<td style="padding:.35rem .3rem;border-bottom:1px solid rgba(42,48,72,.4)">'+
           '<button onclick="removePreviewRow('+i+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.85rem;padding:.1rem .3rem" title="제거">✕</button>'+
         '</td>'+
