@@ -761,8 +761,8 @@ tr:hover td{background:rgba(108,138,255,.03)}
       </div>
       <!-- 소유자 -->
       <div style="display:flex;gap:.4rem;margin-bottom:.6rem">
-        <button class="btn btn-primary" id="port-owner-윤식" onclick="setPortOwner('윤식')" style="flex:1;font-size:.8rem;padding:.35rem .3rem">👨 윤식</button>
-        <button class="btn btn-ghost"   id="port-owner-유진" onclick="setPortOwner('유진')" style="flex:1;font-size:.8rem;padding:.35rem .3rem">👩 유진</button>
+        <button class="btn btn-primary" id="port-owner-윤식" onclick="setPortOwner('윤식')" style="flex:1;font-size:.8rem;padding:.35rem .3rem">👨 윤식계좌</button>
+        <button class="btn btn-ghost"   id="port-owner-유진" onclick="setPortOwner('유진')" style="flex:1;font-size:.8rem;padding:.35rem .3rem">👩 유진계좌</button>
       </div>
       <!-- 자산 유형 -->
       <div style="display:flex;gap:.4rem;margin-bottom:.8rem;flex-wrap:wrap">
@@ -5633,8 +5633,8 @@ function renderPortHoldings(){
     var pStr=profit!=null?(profit>=0?'+':'')+'₩'+Math.round(profit).toLocaleString():'–';
     var rStr=roi!=null?(roi>=0?'+':'')+roi.toFixed(2)+'%':'–';
     var typeTag={'US':'🇺🇸','KR':'🇰🇷','GOLD':'🥇','PENSION':'🛡️','CRYPTO':'💰'}[h.type]||h.type;
-    var ownerTag=h.owner==='유진'?'<span style="font-size:.63rem;background:rgba(244,114,182,.18);color:#f472b6;border-radius:3px;padding:.05rem .3rem;margin-left:.25rem">👩유진</span>':
-                 h.owner==='윤식'?'<span style="font-size:.63rem;background:rgba(108,138,255,.18);color:var(--accent);border-radius:3px;padding:.05rem .3rem;margin-left:.25rem">👨윤식</span>':'';
+    var ownerTag=h.owner==='유진'?'<span style="font-size:.63rem;background:rgba(244,114,182,.18);color:#f472b6;border-radius:3px;padding:.05rem .3rem;margin-left:.25rem">👩유진계좌</span>':
+                 '<span style="font-size:.63rem;background:rgba(108,138,255,.18);color:var(--accent);border-radius:3px;padding:.05rem .3rem;margin-left:.25rem">👨윤식계좌</span>';
     var buyOpen=!!_portBuyOpen[h.id];
     var buyBtnLabel=h.isDirect?'✏️수정':(buyOpen?'✕':'＋추가매수');
     var buyForm='';
@@ -5760,6 +5760,11 @@ async function initPortfolio(){
   _portUsdKrw=S.get('port_usdkrw')||1380;
   var uEl=document.getElementById('port-usdkrw');
   if(uEl) uEl.textContent=_portUsdKrw.toLocaleString();
+  // 기존 owner 없는 종목 → 윤식 계좌로 마이그레이션
+  var holdings=S.get('portfolio_holdings')||[];
+  var migrated=false;
+  holdings.forEach(function(h){ if(!h.owner){ h.owner='윤식'; migrated=true; } });
+  if(migrated) S.set('portfolio_holdings',holdings);
   setPortOwner('윤식');
   setPortType('US');
   renderPortHoldings();
