@@ -759,37 +759,61 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div class="sec-title" style="margin:0">➕ 종목 추가</div>
         <div style="font-size:.72rem;color:var(--muted)">USD/KRW <span id="port-usdkrw" style="font-family:JetBrains Mono,monospace;color:var(--accent4)">–</span></div>
       </div>
-      <div style="display:flex;gap:.4rem;margin-bottom:.8rem">
-        <button class="btn btn-primary" id="port-type-US"     onclick="setPortType('US')"    style="flex:1;font-size:.78rem;padding:.4rem .3rem">🇺🇸 미국</button>
-        <button class="btn btn-ghost"   id="port-type-KR"     onclick="setPortType('KR')"    style="flex:1;font-size:.78rem;padding:.4rem .3rem">🇰🇷 국내</button>
-        <button class="btn btn-ghost"   id="port-type-GOLD"   onclick="setPortType('GOLD')"  style="flex:1;font-size:.78rem;padding:.4rem .3rem">🥇 금</button>
-        <button class="btn btn-ghost"   id="port-type-CRYPTO" onclick="setPortType('CRYPTO')" style="flex:1;font-size:.78rem;padding:.4rem .3rem">💰 코인</button>
+      <!-- 소유자 -->
+      <div style="display:flex;gap:.4rem;margin-bottom:.6rem">
+        <button class="btn btn-primary" id="port-owner-윤식" onclick="setPortOwner('윤식')" style="flex:1;font-size:.8rem;padding:.35rem .3rem">👨 윤식</button>
+        <button class="btn btn-ghost"   id="port-owner-유진" onclick="setPortOwner('유진')" style="flex:1;font-size:.8rem;padding:.35rem .3rem">👩 유진</button>
       </div>
-      <div style="position:relative;margin-bottom:.6rem">
-        <input id="port-search" type="text" class="input" placeholder="티커 또는 종목명 검색 (예: AAPL, 삼성전자)"
-          oninput="onPortSearch(this.value)" onkeydown="if(event.key==='Enter')onPortSearch(this.value,true)"
-          style="width:100%;box-sizing:border-box"/>
-        <div id="port-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:200;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.3)"></div>
+      <!-- 자산 유형 -->
+      <div style="display:flex;gap:.4rem;margin-bottom:.8rem;flex-wrap:wrap">
+        <button class="btn btn-ghost" id="port-type-US"      onclick="setPortType('US')"      style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🇺🇸 미국</button>
+        <button class="btn btn-ghost" id="port-type-KR"      onclick="setPortType('KR')"      style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🇰🇷 국내</button>
+        <button class="btn btn-ghost" id="port-type-CRYPTO"  onclick="setPortType('CRYPTO')"  style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">💰 코인</button>
+        <button class="btn btn-ghost" id="port-type-GOLD"    onclick="setPortType('GOLD')"    style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🥇 금</button>
+        <button class="btn btn-ghost" id="port-type-PENSION" onclick="setPortType('PENSION')" style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🛡️ 연금</button>
       </div>
-      <div id="port-selected-ticker" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.55rem .8rem;margin-bottom:.6rem;display:none;justify-content:space-between;align-items:center">
-        <div>
-          <span id="port-sel-name" style="font-weight:600;color:var(--text);font-size:.88rem"></span>
-          <span id="port-sel-ticker" style="color:var(--muted);margin-left:.4rem;font-family:JetBrains Mono,monospace;font-size:.75rem"></span>
-        </div>
-        <span id="port-sel-price" style="color:var(--accent4);font-family:JetBrains Mono,monospace;font-size:.88rem"></span>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.7rem">
-        <div>
-          <label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">보유 수량</label>
-          <input id="port-qty" type="number" class="input" placeholder="0" min="0" step="any" style="width:100%;box-sizing:border-box"/>
-        </div>
-        <div>
-          <label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">투자 원금 (₩)</label>
-          <input id="port-invested-input" type="text" class="input" placeholder="0"
-            oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')"
+
+      <!-- 검색 폼 (US/KR/CRYPTO) -->
+      <div id="port-form-search">
+        <div style="position:relative;margin-bottom:.6rem">
+          <input id="port-search" type="text" class="input" placeholder="티커 또는 종목명 검색"
+            oninput="onPortSearch(this.value)" onkeydown="if(event.key==='Enter')onPortSearch(this.value,true)"
             style="width:100%;box-sizing:border-box"/>
+          <div id="port-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:200;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.3)"></div>
+        </div>
+        <div id="port-selected-ticker" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .8rem;margin-bottom:.6rem;justify-content:space-between;align-items:center">
+          <div><span id="port-sel-name" style="font-weight:600;color:var(--text);font-size:.87rem"></span>
+            <span id="port-sel-ticker" style="color:var(--muted);margin-left:.35rem;font-family:JetBrains Mono,monospace;font-size:.74rem"></span></div>
+          <span id="port-sel-price" style="color:var(--accent4);font-family:JetBrains Mono,monospace;font-size:.87rem"></span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.7rem">
+          <div><label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">보유 수량</label>
+            <input id="port-qty" type="number" class="input" placeholder="0" min="0" step="any" style="width:100%;box-sizing:border-box"/></div>
+          <div><label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">투자 원금 (₩)</label>
+            <input id="port-invested-input" type="text" class="input" placeholder="0"
+              oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')"
+              style="width:100%;box-sizing:border-box"/></div>
         </div>
       </div>
+
+      <!-- 직접입력 폼 (GOLD/PENSION) -->
+      <div id="port-form-direct" style="display:none">
+        <div style="margin-bottom:.6rem">
+          <label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">자산명</label>
+          <input id="port-direct-name" type="text" class="input" placeholder="예: 금 현물, 퇴직연금 IRP" style="width:100%;box-sizing:border-box"/>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.7rem">
+          <div><label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">현재 평가금액 (₩)</label>
+            <input id="port-direct-value" type="text" class="input" placeholder="0"
+              oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')"
+              style="width:100%;box-sizing:border-box"/></div>
+          <div><label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">투자 원금 (₩)</label>
+            <input id="port-direct-invested" type="text" class="input" placeholder="0"
+              oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')"
+              style="width:100%;box-sizing:border-box"/></div>
+        </div>
+      </div>
+
       <button class="btn btn-primary" style="width:100%;font-size:.9rem" onclick="addPortHolding()">추가하기</button>
     </div>
 
@@ -5274,29 +5298,38 @@ function deleteJournal(id){
 }
 
 // ── 포트폴리오 관리 ──
-var _portType='US', _portSelTicker=null, _portPrices={}, _portUsdKrw=1380, _portSearchTimer=null;
+var _portType='US', _portOwner='윤식', _portSelTicker=null, _portPrices={}, _portUsdKrw=1380, _portSearchTimer=null;
+var _portDirectTypes={'GOLD':true,'PENSION':true};
+
+function setPortOwner(o){
+  _portOwner=o;
+  ['윤식','유진'].forEach(function(x){
+    var b=document.getElementById('port-owner-'+x);
+    if(b) b.className='btn '+(x===o?'btn-primary':'btn-ghost');
+  });
+}
 
 function setPortType(t){
   _portType=t;
-  ['US','KR','GOLD','CRYPTO'].forEach(function(x){
+  ['US','KR','CRYPTO','GOLD','PENSION'].forEach(function(x){
     var b=document.getElementById('port-type-'+x);
     if(b) b.className='btn '+(x===t?'btn-primary':'btn-ghost');
   });
-  var ph={
-    'US':'티커 또는 종목명 (예: AAPL, 애플, NVDA)',
-    'KR':'티커 또는 종목명 (예: 005930, 삼성전자)',
-    'GOLD':'금 상품 검색 (예: ACE KRX금현물, KODEX 골드)',
-    'CRYPTO':'코인명 (예: bitcoin, ethereum)',
-  };
-  var si=document.getElementById('port-search');
-  if(si) si.placeholder=ph[t]||'검색';
-  _portSelTicker=null;
-  var sd=document.getElementById('port-selected-ticker');
-  if(sd) sd.style.display='none';
-  // 금 타입 선택 시 자동으로 "금현물" 검색
-  if(t==='GOLD'){
-    _portType='KR';
-    if(si){ si.value='금현물'; doPortSearch('금현물'); }
+  var isDirect=!!_portDirectTypes[t];
+  var fs=document.getElementById('port-form-search');
+  var fd=document.getElementById('port-form-direct');
+  if(fs) fs.style.display=isDirect?'none':'block';
+  if(fd) fd.style.display=isDirect?'block':'none';
+  if(isDirect){
+    var dn=document.getElementById('port-direct-name');
+    if(dn) dn.value=t==='GOLD'?'금 현물':t==='PENSION'?'퇴직연금':'';
+  } else {
+    var ph={'US':'티커 또는 종목명 (예: AAPL, 애플, NVDA)','KR':'티커 또는 종목명 (예: 005930, 삼성전자)','CRYPTO':'코인명 (예: bitcoin, ethereum)'};
+    var si=document.getElementById('port-search');
+    if(si){si.placeholder=ph[t]||'검색'; si.value='';}
+    _portSelTicker=null;
+    var sd=document.getElementById('port-selected-ticker');
+    if(sd) sd.style.display='none';
   }
 }
 
@@ -5380,6 +5413,7 @@ async function fetchPortUsdKrw(){
 }
 
 function portValueKRW(holding){
+  if(holding.isDirect) return holding.currentKRW||holding.investedKRW||0;
   var pd=_portPrices[holding.ticker];
   if(!pd||!pd.price) return null;
   var raw=holding.qty*pd.price;
@@ -5387,26 +5421,42 @@ function portValueKRW(holding){
 }
 
 function addPortHolding(){
-  if(!_portSelTicker){alert('종목을 검색하여 선택해주세요.');return;}
-  var qty=parseFloat(document.getElementById('port-qty').value);
-  var inv=parseInt((document.getElementById('port-invested-input').value||'').replace(/,/g,''));
-  if(!qty||qty<=0){alert('보유 수량을 입력해주세요.');return;}
-  if(!inv||inv<=0){alert('투자 원금(₩)을 입력해주세요.');return;}
   var holdings=S.get('portfolio_holdings')||[];
-  var ex=holdings.find(function(h){return h.ticker===_portSelTicker.ticker;});
-  if(ex){
-    if(!confirm('"'+ex.name+'" 이(가) 이미 있습니다. 수량과 원금을 추가할까요?')) return;
-    ex.qty=parseFloat((ex.qty+qty).toFixed(8));
-    ex.investedKRW=(ex.investedKRW||0)+inv;
-  }else{
-    holdings.push({id:Date.now(),ticker:_portSelTicker.ticker,name:_portSelTicker.name,type:_portSelTicker.type||_portType,qty:qty,investedKRW:inv,addedAt:today()});
+  var isDirect=!!_portDirectTypes[_portType];
+  if(isDirect){
+    var name=(document.getElementById('port-direct-name').value||'').trim();
+    var curVal=parseInt((document.getElementById('port-direct-value').value||'').replace(/,/g,''));
+    var inv2=parseInt((document.getElementById('port-direct-invested').value||'').replace(/,/g,''));
+    if(!name){alert('자산명을 입력해주세요.');return;}
+    if(!curVal||curVal<=0){alert('현재 평가금액을 입력해주세요.');return;}
+    if(!inv2||inv2<=0){alert('투자 원금을 입력해주세요.');return;}
+    var ticker='DIRECT_'+_portType+'_'+_portOwner+'_'+Date.now();
+    holdings.push({id:Date.now(),ticker:ticker,name:name,type:_portType,owner:_portOwner,isDirect:true,currentKRW:curVal,investedKRW:inv2,addedAt:today()});
+    S.set('portfolio_holdings',holdings);
+    document.getElementById('port-direct-name').value='';
+    document.getElementById('port-direct-value').value='';
+    document.getElementById('port-direct-invested').value='';
+  } else {
+    if(!_portSelTicker){alert('종목을 검색하여 선택해주세요.');return;}
+    var qty=parseFloat(document.getElementById('port-qty').value);
+    var inv=parseInt((document.getElementById('port-invested-input').value||'').replace(/,/g,''));
+    if(!qty||qty<=0){alert('보유 수량을 입력해주세요.');return;}
+    if(!inv||inv<=0){alert('투자 원금(₩)을 입력해주세요.');return;}
+    var ex=holdings.find(function(h){return h.ticker===_portSelTicker.ticker&&h.owner===_portOwner;});
+    if(ex){
+      if(!confirm('"'+ex.name+'" 이(가) 이미 있습니다. 수량과 원금을 추가할까요?')) return;
+      ex.qty=parseFloat((ex.qty+qty).toFixed(8));
+      ex.investedKRW=(ex.investedKRW||0)+inv;
+    }else{
+      holdings.push({id:Date.now(),ticker:_portSelTicker.ticker,name:_portSelTicker.name,type:_portSelTicker.type||_portType,owner:_portOwner,qty:qty,investedKRW:inv,addedAt:today()});
+    }
+    S.set('portfolio_holdings',holdings);
+    _portSelTicker=null;
+    document.getElementById('port-search').value='';
+    document.getElementById('port-qty').value='';
+    document.getElementById('port-invested-input').value='';
+    var sd=document.getElementById('port-selected-ticker'); if(sd) sd.style.display='none';
   }
-  S.set('portfolio_holdings',holdings);
-  _portSelTicker=null;
-  document.getElementById('port-search').value='';
-  document.getElementById('port-qty').value='';
-  document.getElementById('port-invested-input').value='';
-  var sd=document.getElementById('port-selected-ticker'); if(sd) sd.style.display='none';
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
 }
 
@@ -5465,15 +5515,24 @@ function confirmPortBuy(id){
   var qEl=document.getElementById('port-buy-qty-'+id);
   var iEl=document.getElementById('port-buy-inv-'+id);
   if(!qEl||!iEl) return;
-  var qty=parseFloat(qEl.value);
-  var inv=parseInt((iEl.value||'').replace(/,/g,''));
-  if(!qty||qty<=0){alert('수량을 입력해주세요.');return;}
-  if(!inv||inv<=0){alert('추가 원금을 입력해주세요.');return;}
   var holdings=S.get('portfolio_holdings')||[];
   var h=holdings.find(function(x){return x.id===id;});
   if(!h) return;
-  h.qty=parseFloat((h.qty+qty).toFixed(8));
-  h.investedKRW=(h.investedKRW||0)+inv;
+  if(h.isDirect){
+    var curVal=parseInt((qEl.value||'').replace(/,/g,''));
+    var inv=parseInt((iEl.value||'').replace(/,/g,''));
+    if(!curVal||curVal<=0){alert('평가금액을 입력해주세요.');return;}
+    if(!inv||inv<=0){alert('원금을 입력해주세요.');return;}
+    h.currentKRW=curVal;
+    h.investedKRW=inv;
+  } else {
+    var qty=parseFloat(qEl.value);
+    var inv2=parseInt((iEl.value||'').replace(/,/g,''));
+    if(!qty||qty<=0){alert('수량을 입력해주세요.');return;}
+    if(!inv2||inv2<=0){alert('추가 원금을 입력해주세요.');return;}
+    h.qty=parseFloat((h.qty+qty).toFixed(8));
+    h.investedKRW=(h.investedKRW||0)+inv2;
+  }
   S.set('portfolio_holdings',holdings);
   delete _portBuyOpen[id];
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
@@ -5499,33 +5558,58 @@ function renderPortHoldings(){
     var valStr=vKRW!=null?'₩'+vKRW.toLocaleString():'–';
     var pStr=profit!=null?(profit>=0?'+':'')+'₩'+Math.round(profit).toLocaleString():'–';
     var rStr=roi!=null?(roi>=0?'+':'')+roi.toFixed(2)+'%':'–';
-    var typeTag={'US':'🇺🇸','KR':'🇰🇷','GOLD':'🥇','CRYPTO':'💰'}[h.type]||h.type;
+    var typeTag={'US':'🇺🇸','KR':'🇰🇷','GOLD':'🥇','PENSION':'🛡️','CRYPTO':'💰'}[h.type]||h.type;
+    var ownerTag=h.owner==='유진'?'<span style="font-size:.63rem;background:rgba(244,114,182,.18);color:#f472b6;border-radius:3px;padding:.05rem .3rem;margin-left:.25rem">👩유진</span>':
+                 h.owner==='윤식'?'<span style="font-size:.63rem;background:rgba(108,138,255,.18);color:var(--accent);border-radius:3px;padding:.05rem .3rem;margin-left:.25rem">👨윤식</span>':'';
     var buyOpen=!!_portBuyOpen[h.id];
-    var buyForm=buyOpen?
-      '<div style="margin-top:.45rem;padding:.5rem .6rem;background:var(--surface2);border-radius:7px;display:grid;grid-template-columns:1fr 1fr auto;gap:.35rem;align-items:end">'+
-        '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">추가 수량</div>'+
-          '<input id="port-buy-qty-'+h.id+'" type="number" class="input" placeholder="0" min="0" step="any" style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
-        '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">추가 원금(₩)</div>'+
-          '<input id="port-buy-inv-'+h.id+'" type="text" class="input" placeholder="0" '+
-          'oninput="this.value=this.value.replace(/[^0-9]/g,\'\').replace(/\\B(?=(\\d{3})+(?!\\d))/g,\',\')" '+
-          'style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
-        '<button class="btn btn-primary" onclick="confirmPortBuy('+h.id+')" style="font-size:.75rem;padding:.28rem .55rem">확인</button>'+
-      '</div>':'';
+    var buyBtnLabel=h.isDirect?'✏️수정':(buyOpen?'✕':'＋추가매수');
+    var buyForm='';
+    if(buyOpen){
+      if(h.isDirect){
+        buyForm='<div style="margin-top:.45rem;padding:.5rem .6rem;background:var(--surface2);border-radius:7px;display:grid;grid-template-columns:1fr 1fr auto;gap:.35rem;align-items:end">'+
+          '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">현재 평가금액(₩)</div>'+
+            '<input id="port-buy-qty-'+h.id+'" type="text" class="input" placeholder="0" '+
+            'value="'+Math.round(h.currentKRW||0).toLocaleString()+'" '+
+            'oninput="this.value=this.value.replace(/[^0-9]/g,\'\').replace(/\\B(?=(\\d{3})+(?!\\d))/g,\',\')" '+
+            'style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
+          '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">투자 원금(₩)</div>'+
+            '<input id="port-buy-inv-'+h.id+'" type="text" class="input" placeholder="0" '+
+            'value="'+Math.round(h.investedKRW||0).toLocaleString()+'" '+
+            'oninput="this.value=this.value.replace(/[^0-9]/g,\'\').replace(/\\B(?=(\\d{3})+(?!\\d))/g,\',\')" '+
+            'style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
+          '<button class="btn btn-primary" onclick="confirmPortBuy('+h.id+')" style="font-size:.75rem;padding:.28rem .55rem">저장</button>'+
+        '</div>';
+      } else {
+        buyForm='<div style="margin-top:.45rem;padding:.5rem .6rem;background:var(--surface2);border-radius:7px;display:grid;grid-template-columns:1fr 1fr auto;gap:.35rem;align-items:end">'+
+          '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">추가 수량</div>'+
+            '<input id="port-buy-qty-'+h.id+'" type="number" class="input" placeholder="0" min="0" step="any" style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
+          '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">추가 원금(₩)</div>'+
+            '<input id="port-buy-inv-'+h.id+'" type="text" class="input" placeholder="0" '+
+            'oninput="this.value=this.value.replace(/[^0-9]/g,\'\').replace(/\\B(?=(\\d{3})+(?!\\d))/g,\',\')" '+
+            'style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
+          '<button class="btn btn-primary" onclick="confirmPortBuy('+h.id+')" style="font-size:.75rem;padding:.28rem .55rem">확인</button>'+
+        '</div>';
+      }
+    }
+    var infoRow=h.isDirect?
+      '<span style="color:var(--muted)">직접입력</span>'+
+      '<span style="color:var(--muted)">원금 <b style="font-family:JetBrains Mono,monospace;color:var(--text)">₩'+Math.round(h.investedKRW||0).toLocaleString()+'</b></span>':
+      '<span style="color:var(--muted)">현재가 <b style="font-family:JetBrains Mono,monospace;color:var(--text)">'+priceStr+'</b>'+(chStr?'<span style="color:'+(pd&&pd.changeP>=0?'var(--success)':'var(--danger)')+';font-size:.68rem"> '+chStr+'</span>':'')+'</span>'+
+      '<span style="color:var(--muted)">'+h.qty+'주 · ₩'+Math.round(h.investedKRW||0).toLocaleString()+'</span>';
     return '<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid '+(pos?'var(--success)':'var(--danger)')+';border-radius:9px;padding:.5rem .75rem;margin-bottom:.35rem">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem">'+
         '<div style="min-width:0;flex:1;overflow:hidden">'+
           '<span style="font-weight:700;color:var(--text);font-size:.84rem">'+pEsc(h.name)+'</span>'+
-          '<span style="font-size:.67rem;color:var(--muted);margin-left:.28rem;font-family:JetBrains Mono,monospace">'+pEsc(h.ticker)+'</span>'+
           '<span style="font-size:.63rem;margin-left:.2rem">'+typeTag+'</span>'+
+          ownerTag+
         '</div>'+
         '<div style="display:flex;gap:.25rem;align-items:center;flex-shrink:0">'+
-          '<button onclick="togglePortBuy('+h.id+')" style="background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--accent);font-size:.67rem;padding:.1rem .38rem;line-height:1.4">'+(buyOpen?'✕':'＋추가매수')+'</button>'+
+          '<button onclick="togglePortBuy('+h.id+')" style="background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--accent);font-size:.67rem;padding:.1rem .38rem;line-height:1.4">'+(buyOpen?'✕':buyBtnLabel)+'</button>'+
           '<button onclick="deletePortHolding('+h.id+')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:.82rem;padding:0;line-height:1">✕</button>'+
         '</div>'+
       '</div>'+
       '<div style="display:flex;flex-wrap:wrap;gap:.4rem .8rem;margin-top:.25rem;font-size:.75rem;align-items:baseline">'+
-        '<span style="color:var(--muted)">현재가 <b style="font-family:JetBrains Mono,monospace;color:var(--text);font-weight:600">'+priceStr+'</b>'+(chStr?'<span style="color:'+(pd&&pd.changeP>=0?'var(--success)':'var(--danger)')+';font-size:.68rem"> '+chStr+'</span>':'')+'</span>'+
-        '<span style="color:var(--muted)">'+h.qty+'주 · ₩'+Math.round(h.investedKRW||0).toLocaleString()+'</span>'+
+        infoRow+
         '<span style="font-family:JetBrains Mono,monospace;color:var(--accent4);font-weight:600">'+valStr+'</span>'+
         '<span style="color:'+pclr+'">'+pStr+' ('+rStr+')</span>'+
       '</div>'+
@@ -5602,6 +5686,7 @@ async function initPortfolio(){
   _portUsdKrw=S.get('port_usdkrw')||1380;
   var uEl=document.getElementById('port-usdkrw');
   if(uEl) uEl.textContent=_portUsdKrw.toLocaleString();
+  setPortOwner('윤식');
   setPortType('US');
   renderPortHoldings();
   renderPortSummary();
