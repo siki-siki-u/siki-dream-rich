@@ -760,8 +760,9 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div style="font-size:.72rem;color:var(--muted)">USD/KRW <span id="port-usdkrw" style="font-family:JetBrains Mono,monospace;color:var(--accent4)">–</span></div>
       </div>
       <div style="display:flex;gap:.4rem;margin-bottom:.8rem">
-        <button class="btn btn-primary" id="port-type-US" onclick="setPortType('US')" style="flex:1;font-size:.78rem;padding:.4rem .3rem">🇺🇸 미국</button>
-        <button class="btn btn-ghost"   id="port-type-KR" onclick="setPortType('KR')" style="flex:1;font-size:.78rem;padding:.4rem .3rem">🇰🇷 국내</button>
+        <button class="btn btn-primary" id="port-type-US"     onclick="setPortType('US')"    style="flex:1;font-size:.78rem;padding:.4rem .3rem">🇺🇸 미국</button>
+        <button class="btn btn-ghost"   id="port-type-KR"     onclick="setPortType('KR')"    style="flex:1;font-size:.78rem;padding:.4rem .3rem">🇰🇷 국내</button>
+        <button class="btn btn-ghost"   id="port-type-GOLD"   onclick="setPortType('GOLD')"  style="flex:1;font-size:.78rem;padding:.4rem .3rem">🥇 금</button>
         <button class="btn btn-ghost"   id="port-type-CRYPTO" onclick="setPortType('CRYPTO')" style="flex:1;font-size:.78rem;padding:.4rem .3rem">💰 코인</button>
       </div>
       <div style="position:relative;margin-bottom:.6rem">
@@ -5277,16 +5278,26 @@ var _portType='US', _portSelTicker=null, _portPrices={}, _portUsdKrw=1380, _port
 
 function setPortType(t){
   _portType=t;
-  ['US','KR','CRYPTO'].forEach(function(x){
+  ['US','KR','GOLD','CRYPTO'].forEach(function(x){
     var b=document.getElementById('port-type-'+x);
     if(b) b.className='btn '+(x===t?'btn-primary':'btn-ghost');
   });
-  var ph={'US':'티커 또는 종목명 (예: AAPL, 애플, NVDA)','KR':'티커 또는 종목명 (예: 005930, 삼성전자)','CRYPTO':'코인명 (예: bitcoin, ethereum)'};
+  var ph={
+    'US':'티커 또는 종목명 (예: AAPL, 애플, NVDA)',
+    'KR':'티커 또는 종목명 (예: 005930, 삼성전자)',
+    'GOLD':'금 상품 검색 (예: ACE KRX금현물, KODEX 골드)',
+    'CRYPTO':'코인명 (예: bitcoin, ethereum)',
+  };
   var si=document.getElementById('port-search');
   if(si) si.placeholder=ph[t]||'검색';
   _portSelTicker=null;
   var sd=document.getElementById('port-selected-ticker');
   if(sd) sd.style.display='none';
+  // 금 타입 선택 시 자동으로 "금현물" 검색
+  if(t==='GOLD'){
+    _portType='KR';
+    if(si){ si.value='금현물'; doPortSearch('금현물'); }
+  }
 }
 
 function onPortSearch(q,force){
@@ -5465,7 +5476,7 @@ function renderPortHoldings(){
     var valStr=vKRW!=null?'₩'+vKRW.toLocaleString():'–';
     var pStr=profit!=null?(profit>=0?'+':'')+'₩'+Math.round(profit).toLocaleString():'–';
     var rStr=roi!=null?(roi>=0?'+':'')+roi.toFixed(2)+'%':'–';
-    var typeTag={'US':'🇺🇸','KR':'🇰🇷','CRYPTO':'💰'}[h.type]||h.type;
+    var typeTag={'US':'🇺🇸','KR':'🇰🇷','GOLD':'🥇','CRYPTO':'💰'}[h.type]||h.type;
     return '<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid '+(pos?'var(--success)':'var(--danger)')+';border-radius:10px;padding:.8rem 1rem;margin-bottom:.5rem">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">'+
         '<div><span style="font-weight:700;color:var(--text);font-size:.9rem">'+pEsc(h.name)+'</span>'+
