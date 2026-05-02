@@ -786,14 +786,33 @@ tr:hover td{background:rgba(108,138,255,.03)}
             <span id="port-sel-ticker" style="color:var(--muted);margin-left:.35rem;font-family:JetBrains Mono,monospace;font-size:.74rem"></span></div>
           <span id="port-sel-price" style="color:var(--accent4);font-family:JetBrains Mono,monospace;font-size:.87rem"></span>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.7rem">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.4rem">
           <div><label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">보유 수량</label>
             <input id="port-qty" type="number" class="input" placeholder="0" min="0" step="any" style="width:100%;box-sizing:border-box"/></div>
-          <div><label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">투자 원금 (₩)</label>
+          <div>
+            <label style="font-size:.73rem;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:.2rem">
+              <span>투자 원금 (₩)</span>
+              <span onclick="togglePortReverse('search')" style="cursor:pointer;color:var(--accent);font-size:.7rem" id="port-rev-toggle-search">🔢 역산</span>
+            </label>
             <input id="port-invested-input" type="text" class="input" placeholder="0"
               oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')"
-              style="width:100%;box-sizing:border-box"/></div>
+              style="width:100%;box-sizing:border-box"/>
+          </div>
         </div>
+        <div id="port-reverse-search" style="display:none;background:var(--surface2);border-radius:8px;padding:.55rem .65rem;margin-bottom:.5rem">
+          <div style="font-size:.7rem;color:var(--muted);margin-bottom:.4rem">원금 역산 &nbsp;·&nbsp; 원금 = 평가금액 ÷ (1 + 수익률%)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.35rem;align-items:end">
+            <div><div style="font-size:.68rem;color:var(--muted);margin-bottom:.1rem">평가금액 (₩)</div>
+              <input id="port-rev-value-search" type="text" class="input" placeholder="자동 또는 직접 입력"
+                oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')"
+                style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>
+            <div><div style="font-size:.68rem;color:var(--muted);margin-bottom:.1rem">수익률 (%)</div>
+              <input id="port-rev-roi-search" type="number" class="input" placeholder="예: 5.3" step="0.01"
+                style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>
+            <button class="btn btn-primary" onclick="calcPortReverse('search')" style="font-size:.75rem;padding:.28rem .55rem">계산</button>
+          </div>
+        </div>
+        <div style="margin-bottom:.3rem"></div>
       </div>
 
       <!-- 직접입력 폼 (GOLD/PENSION) -->
@@ -802,16 +821,31 @@ tr:hover td{background:rgba(108,138,255,.03)}
           <label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">자산명</label>
           <input id="port-direct-name" type="text" class="input" placeholder="예: 금 현물, 퇴직연금 IRP" style="width:100%;box-sizing:border-box"/>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.7rem">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.4rem">
           <div><label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">현재 평가금액 (₩)</label>
             <input id="port-direct-value" type="text" class="input" placeholder="0"
               oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')"
               style="width:100%;box-sizing:border-box"/></div>
-          <div><label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">투자 원금 (₩)</label>
+          <div>
+            <label style="font-size:.73rem;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:.2rem">
+              <span>투자 원금 (₩)</span>
+              <span onclick="togglePortReverse('direct')" style="cursor:pointer;color:var(--accent);font-size:.7rem">🔢 역산</span>
+            </label>
             <input id="port-direct-invested" type="text" class="input" placeholder="0"
               oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')"
-              style="width:100%;box-sizing:border-box"/></div>
+              style="width:100%;box-sizing:border-box"/>
+          </div>
         </div>
+        <div id="port-reverse-direct" style="display:none;background:var(--surface2);border-radius:8px;padding:.55rem .65rem;margin-bottom:.5rem">
+          <div style="font-size:.7rem;color:var(--muted);margin-bottom:.4rem">원금 역산 &nbsp;·&nbsp; 위 평가금액 자동 참조</div>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:.35rem;align-items:end">
+            <div><div style="font-size:.68rem;color:var(--muted);margin-bottom:.1rem">수익률 (%)</div>
+              <input id="port-rev-roi-direct" type="number" class="input" placeholder="예: 3.5" step="0.01"
+                style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>
+            <button class="btn btn-primary" onclick="calcPortReverse('direct')" style="font-size:.75rem;padding:.28rem .55rem">계산</button>
+          </div>
+        </div>
+        <div style="margin-bottom:.3rem"></div>
       </div>
 
       <button class="btn btn-primary" style="width:100%;font-size:.9rem" onclick="addPortHolding()">추가하기</button>
@@ -5364,6 +5398,45 @@ async function doPortSearch(q){
 }
 
 function pEsc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+
+function togglePortReverse(form){
+  var el=document.getElementById('port-reverse-'+form);
+  if(!el) return;
+  var open=el.style.display==='none'||!el.style.display;
+  el.style.display=open?'block':'none';
+  // 검색폼: 종목 선택돼 있으면 평가금액 자동계산
+  if(open&&form==='search'&&_portSelTicker){
+    var pd=_portPrices[_portSelTicker.ticker];
+    var qty=parseFloat(document.getElementById('port-qty').value)||0;
+    if(pd&&qty>0){
+      var vKRW=Math.round(pd.currency==='USD'?qty*pd.price*_portUsdKrw:qty*pd.price);
+      var vEl=document.getElementById('port-rev-value-search');
+      if(vEl) vEl.value=vKRW.toLocaleString();
+    }
+  }
+}
+
+function calcPortReverse(form){
+  var roi,value,inv;
+  if(form==='direct'){
+    value=parseInt((document.getElementById('port-direct-value').value||'').replace(/,/g,''));
+    roi=parseFloat(document.getElementById('port-rev-roi-direct').value);
+    if(!value||value<=0){alert('먼저 평가금액을 입력해주세요.');return;}
+    if(isNaN(roi)){alert('수익률(%)을 입력해주세요.');return;}
+    inv=Math.round(value/(1+roi/100));
+    document.getElementById('port-direct-invested').value=inv.toLocaleString();
+  } else {
+    value=parseInt((document.getElementById('port-rev-value-search').value||'').replace(/,/g,''));
+    roi=parseFloat(document.getElementById('port-rev-roi-search').value);
+    if(!value||value<=0){alert('평가금액을 입력해주세요.');return;}
+    if(isNaN(roi)){alert('수익률(%)을 입력해주세요.');return;}
+    inv=Math.round(value/(1+roi/100));
+    document.getElementById('port-invested-input').value=inv.toLocaleString();
+  }
+  // 계산 결과 표시
+  var pct=((value-inv)/inv*100).toFixed(2);
+  alert('✅ 원금: ₩'+inv.toLocaleString()+'\n수익금: ₩'+(value-inv).toLocaleString()+' ('+pct+'%)');
+}
 
 async function selectPortTicker(ticker,name,type){
   _portSelTicker={ticker,name,type};
