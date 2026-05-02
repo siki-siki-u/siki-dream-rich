@@ -730,114 +730,84 @@ tr:hover td{background:rgba(108,138,255,.03)}
   <div class="page" id="page-assets">
     <div class="page-header">
       <h2>🏦 투자 자산현황</h2>
-      <p>캡처 업로드로 투자 자산 자동 기록 · AI 포트폴리오 분석</p>
+      <p>종목 검색 · 실시간 시세 · 수익률 자동 계산</p>
     </div>
-    <!-- 순자산 목표 달성 예측 위젯 -->
-    <div id="goal-widget" style="display:none;margin-bottom:1.5rem"></div>
 
-    <!-- 통계 -->
+    <!-- 요약 카드 4개 -->
     <div class="stats-row" style="grid-template-columns:repeat(2,1fr);margin-bottom:1.5rem">
       <div class="stat-card blue">
-        <div class="stat-label">투자 자산</div>
-        <div class="stat-value blue" id="a-invest">₩0</div>
-        <div id="a-invest-profit" style="font-size:.78rem;margin-top:.15rem;font-family:'JetBrains Mono',monospace;color:var(--muted)">–</div>
-        <div class="stat-sub" id="a-roi" style="font-size:.75rem;margin-top:.1rem">–</div>
+        <div class="stat-label">투자 원금</div>
+        <div class="stat-value blue" id="port-invested">₩0</div>
       </div>
       <div class="stat-card yellow">
-        <div class="stat-label">비상금 / 노후</div>
-        <div class="stat-value yellow" id="a-reserve">₩0</div>
-        <div id="a-reserve-profit" style="font-size:.78rem;margin-top:.15rem;font-family:'JetBrains Mono',monospace;color:var(--muted)">–</div>
-        <div class="stat-sub" id="a-reserve-roi" style="font-size:.75rem;margin-top:.1rem">–</div>
+        <div class="stat-label">평가 금액</div>
+        <div class="stat-value yellow" id="port-value">₩0</div>
       </div>
-    </div>
-    <!-- 총 자산 + 수익률 상세 -->
-    <div style="margin-bottom:1rem;padding:.85rem 1rem;background:var(--surface);border:1px solid var(--border);border-radius:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
-        <span style="font-size:.78rem;color:var(--muted)">💼 투자 총액 (평가금액)</span>
-        <div style="display:flex;gap:.4rem">
-          <button class="btn btn-ghost" style="font-size:.72rem;padding:.25rem .6rem" onclick="openManualAssetInput()">✏️ 수동 입력</button>
-          <button class="btn btn-ghost" style="font-size:.72rem;padding:.25rem .6rem;color:var(--danger)" onclick="clearAllAssetData()">🗑️</button>
-        </div>
+      <div class="stat-card" id="port-profit-card" style="border-top:3px solid var(--muted)">
+        <div class="stat-label">수익금</div>
+        <div class="stat-value" id="port-profit" style="color:var(--muted)">₩0</div>
       </div>
-      <div style="font-size:1.25rem;font-weight:700;color:var(--accent4);font-family:JetBrains Mono,monospace;margin-bottom:.4rem" id="a-total">₩0</div>
-      <div id="a-roi-detail" style="font-size:.8rem;display:flex;flex-wrap:wrap;gap:.6rem;color:var(--muted)">
-        <span>원금 <span id="a-principal-val" style="font-family:JetBrains Mono,monospace;color:var(--text)">–</span></span>
-        <span>수익금 <span id="a-profit-val" style="font-family:JetBrains Mono,monospace">–</span></span>
-        <span id="a-total-roi"></span>
+      <div class="stat-card" id="port-roi-card" style="border-top:3px solid var(--muted)">
+        <div class="stat-label">수익률</div>
+        <div class="stat-value" id="port-roi" style="color:var(--muted)">0.00%</div>
       </div>
     </div>
 
-    <!-- 최신 자산 현황 -->
-    <div class="grid2" style="align-items:start;margin-bottom:1.5rem">
-      <div class="card">
-        <div class="sec-title">📊 최신 자산 구성</div>
-        <div id="a-breakdown" style="display:flex;flex-direction:column;gap:.5rem;font-size:.85rem">
-          <div style="color:var(--muted);text-align:center;padding:2rem;font-size:.83rem">캡처를 업로드하면 자동으로 분석돼요</div>
-        </div>
-      </div>
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem">
-          <div class="sec-title" style="margin:0">📅 기록</div>
-          <select id="a-history-month" style="font-size:.78rem;padding:.2rem .5rem" onchange="renderAssetHistory()"></select>
-        </div>
-        <div id="a-history" style="max-height:320px;overflow-y:auto"></div>
-      </div>
-    </div>
-
-    <!-- 캡처 드롭박스 -->
-    <div class="card" style="margin-bottom:1.5rem">
-      <div class="sec-title">📸 투자 캡처 업로드</div>
-      <!-- 업로더 선택 -->
-      <div style="display:flex;gap:.5rem;margin-bottom:.8rem">
-        <button id="uploader-btn-yunsik" class="btn btn-primary" style="flex:1;font-size:.85rem" onclick="selectUploader('윤식')">👨 윤식</button>
-        <button id="uploader-btn-yujin" class="btn btn-ghost" style="flex:1;font-size:.85rem" onclick="selectUploader('유진')">👩 유진</button>
-      </div>
-      <div class="toss-drop" id="asset-drop-main"
-        ondragover="event.preventDefault();this.classList.add('drag-over')"
-        ondragleave="this.classList.remove('drag-over')"
-        ondrop="handleAssetDropMain(event)">
-        <input type="file" accept="image/*" onchange="handleAssetShotMain(this.files[0])"/>
-        <div id="asset-shot-main-inner">
-          <div style="font-size:2.5rem;margin-bottom:.6rem">📲</div>
-          <div style="color:var(--text);font-size:.92rem;margin-bottom:.25rem">투자 캡처 업로드</div>
-          <div style="color:var(--muted);font-size:.78rem">클릭하거나 드래그앤드롭 · 토스, 증권사, 코인 앱 스크린샷</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:.6rem;margin-top:.8rem">
-        <button class="btn btn-primary" style="flex:1" onclick="analyzeAssetShotMain()">📥 자동입력</button>
-        <button class="btn btn-primary" style="flex:1;background:rgba(108,138,255,.2);color:var(--accent)" onclick="getPortfolioAI(this)">🤖 AI 분석</button>
-        <button class="btn btn-ghost" style="font-size:.8rem" onclick="clearAssetShot()">초기화</button>
-      </div>
-      <div id="asset-ai-result" style="margin-top:.8rem"></div>
-    </div>
-
-    <!-- 캡처 히스토리 -->
+    <!-- 종목 추가 -->
     <div class="card" style="margin-bottom:1.5rem">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
-        <div class="sec-title" style="margin:0">🗂️ 캡처 히스토리</div>
-        <span id="asset-shot-count" style="font-size:.78rem;color:var(--muted)"></span>
+        <div class="sec-title" style="margin:0">➕ 종목 추가</div>
+        <div style="font-size:.72rem;color:var(--muted)">USD/KRW <span id="port-usdkrw" style="font-family:JetBrains Mono,monospace;color:var(--accent4)">–</span></div>
       </div>
-      <div id="asset-shot-history" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.8rem"></div>
-    </div>
-
-    <!-- 자산 추이 그래프 -->
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-        <div class="sec-title" style="margin:0">📈 자산 추이</div>
-        <div style="display:flex;gap:.4rem">
-          <button class="btn btn-ghost" style="font-size:.75rem;padding:.25rem .6rem" onclick="renderAssetTrend('total')" id="trend-btn-total">전체</button>
-          <button class="btn btn-ghost" style="font-size:.75rem;padding:.25rem .6rem" onclick="renderAssetTrend('invest')" id="trend-btn-invest">투자</button>
-          <button class="btn btn-ghost" style="font-size:.75rem;padding:.25rem .6rem" onclick="renderAssetTrend('reserve')" id="trend-btn-reserve">비상금</button>
-          <button class="btn btn-ghost" style="font-size:.75rem;padding:.25rem .6rem" onclick="renderAssetTrend('roi')" id="trend-btn-roi">수익률%</button>
+      <div style="display:flex;gap:.4rem;margin-bottom:.8rem">
+        <button class="btn btn-primary" id="port-type-US" onclick="setPortType('US')" style="flex:1;font-size:.78rem;padding:.4rem .3rem">🇺🇸 미국</button>
+        <button class="btn btn-ghost"   id="port-type-KR" onclick="setPortType('KR')" style="flex:1;font-size:.78rem;padding:.4rem .3rem">🇰🇷 국내</button>
+        <button class="btn btn-ghost"   id="port-type-CRYPTO" onclick="setPortType('CRYPTO')" style="flex:1;font-size:.78rem;padding:.4rem .3rem">🪙 코인</button>
+      </div>
+      <div style="position:relative;margin-bottom:.6rem">
+        <input id="port-search" type="text" class="input" placeholder="티커 또는 종목명 검색 (예: AAPL, 삼성전자)"
+          oninput="onPortSearch(this.value)" onkeydown="if(event.key==='Enter')onPortSearch(this.value,true)"
+          style="width:100%;box-sizing:border-box"/>
+        <div id="port-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:200;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.3)"></div>
+      </div>
+      <div id="port-selected-ticker" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.55rem .8rem;margin-bottom:.6rem;display:none;justify-content:space-between;align-items:center">
+        <div>
+          <span id="port-sel-name" style="font-weight:600;color:var(--text);font-size:.88rem"></span>
+          <span id="port-sel-ticker" style="color:var(--muted);margin-left:.4rem;font-family:JetBrains Mono,monospace;font-size:.75rem"></span>
+        </div>
+        <span id="port-sel-price" style="color:var(--accent4);font-family:JetBrains Mono,monospace;font-size:.88rem"></span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.7rem">
+        <div>
+          <label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">보유 수량</label>
+          <input id="port-qty" type="number" class="input" placeholder="0" min="0" step="any" style="width:100%;box-sizing:border-box"/>
+        </div>
+        <div>
+          <label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">투자 원금 (₩)</label>
+          <input id="port-invested-input" type="text" class="input" placeholder="0"
+            oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')"
+            style="width:100%;box-sizing:border-box"/>
         </div>
       </div>
-      <div id="asset-trend-chart"></div>
+      <button class="btn btn-primary" style="width:100%;font-size:.9rem" onclick="addPortHolding()">추가하기</button>
     </div>
 
-    <!-- AI 분석 결과 -->
-    <div id="portfolio-ai-card" style="display:none" class="card" style="margin-top:1.5rem">
-      <div class="sec-title">🤖 AI 포트폴리오 분석</div>
-      <div id="portfolio-ai-result"></div>
+    <!-- 보유 종목 -->
+    <div class="card" style="margin-bottom:1.5rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
+        <div class="sec-title" style="margin:0">📋 보유 종목</div>
+        <button class="btn btn-ghost" id="port-refresh-btn" style="font-size:.72rem;padding:.25rem .6rem" onclick="refreshPortPrices()">🔄 시세 갱신</button>
+      </div>
+      <div id="port-holdings"></div>
+    </div>
+
+    <!-- 월별 투자 현황 -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
+        <div class="sec-title" style="margin:0">📊 월별 원금 추이</div>
+        <button class="btn btn-primary" style="font-size:.73rem;padding:.3rem .7rem" onclick="savePortMonthly()">💾 이달 저장</button>
+      </div>
+      <div id="port-monthly-chart" style="min-height:160px"></div>
     </div>
 
   </div>
@@ -1729,7 +1699,7 @@ async function syncFromSupabase() {
   try { renderBudget(); refreshDashboard(); recalcBudget(); } catch(e){}
   try { renderJournal(); renderRealty(); } catch(e){}
   try { renderCalendar(); renderEventList(); renderYtLibrary(); } catch(e){}
-  try { renderSnapshotStats(); renderAssetBreakdown(); renderAssetHistory(); renderAssetTrend(); renderAssetShotHistory(); } catch(e){}
+  try { initPortfolio(); } catch(e){}
   showSyncBadge('✅ 동기화 완료', 'rgba(82,217,163,.18)');
   setTimeout(hideSyncBadge, 2500);
 }
@@ -1766,7 +1736,7 @@ function showPage(id, el) {
   if(id==='dashboard') refreshDashboard();
   if(id==='calendar') renderCalendar();
   if(id==='budget') { renderBudget(); }
-  if(id==='assets') { renderSnapshotStats(); renderAssetBreakdown(); renderAssetHistory(); renderGoalWidget(); renderAssetShotHistory(); renderAssetTrend(); }
+  if(id==='assets') { initPortfolio(); }
   if(id==='youtube') { renderYtLibrary(); }
   if(id==='journal') { renderJournal(); fetchFearGreed(); }
   if(id==='realty')  { renderRealty(); initCheongak(); }
@@ -5300,6 +5270,313 @@ function deleteJournal(id){
   S.set('journals',(S.get('journals')||[]).filter(function(j){return j.id!==id;}));
   dbDelete('journals',id);
   renderJournal();
+}
+
+// ── 포트폴리오 관리 ──
+var _portType='US', _portSelTicker=null, _portPrices={}, _portUsdKrw=1380, _portSearchTimer=null;
+
+function setPortType(t){
+  _portType=t;
+  ['US','KR','CRYPTO'].forEach(function(x){
+    var b=document.getElementById('port-type-'+x);
+    if(b) b.className='btn '+(x===t?'btn-primary':'btn-ghost');
+  });
+  var ph={'US':'티커 또는 종목명 (예: AAPL, 애플, NVDA)','KR':'티커 또는 종목명 (예: 005930, 삼성전자)','CRYPTO':'코인명 (예: bitcoin, ethereum)'};
+  var si=document.getElementById('port-search');
+  if(si) si.placeholder=ph[t]||'검색';
+  _portSelTicker=null;
+  var sd=document.getElementById('port-selected-ticker');
+  if(sd) sd.style.display='none';
+}
+
+function onPortSearch(q,force){
+  clearTimeout(_portSearchTimer);
+  var r=document.getElementById('port-search-results');
+  if(!q||!q.trim()){if(r){r.style.display='none';r.innerHTML='';} return;}
+  if(force){doPortSearch(q.trim());return;}
+  _portSearchTimer=setTimeout(function(){doPortSearch(q.trim());},420);
+}
+
+async function doPortSearch(q){
+  var r=document.getElementById('port-search-results');
+  if(!r) return;
+  r.style.display='block';
+  r.innerHTML='<div style="padding:.6rem 1rem;color:var(--muted);font-size:.82rem">검색 중...</div>';
+  try{
+    var res=await fetch('/api/stock-search?q='+encodeURIComponent(q)+'&type='+_portType);
+    var d=await res.json();
+    var items=d.results||[];
+    if(!items.length){r.innerHTML='<div style="padding:.6rem 1rem;color:var(--muted);font-size:.82rem">결과 없음</div>';return;}
+    r.innerHTML=items.map(function(it){
+      return '<div style="padding:.5rem 1rem;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center" '+
+        'onmouseover="this.style.background=\'var(--surface)\'" onmouseout="this.style.background=\'\'" '+
+        'onclick="selectPortTicker(\''+pEsc(it.ticker)+'\',\''+pEsc(it.name)+'\',\''+_portType+'\')">'+
+        '<div><div style="font-size:.85rem;font-weight:600;color:var(--text)">'+pEsc(it.name)+'</div>'+
+        '<div style="font-size:.72rem;color:var(--muted);font-family:JetBrains Mono,monospace">'+pEsc(it.ticker)+(it.sub?' · '+pEsc(it.sub):'')+'</div></div>'+
+        '<span style="font-size:.75rem;color:var(--accent);font-family:JetBrains Mono,monospace">'+pEsc(it.ticker)+'</span></div>';
+    }).join('');
+  }catch(e){r.innerHTML='<div style="padding:.6rem 1rem;color:var(--danger);font-size:.82rem">검색 실패</div>';}
+}
+
+function pEsc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+
+async function selectPortTicker(ticker,name,type){
+  _portSelTicker={ticker,name,type};
+  var r=document.getElementById('port-search-results');
+  if(r){r.style.display='none';}
+  var si=document.getElementById('port-search');
+  if(si) si.value=name;
+  var sd=document.getElementById('port-selected-ticker');
+  var sn=document.getElementById('port-sel-name');
+  var st=document.getElementById('port-sel-ticker');
+  var sp=document.getElementById('port-sel-price');
+  if(sn) sn.textContent=name;
+  if(st) st.textContent=ticker;
+  if(sp) sp.textContent='조회 중...';
+  if(sd) sd.style.display='flex';
+  try{
+    var pd=await fetchPortPrice(ticker,type);
+    if(pd&&pd.price){
+      _portPrices[ticker]=pd;
+      var ps=pd.currency==='USD'?'$'+pd.price.toLocaleString(undefined,{maximumFractionDigits:2}):'₩'+Math.round(pd.price).toLocaleString();
+      if(sp) sp.textContent=ps+(pd.changeP!=null?' ('+(pd.changeP>=0?'+':'')+pd.changeP.toFixed(1)+'%)':'');
+    }else{if(sp) sp.textContent='시세 없음';}
+  }catch(e){if(sp) sp.textContent='오류';}
+}
+
+async function fetchPortPrice(ticker,type){
+  try{
+    var ctrl=new AbortController();
+    setTimeout(function(){ctrl.abort();},8000);
+    var res=await fetch('/api/stock-price?ticker='+encodeURIComponent(ticker)+'&type='+type,{signal:ctrl.signal});
+    if(!res.ok) return null;
+    return await res.json();
+  }catch(e){return null;}
+}
+
+async function fetchPortUsdKrw(){
+  try{
+    var res=await fetch('/api/stock-price?ticker=KRW%3DX&type=US');
+    if(!res.ok) return;
+    var d=await res.json();
+    if(d&&d.price&&d.price>100){
+      _portUsdKrw=Math.round(d.price);
+      S.set('port_usdkrw',_portUsdKrw);
+      var el=document.getElementById('port-usdkrw');
+      if(el) el.textContent=_portUsdKrw.toLocaleString();
+    }
+  }catch(e){}
+}
+
+function portValueKRW(holding){
+  var pd=_portPrices[holding.ticker];
+  if(!pd||!pd.price) return null;
+  var raw=holding.qty*pd.price;
+  return Math.round(pd.currency==='USD'||holding.type==='US'?raw*_portUsdKrw:raw);
+}
+
+function addPortHolding(){
+  if(!_portSelTicker){alert('종목을 검색하여 선택해주세요.');return;}
+  var qty=parseFloat(document.getElementById('port-qty').value);
+  var inv=parseInt((document.getElementById('port-invested-input').value||'').replace(/,/g,''));
+  if(!qty||qty<=0){alert('보유 수량을 입력해주세요.');return;}
+  if(!inv||inv<=0){alert('투자 원금(₩)을 입력해주세요.');return;}
+  var holdings=S.get('portfolio_holdings')||[];
+  var ex=holdings.find(function(h){return h.ticker===_portSelTicker.ticker;});
+  if(ex){
+    if(!confirm('"'+ex.name+'" 이(가) 이미 있습니다. 수량과 원금을 추가할까요?')) return;
+    ex.qty=parseFloat((ex.qty+qty).toFixed(8));
+    ex.investedKRW=(ex.investedKRW||0)+inv;
+  }else{
+    holdings.push({id:Date.now(),ticker:_portSelTicker.ticker,name:_portSelTicker.name,type:_portSelTicker.type||_portType,qty:qty,investedKRW:inv,addedAt:today()});
+  }
+  S.set('portfolio_holdings',holdings);
+  _portSelTicker=null;
+  document.getElementById('port-search').value='';
+  document.getElementById('port-qty').value='';
+  document.getElementById('port-invested-input').value='';
+  var sd=document.getElementById('port-selected-ticker'); if(sd) sd.style.display='none';
+  renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
+}
+
+function deletePortHolding(id){
+  if(!confirm('이 종목을 삭제할까요?')) return;
+  S.set('portfolio_holdings',(S.get('portfolio_holdings')||[]).filter(function(h){return h.id!==id;}));
+  renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
+}
+
+async function refreshPortPrices(){
+  var holdings=S.get('portfolio_holdings')||[];
+  if(!holdings.length) return;
+  var btn=document.getElementById('port-refresh-btn');
+  if(btn){btn.textContent='⏳ 갱신 중...';btn.disabled=true;}
+  await fetchPortUsdKrw();
+  await Promise.all(holdings.map(async function(h){
+    var pd=await fetchPortPrice(h.ticker,h.type);
+    if(pd) _portPrices[h.ticker]=pd;
+  }));
+  renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
+  if(btn){btn.textContent='🔄 시세 갱신';btn.disabled=false;}
+}
+
+function renderPortSummary(){
+  var holdings=S.get('portfolio_holdings')||[];
+  var totInv=0, totVal=0;
+  holdings.forEach(function(h){
+    totInv+=h.investedKRW||0;
+    var v=portValueKRW(h);
+    totVal+=v!=null?v:(h.investedKRW||0);
+  });
+  var profit=totVal-totInv;
+  var roi=totInv>0?(profit/totInv*100):0;
+  var pos=profit>=0;
+  var clr=pos?'var(--success)':'var(--danger)';
+  var eI=document.getElementById('port-invested');
+  var eV=document.getElementById('port-value');
+  var eP=document.getElementById('port-profit');
+  var eR=document.getElementById('port-roi');
+  var cP=document.getElementById('port-profit-card');
+  var cR=document.getElementById('port-roi-card');
+  if(eI) eI.textContent='₩'+totInv.toLocaleString();
+  if(eV) eV.textContent='₩'+Math.round(totVal).toLocaleString();
+  if(eP){eP.textContent=(pos?'+':'')+'₩'+Math.round(profit).toLocaleString();eP.style.color=clr;}
+  if(eR){eR.textContent=(pos?'+':'')+roi.toFixed(2)+'%';eR.style.color=clr;}
+  if(cP) cP.style.borderTop='3px solid '+clr;
+  if(cR) cR.style.borderTop='3px solid '+clr;
+}
+
+function renderPortHoldings(){
+  var holdings=S.get('portfolio_holdings')||[];
+  var el=document.getElementById('port-holdings');
+  if(!el) return;
+  if(!holdings.length){
+    el.innerHTML='<div style="text-align:center;padding:2.5rem;color:var(--muted);font-size:.85rem">아직 종목이 없어요<br><span style="font-size:.78rem">위에서 종목을 검색해 추가해보세요</span></div>';
+    return;
+  }
+  el.innerHTML=holdings.map(function(h){
+    var pd=_portPrices[h.ticker];
+    var vKRW=portValueKRW(h);
+    var profit=vKRW!=null?vKRW-(h.investedKRW||0):null;
+    var roi=profit!=null&&h.investedKRW>0?(profit/h.investedKRW*100):null;
+    var pos=profit==null||profit>=0;
+    var pclr=pos?'var(--success)':'var(--danger)';
+    var priceStr=pd?((pd.currency==='USD'?'$':'₩')+pd.price.toLocaleString(undefined,{maximumFractionDigits:pd.currency==='USD'?2:0})):'–';
+    var chStr=pd&&pd.changeP!=null?(pd.changeP>=0?'+':'')+pd.changeP.toFixed(1)+'%':'';
+    var valStr=vKRW!=null?'₩'+vKRW.toLocaleString():'–';
+    var pStr=profit!=null?(profit>=0?'+':'')+'₩'+Math.round(profit).toLocaleString():'–';
+    var rStr=roi!=null?(roi>=0?'+':'')+roi.toFixed(2)+'%':'–';
+    var typeTag={'US':'🇺🇸','KR':'🇰🇷','CRYPTO':'🪙'}[h.type]||h.type;
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid '+(pos?'var(--success)':'var(--danger)')+';border-radius:10px;padding:.8rem 1rem;margin-bottom:.5rem">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">'+
+        '<div><span style="font-weight:700;color:var(--text);font-size:.9rem">'+pEsc(h.name)+'</span>'+
+          '<span style="font-size:.7rem;color:var(--muted);margin-left:.35rem;font-family:JetBrains Mono,monospace">'+pEsc(h.ticker)+'</span>'+
+          '<span style="font-size:.68rem;margin-left:.3rem">'+typeTag+'</span></div>'+
+        '<button onclick="deletePortHolding('+h.id+')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:.9rem;padding:0;line-height:1">✕</button>'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem;font-size:.78rem">'+
+        '<div style="background:var(--surface2);border-radius:6px;padding:.4rem .5rem">'+
+          '<div style="color:var(--muted);font-size:.68rem;margin-bottom:.15rem">현재가</div>'+
+          '<div style="font-family:JetBrains Mono,monospace;color:var(--text);font-size:.82rem">'+priceStr+'</div>'+
+          (chStr?'<div style="font-size:.68rem;color:'+(pd&&pd.changeP>=0?'var(--success)':'var(--danger)')+'">'+chStr+'</div>':'')+
+        '</div>'+
+        '<div style="background:var(--surface2);border-radius:6px;padding:.4rem .5rem">'+
+          '<div style="color:var(--muted);font-size:.68rem;margin-bottom:.15rem">보유 · 원금</div>'+
+          '<div style="font-family:JetBrains Mono,monospace;color:var(--text);font-size:.82rem">'+h.qty+'주</div>'+
+          '<div style="font-size:.68rem;color:var(--muted)">₩'+Math.round(h.investedKRW||0).toLocaleString()+'</div>'+
+        '</div>'+
+        '<div style="background:var(--surface2);border-radius:6px;padding:.4rem .5rem;text-align:right">'+
+          '<div style="color:var(--muted);font-size:.68rem;margin-bottom:.15rem">평가 · 수익</div>'+
+          '<div style="font-family:JetBrains Mono,monospace;color:var(--accent4);font-size:.82rem">'+valStr+'</div>'+
+          '<div style="font-size:.7rem;color:'+pclr+'">'+pStr+'</div>'+
+          '<div style="font-size:.68rem;color:'+pclr+'">'+rStr+'</div>'+
+        '</div>'+
+      '</div></div>';
+  }).join('');
+}
+
+function savePortMonthly(){
+  var holdings=S.get('portfolio_holdings')||[];
+  var totInv=0, totVal=0;
+  holdings.forEach(function(h){
+    totInv+=h.investedKRW||0;
+    var v=portValueKRW(h);
+    totVal+=v!=null?v:(h.investedKRW||0);
+  });
+  var ym=today().slice(0,7);
+  var monthly=S.get('portfolio_monthly')||[];
+  var idx=monthly.findIndex(function(m){return m.ym===ym;});
+  var entry={ym:ym,investedKRW:totInv,valueKRW:Math.round(totVal)};
+  if(idx>=0) monthly[idx]=entry; else monthly.push(entry);
+  monthly.sort(function(a,b){return a.ym.localeCompare(b.ym);});
+  S.set('portfolio_monthly',monthly);
+  renderPortMonthlyChart();
+  alert('✅ '+ym+' 현황이 저장됐어요!');
+}
+
+function renderPortMonthlyChart(){
+  var el=document.getElementById('port-monthly-chart');
+  if(!el) return;
+  var monthly=S.get('portfolio_monthly')||[];
+  if(!monthly.length){
+    el.innerHTML='<div style="text-align:center;padding:2.5rem;color:var(--muted);font-size:.83rem">저장된 월별 데이터가 없어요<br><span style="font-size:.75rem">시세 갱신 후 "이달 저장"을 눌러주세요</span></div>';
+    return;
+  }
+  var maxVal=Math.max.apply(null,monthly.map(function(m){return Math.max(m.valueKRW||0,m.investedKRW||0);}));
+  if(!maxVal) return;
+  var W=Math.max(el.clientWidth||320,280);
+  var H=180, padL=8,padR=8,padT=20,padB=36;
+  var n=monthly.length;
+  var usable=W-padL-padR;
+  var barW=Math.max(10,Math.min(50,usable/n*0.6));
+  var gap=(usable-n*barW)/(n+1);
+  var chartH=H-padT-padB;
+  var bars=monthly.map(function(m,i){
+    var inv=m.investedKRW||0;
+    var val=m.valueKRW||inv;
+    var profit=val-inv;
+    var invH=Math.max(2,Math.round(inv/maxVal*chartH));
+    var profH=profit>0?Math.round(profit/maxVal*chartH):0;
+    var lossH=profit<0?Math.round(Math.abs(profit)/maxVal*chartH):0;
+    var x=padL+gap+i*(barW+gap);
+    var bY=H-padB;
+    var invM=Math.round(inv/10000);
+    var valM=Math.round(val/10000);
+    var pctStr=inv>0?(profit>=0?'+':'')+Math.round(profit/inv*100)+'%':'';
+    return (
+      '<rect x="'+x+'" y="'+(bY-invH)+'" width="'+barW+'" height="'+invH+'" fill="#6c8aff" rx="3"/>'+
+      (profH>0?'<rect x="'+x+'" y="'+(bY-invH-profH)+'" width="'+barW+'" height="'+profH+'" fill="#52d9a3" rx="3" opacity=".9"/>':'')+
+      (lossH>0?'<rect x="'+x+'" y="'+(bY-invH)+'" width="'+barW+'" height="'+Math.min(lossH,invH)+'" fill="#f87171" rx="0" opacity=".7"/>':'')+
+      '<text x="'+(x+barW/2)+'" y="'+(H-padB+14)+'" text-anchor="middle" fill="#888" font-size="9">'+m.ym.slice(5)+'월</text>'+
+      (n<=10?'<text x="'+(x+barW/2)+'" y="'+(bY-invH-(profH>0?profH:0)-5)+'" text-anchor="middle" fill="#aaa" font-size="8">'+invM+'만</text>':'')+
+      (pctStr&&n<=8?'<text x="'+(x+barW/2)+'" y="'+(bY-invH-(profH>0?profH+2:2)-14)+'" text-anchor="middle" fill="'+(profit>=0?'#52d9a3':'#f87171')+'" font-size="8" font-weight="bold">'+pctStr+'</text>':'')
+    );
+  }).join('');
+  el.innerHTML='<svg width="100%" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="overflow:visible">'+bars+'</svg>'+
+    '<div style="display:flex;gap:1.2rem;font-size:.71rem;color:var(--muted);margin-top:.5rem;justify-content:center">'+
+    '<span style="display:flex;align-items:center;gap:.3rem"><svg width="10" height="10"><rect width="10" height="10" fill="#6c8aff" rx="2"/></svg>투자 원금</span>'+
+    '<span style="display:flex;align-items:center;gap:.3rem"><svg width="10" height="10"><rect width="10" height="10" fill="#52d9a3" rx="2"/></svg>수익</span>'+
+    '<span style="display:flex;align-items:center;gap:.3rem"><svg width="10" height="10"><rect width="10" height="10" fill="#f87171" rx="2"/></svg>손실</span></div>';
+}
+
+async function initPortfolio(){
+  _portUsdKrw=S.get('port_usdkrw')||1380;
+  var uEl=document.getElementById('port-usdkrw');
+  if(uEl) uEl.textContent=_portUsdKrw.toLocaleString();
+  setPortType('US');
+  renderPortHoldings();
+  renderPortSummary();
+  renderPortMonthlyChart();
+  fetchPortUsdKrw();
+  var holdings=S.get('portfolio_holdings')||[];
+  if(holdings.length){
+    await Promise.all(holdings.map(async function(h){
+      var pd=await fetchPortPrice(h.ticker,h.type);
+      if(pd) _portPrices[h.ticker]=pd;
+    }));
+    renderPortHoldings();
+    renderPortSummary();
+    renderPortMonthlyChart();
+  }
 }
 // ── 부동산 관리 ──
 function openAddressSearch() {
