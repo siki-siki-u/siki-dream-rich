@@ -5282,6 +5282,7 @@ async function getJournalFeedback(id, btn) {
     var advice=adM?adM[1].trim():'';
     journals=journals.map(function(x){return x.id===id?Object.assign({},x,{feedback:feedback,advice:advice}):x;});
     S.set('journals',journals);
+    dbUpsert('journals',{id:id,feedback:feedback,advice:advice});
     renderJournal();
   } catch(err){
     btn.textContent=(err.name==='AbortError'?'⏱️ 시간초과':'❌ 실패')+' - 다시 시도';
