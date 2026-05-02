@@ -5171,6 +5171,12 @@ function saveJournal() {
   alert('✅ 일지가 저장됐어요!');
 }
 
+var _jnCollapsed={};
+function toggleJnFeedback(id){
+  if(_jnCollapsed[id]) delete _jnCollapsed[id]; else _jnCollapsed[id]=true;
+  renderJournal();
+}
+
 function renderJournal() {
   var filter=(document.getElementById('jn-filter')||{value:'all'}).value;
   var all=S.get('journals')||[];
@@ -5193,6 +5199,21 @@ function renderJournal() {
   el.innerHTML=journals.map(function(j){
     var clr=eColors[j.emotion]||'var(--muted)';
     var hasFb=!!j.feedback;
+    var collapsed=hasFb&&!!_jnCollapsed[j.id];
+    var fbHtml='';
+    if(hasFb){
+      fbHtml+='<div style="border-top:1px solid var(--border);margin:.8rem 0 .6rem;padding-top:.6rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleJnFeedback('+j.id+')">'+
+        '<span style="font-size:.78rem;color:var(--accent3);font-weight:600">🤖 AI 피드백 & 조언</span>'+
+        '<span style="font-size:.78rem;color:var(--muted)">'+(collapsed?'▼ 펼치기':'▲ 접기')+'</span></div>';
+      if(!collapsed){
+        fbHtml+='<div style="background:var(--surface);border:1px solid rgba(82,217,163,.25);border-radius:10px;padding:1rem;margin-bottom:.6rem">'+
+          '<div style="font-size:.72rem;color:var(--accent3);margin-bottom:.4rem">📝 피드백</div>'+
+          '<div style="font-size:.85rem;line-height:1.8;color:var(--text);white-space:pre-wrap">'+j.feedback+'</div></div>';
+        if(j.advice) fbHtml+='<div style="background:var(--surface);border:1px solid rgba(108,138,255,.25);border-radius:10px;padding:1rem;margin-bottom:.6rem">'+
+          '<div style="font-size:.72rem;color:var(--accent);margin-bottom:.4rem">💡 조언</div>'+
+          '<div style="font-size:.85rem;line-height:1.8;color:var(--text);white-space:pre-wrap">'+j.advice+'</div></div>';
+      }
+    }
     return '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+clr+';border-radius:14px;padding:1.4rem;margin-bottom:1rem">'+
       '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.7rem">'+
         '<div><div style="font-size:1rem;font-weight:700;color:var(--text)">'+j.emotion+' '+j.title+'</div>'+
@@ -5205,14 +5226,7 @@ function renderJournal() {
         '</div>'+
       '</div>'+
       '<div style="font-size:.88rem;color:var(--text);line-height:1.8;margin-bottom:.8rem;white-space:pre-wrap;background:var(--surface);border-radius:8px;padding:.8rem">'+j.content+'</div>'+
-      (hasFb?
-        '<div style="background:var(--surface);border:1px solid rgba(82,217,163,.25);border-radius:10px;padding:1rem;margin-bottom:.6rem">'+
-          '<div style="font-size:.72rem;color:var(--accent3);margin-bottom:.4rem">🤖 AI 피드백</div>'+
-          '<div style="font-size:.85rem;line-height:1.8;color:var(--text);white-space:pre-wrap">'+j.feedback+'</div></div>'+
-        (j.advice?'<div style="background:var(--surface);border:1px solid rgba(108,138,255,.25);border-radius:10px;padding:1rem;margin-bottom:.6rem">'+
-          '<div style="font-size:.72rem;color:var(--accent);margin-bottom:.4rem">💡 AI 조언</div>'+
-          '<div style="font-size:.85rem;line-height:1.8;color:var(--text);white-space:pre-wrap">'+j.advice+'</div></div>':'')
-      :'')+
+      fbHtml+
       '<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.3rem">'+
         '<button class="btn btn-primary" style="font-size:.8rem;padding:.45rem .9rem" onclick="getJournalFeedback('+j.id+',this)">'+(hasFb?'🔄 피드백 재요청':'🤖 AI 피드백 & 조언 받기')+'</button>'+
         '<button class="btn btn-danger" style="font-size:.8rem;padding:.45rem .9rem" onclick="deleteJournal('+j.id+')">🗑️ 삭제</button>'+
