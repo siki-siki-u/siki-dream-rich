@@ -5735,7 +5735,7 @@ function renderPortMonthlyChart(){
   var maxVal=Math.max.apply(null,snaps.map(function(s){return Math.max(s.valueKRW||0,s.investedKRW||0);}));
   if(!maxVal) return;
 
-  var H=220, padL=6,padR=6,padT=24,padB=48;
+  var H=220, padL=6,padR=6,padT=55,padB=48;
   var barW=38, gap=10;
   var n=snaps.length;
   var totalW=padL+padR+n*(barW+gap);
@@ -5776,8 +5776,8 @@ function renderPortMonthlyChart(){
     '<span style="display:flex;align-items:center;gap:.3rem"><svg width="10" height="10"><rect width="10" height="10" fill="#f87171" rx="2"/></svg>손실</span></div>';
 
   var scrollNeeded=totalW>containerW;
-  el.innerHTML=(scrollNeeded?'<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">':'')+
-    '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block">'+bars+'</svg>'+
+  el.innerHTML=(scrollNeeded?'<div style="overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;padding-top:4px">':'')+
+    '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block;overflow:visible">'+bars+'</svg>'+
     (scrollNeeded?'</div>':'')+legend;
 }
 
