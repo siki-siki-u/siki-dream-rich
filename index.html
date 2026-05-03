@@ -891,8 +891,11 @@ tr:hover td{background:rgba(108,138,255,.03)}
     <!-- 월별 투자 현황 -->
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
-        <div class="sec-title" style="margin:0">📊 월별 원금 추이</div>
-        <button class="btn btn-primary" style="font-size:.73rem;padding:.3rem .7rem" onclick="savePortSnapshot()">💾 오늘 저장</button>
+        <div class="sec-title" style="margin:0">📊 원금 추이</div>
+        <div style="display:flex;gap:.4rem">
+          <button class="btn" style="font-size:.73rem;padding:.3rem .7rem;background:var(--surface2);border:1px solid var(--border);color:var(--muted)" onclick="showPortChanges()">🔍 변화 보기</button>
+          <button class="btn btn-primary" style="font-size:.73rem;padding:.3rem .7rem" onclick="savePortSnapshot()">💾 오늘 저장</button>
+        </div>
       </div>
       <div id="port-monthly-chart" style="min-height:160px"></div>
     </div>
@@ -1571,6 +1574,17 @@ tr:hover td{background:rgba(108,138,255,.03)}
   </div>
 
 </main>
+
+<!-- PORTFOLIO CHANGES MODAL -->
+<div class="modal-overlay" id="port-changes-modal" onclick="closePortChangesOut(event)">
+  <div class="modal" style="max-width:500px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem">
+      <h3 style="margin:0;font-size:1.1rem">🔍 변화 보기</h3>
+      <button onclick="closePortChanges()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;line-height:1">×</button>
+    </div>
+    <div id="port-changes-content"></div>
+  </div>
+</div>
 
 <!-- SETTINGS MODAL -->
 <div class="modal-overlay" id="settings-modal" onclick="closeSettingsOut(event)">
@@ -5749,20 +5763,119 @@ function renderPortHoldings(){
 function savePortSnapshot(){
   var holdings=S.get('portfolio_holdings')||[];
   var totInv=0, totVal=0;
-  holdings.forEach(function(h){
-    totInv+=h.investedKRW||0;
+  var holdingsSnap=holdings.map(function(h){
     var v=portValueKRW(h);
-    totVal+=v!=null?v:(h.investedKRW||0);
+    var vkrw=v!=null?v:(h.investedKRW||0);
+    totInv+=h.investedKRW||0;
+    totVal+=vkrw;
+    return {id:h.id,name:h.name||h.ticker||'',ticker:h.ticker||'',type:h.type||'',owner:h.owner||'',isDirect:!!h.isDirect,investedKRW:h.investedKRW||0,qty:h.qty||0,valueKRW:Math.round(vkrw)};
   });
   var date=today();
   var snaps=S.get('portfolio_snapshots')||[];
   var idx=snaps.findIndex(function(s){return s.date===date;});
-  var entry={date:date,investedKRW:totInv,valueKRW:Math.round(totVal)};
+  var entry={date:date,investedKRW:totInv,valueKRW:Math.round(totVal),holdings:holdingsSnap};
   if(idx>=0) snaps[idx]=entry; else snaps.push(entry);
   snaps.sort(function(a,b){return a.date.localeCompare(b.date);});
   S.set('portfolio_snapshots',snaps);
   renderPortMonthlyChart();
   alert('✅ '+date+' 현황이 저장됐어요!');
+}
+
+function deletePortSnapshot(date){
+  if(!confirm(date+' 기록을 삭제할까요?')) return;
+  var snaps=(S.get('portfolio_snapshots')||[]).filter(function(s){return s.date!==date;});
+  S.set('portfolio_snapshots',snaps);
+  renderPortMonthlyChart();
+}
+
+function showPortChanges(){
+  var snaps=S.get('portfolio_snapshots')||[];
+  var el=document.getElementById('port-changes-content');
+  if(!el) return;
+  if(snaps.length<2){
+    el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--muted);font-size:.88rem">비교할 데이터가 부족해요.<br>저장 기록이 2개 이상 필요합니다.</div>';
+    document.getElementById('port-changes-modal').classList.add('open');
+    return;
+  }
+  var prev=snaps[snaps.length-2];
+  var curr=snaps[snaps.length-1];
+  var prevParts=prev.date.split('-');
+  var currParts=curr.date.split('-');
+  var prevLabel=(prevParts[1]||'').replace(/^0/,'')+'/'+((prevParts[2]||'').replace(/^0/,''));
+  var currLabel=(currParts[1]||'').replace(/^0/,'')+'/'+((currParts[2]||'').replace(/^0/,''));
+
+  var invDiff=curr.investedKRW-prev.investedKRW;
+  var valDiff=curr.valueKRW-prev.valueKRW;
+
+  function fmt(n){return(n>=0?'+':'')+Math.round(n/10000)+'만';}
+  function fmtC(n){var c=n>=0?'#52d9a3':'#f87171';return '<span style="color:'+c+';font-weight:700">'+fmt(n)+'</span>';}
+
+  var html='<div style="text-align:center;font-size:.8rem;color:var(--muted);margin-bottom:1rem">'+prevLabel+' → '+currLabel+' 비교</div>';
+
+  // 전체 요약
+  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1.2rem">';
+  html+='<div style="background:var(--surface2);border-radius:10px;padding:.65rem .8rem">'+
+    '<div style="font-size:.7rem;color:var(--muted);margin-bottom:.2rem">투자 원금 변화</div>'+
+    '<div style="font-size:.9rem">'+fmtC(invDiff)+'</div>'+
+    '<div style="font-size:.7rem;color:var(--muted);margin-top:.15rem">'+Math.round(prev.investedKRW/10000)+'만 → '+Math.round(curr.investedKRW/10000)+'만</div>'+
+    '</div>';
+  html+='<div style="background:var(--surface2);border-radius:10px;padding:.65rem .8rem">'+
+    '<div style="font-size:.7rem;color:var(--muted);margin-bottom:.2rem">평가금액 변화</div>'+
+    '<div style="font-size:.9rem">'+fmtC(valDiff)+'</div>'+
+    '<div style="font-size:.7rem;color:var(--muted);margin-top:.15rem">'+Math.round(prev.valueKRW/10000)+'만 → '+Math.round(curr.valueKRW/10000)+'만</div>'+
+    '</div>';
+  html+='</div>';
+
+  // holdings 비교
+  var prevH=prev.holdings||[];
+  var currH=curr.holdings||[];
+  if(prevH.length||currH.length){
+    html+='<div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">종목별 변화</div>';
+    var rows=[];
+    // 추가된 항목
+    currH.forEach(function(c){
+      var p=prevH.find(function(x){return x.id===c.id||(x.ticker&&x.ticker===c.ticker&&x.owner===c.owner)||(x.name===c.name&&x.owner===c.owner);});
+      if(!p){
+        rows.push({tag:'new',name:c.name||c.ticker,owner:c.owner,inv:c.investedKRW,invDiff:c.investedKRW});
+      } else {
+        var d=c.investedKRW-p.investedKRW;
+        if(Math.abs(d)>0) rows.push({tag:'changed',name:c.name||c.ticker,owner:c.owner,inv:c.investedKRW,invDiff:d});
+      }
+    });
+    // 삭제된 항목
+    prevH.forEach(function(p){
+      var c=currH.find(function(x){return x.id===p.id||(x.ticker&&x.ticker===p.ticker&&x.owner===p.owner)||(x.name===p.name&&x.owner===p.owner);});
+      if(!c) rows.push({tag:'removed',name:p.name||p.ticker,owner:p.owner,inv:0,invDiff:-p.investedKRW});
+    });
+
+    if(rows.length){
+      rows.forEach(function(r){
+        var tagHtml='';
+        if(r.tag==='new') tagHtml='<span style="background:rgba(82,217,163,.15);color:#52d9a3;font-size:.65rem;padding:.1rem .35rem;border-radius:4px;margin-right:.4rem">신규</span>';
+        else if(r.tag==='removed') tagHtml='<span style="background:rgba(248,113,113,.15);color:#f87171;font-size:.65rem;padding:.1rem .35rem;border-radius:4px;margin-right:.4rem">제거</span>';
+        else tagHtml='<span style="background:rgba(108,138,255,.15);color:#a0b4ff;font-size:.65rem;padding:.1rem .35rem;border-radius:4px;margin-right:.4rem">변경</span>';
+        var ownerStr=r.owner?'<span style="font-size:.65rem;color:var(--muted);margin-left:.3rem">'+r.owner+'</span>':'';
+        html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem .5rem;border-bottom:1px solid var(--border)">'+
+          '<div>'+tagHtml+'<span style="font-size:.82rem">'+r.name+'</span>'+ownerStr+'</div>'+
+          '<div style="font-size:.82rem">'+fmtC(r.invDiff)+'</div>'+
+          '</div>';
+      });
+    } else {
+      html+='<div style="font-size:.8rem;color:var(--muted);padding:.5rem 0">종목 구성 변화 없음</div>';
+    }
+  } else {
+    html+='<div style="font-size:.78rem;color:var(--muted);margin-top:.5rem">이전 기록에 종목 상세가 없어요.<br>다음 저장부터 자동으로 기록됩니다.</div>';
+  }
+
+  el.innerHTML=html;
+  document.getElementById('port-changes-modal').classList.add('open');
+}
+
+function closePortChanges(){
+  document.getElementById('port-changes-modal').classList.remove('open');
+}
+function closePortChangesOut(e){
+  if(e.target===document.getElementById('port-changes-modal')) closePortChanges();
 }
 
 function renderPortMonthlyChart(){
@@ -5789,7 +5902,7 @@ function renderPortMonthlyChart(){
   var maxVal=Math.max.apply(null,snaps.map(function(s){return Math.max(s.valueKRW||0,s.investedKRW||0);}));
   if(!maxVal) return;
 
-  var H=220, padL=6,padR=6,padT=55,padB=48;
+  var H=220, padL=6,padR=6,padT=55,padB=62;
   var barW=38, gap=10;
   var n=snaps.length;
   var totalW=padL+padR+n*(barW+gap);
@@ -5822,6 +5935,7 @@ function renderPortMonthlyChart(){
       (profH>0?'<rect x="'+x+'" y="'+(bY-invH-profH)+'" width="'+barW+'" height="'+profH+'" fill="#52d9a3" rx="4" opacity=".9" style="cursor:pointer" '+profEv+'></rect>':'')+
       (lossH>0?'<rect x="'+x+'" y="'+(bY-invH)+'" width="'+barW+'" height="'+Math.min(lossH,invH)+'" fill="#f87171" rx="0" opacity=".7" style="cursor:pointer" '+profEv+'></rect>':'')+
       '<text x="'+(x+barW/2)+'" y="'+(H-padB+16)+'" text-anchor="middle" fill="#aaa" font-size="11">'+dateLabel+'</text>'+
+      '<text x="'+(x+barW/2)+'" y="'+(H-padB+32)+'" text-anchor="middle" fill="#555" font-size="14" style="cursor:pointer" onclick="deletePortSnapshot(\''+s.date+'\')">×</text>'+
       '<text x="'+(x+barW/2)+'" y="'+(bY-invH-(profH>0?profH:0)-7)+'" text-anchor="middle" fill="#ccc" font-size="10">'+invM+'</text>'+
       (pctStr?'<text x="'+(x+barW/2)+'" y="'+(bY-invH-(profH>0?profH:0)-20)+'" text-anchor="middle" fill="'+(profit>=0?'#52d9a3':'#f87171')+'" font-size="11" font-weight="bold">'+pctStr+'</text>':'')
     );
