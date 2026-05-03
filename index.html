@@ -887,19 +887,34 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <button class="btn btn-ghost" id="port-refresh-btn" style="font-size:.72rem;padding:.25rem .6rem" onclick="refreshPortPrices()">🔄 시세 갱신</button>
       </div>
       <!-- 필터/정렬 -->
-      <div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.65rem">
-        <div style="display:flex;gap:.25rem;flex-wrap:wrap">
-          <button id="pf-owner-all"   onclick="setPortHoldingsOwner('all')"   class="pf-btn pf-btn-on"  style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--accent);background:rgba(108,138,255,.18);color:var(--accent);cursor:pointer">전체</button>
-          <button id="pf-owner-윤식"  onclick="setPortHoldingsOwner('윤식')"  class="pf-btn pf-btn-off" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">👨 윤식</button>
-          <button id="pf-owner-유진"  onclick="setPortHoldingsOwner('유진')"  class="pf-btn pf-btn-off" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">👩 유진</button>
+      <div style="display:flex;flex-direction:column;gap:.3rem;margin-bottom:.55rem">
+        <!-- 계좌 필터 -->
+        <div style="display:flex;gap:.25rem;flex-wrap:wrap;align-items:center">
+          <span style="font-size:.65rem;color:var(--muted);min-width:2rem">계좌</span>
+          <button id="pf-owner-all"  onclick="setPortHoldingsOwner('all')"  style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--accent);background:rgba(108,138,255,.18);color:var(--accent);cursor:pointer">전체</button>
+          <button id="pf-owner-윤식" onclick="setPortHoldingsOwner('윤식')" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">👨 윤식</button>
+          <button id="pf-owner-유진" onclick="setPortHoldingsOwner('유진')" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">👩 유진</button>
         </div>
-        <div style="width:1px;background:var(--border);margin:.1rem 0"></div>
-        <div style="display:flex;gap:.25rem;flex-wrap:wrap">
-          <button id="pf-sort-default"  onclick="setPortHoldingsSort('default')"  class="pf-sort pf-sort-on"  style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--accent);background:rgba(108,138,255,.18);color:var(--accent);cursor:pointer">기본</button>
-          <button id="pf-sort-profit"   onclick="setPortHoldingsSort('profit')"   class="pf-sort pf-sort-off" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">수익 ↓</button>
-          <button id="pf-sort-roi"      onclick="setPortHoldingsSort('roi')"      class="pf-sort pf-sort-off" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">수익률 ↓</button>
-          <button id="pf-sort-loss"     onclick="setPortHoldingsSort('loss')"     class="pf-sort pf-sort-off" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">손실 ↑</button>
-          <button id="pf-sort-inv"      onclick="setPortHoldingsSort('inv')"      class="pf-sort pf-sort-off" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">원금 ↓</button>
+        <!-- 자산 유형 필터 -->
+        <div style="display:flex;gap:.25rem;flex-wrap:wrap;align-items:center">
+          <span style="font-size:.65rem;color:var(--muted);min-width:2rem">유형</span>
+          <button id="pf-cat-all"      onclick="setPortHoldingsCat('all')"      style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--accent);background:rgba(108,138,255,.18);color:var(--accent);cursor:pointer">전체</button>
+          <button id="pf-cat-volatile" onclick="setPortHoldingsCat('volatile')" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">📈 변동자산</button>
+          <button id="pf-cat-locked"   onclick="setPortHoldingsCat('locked')"   style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">🔒 해지필요</button>
+        </div>
+        <!-- 해지필요 설명 -->
+        <div id="pf-locked-desc" style="display:none;font-size:.68rem;color:#ffbe5c;background:rgba(255,190,92,.07);border:1px solid rgba(255,190,92,.2);border-radius:7px;padding:.3rem .55rem;line-height:1.5">
+          🔒 <b>해지필요 자산</b>이란 중도 해지 시 원금 손실·세금 불이익이 발생할 수 있는 자산입니다.<br>
+          <span style="color:var(--muted)">퇴직연금(IRP·DC·DB), 주택청약 등이 해당됩니다.</span>
+        </div>
+        <!-- 정렬 -->
+        <div style="display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;padding-top:.1rem;border-top:1px solid var(--border)">
+          <span style="font-size:.65rem;color:var(--muted);min-width:2rem">정렬</span>
+          <button id="pf-sort-default" onclick="setPortHoldingsSort('default')" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--accent);background:rgba(108,138,255,.18);color:var(--accent);cursor:pointer">기본</button>
+          <button id="pf-sort-profit"  onclick="setPortHoldingsSort('profit')"  style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">수익 ↓</button>
+          <button id="pf-sort-roi"     onclick="setPortHoldingsSort('roi')"     style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">수익률 ↓</button>
+          <button id="pf-sort-loss"    onclick="setPortHoldingsSort('loss')"    style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">손실 ↑</button>
+          <button id="pf-sort-inv"     onclick="setPortHoldingsSort('inv')"     style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">원금 ↓</button>
         </div>
       </div>
       <div id="port-holdings"></div>
@@ -5696,7 +5711,7 @@ function renderPortSummary(){
 }
 
 var _portBuyOpen={};
-var _portHoldingsSort='default', _portHoldingsOwner='all';
+var _portHoldingsSort='default', _portHoldingsOwner='all', _portHoldingsCat='all';
 
 function setPortHoldingsOwner(v){
   _portHoldingsOwner=v;
@@ -5708,6 +5723,23 @@ function setPortHoldingsOwner(v){
     el.style.borderColor=on?'var(--accent)':'var(--border)';
     el.style.color=on?'var(--accent)':'var(--muted)';
   });
+  renderPortHoldings();
+}
+
+function setPortHoldingsCat(v){
+  _portHoldingsCat=v;
+  ['all','volatile','locked'].forEach(function(k){
+    var el=document.getElementById('pf-cat-'+k);
+    if(!el) return;
+    var on=k===v;
+    var isLocked=k==='locked';
+    var isVolatile=k==='volatile';
+    el.style.background=on?(isLocked?'rgba(255,190,92,.15)':isVolatile?'rgba(34,211,238,.15)':'rgba(108,138,255,.18)'):'none';
+    el.style.borderColor=on?(isLocked?'rgba(255,190,92,.6)':isVolatile?'rgba(34,211,238,.6)':'var(--accent)'):'var(--border)';
+    el.style.color=on?(isLocked?'#ffbe5c':isVolatile?'#22d3ee':'var(--accent)'):'var(--muted)';
+  });
+  var desc=document.getElementById('pf-locked-desc');
+  if(desc) desc.style.display=v==='locked'?'block':'none';
   renderPortHoldings();
 }
 
@@ -5762,8 +5794,11 @@ function renderPortHoldings(){
     el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--muted);font-size:.85rem">아직 종목이 없어요<br><span style="font-size:.75rem">위에서 종목을 검색해 추가해보세요</span></div>';
     return;
   }
-  // 필터
+  // 필터 - 계좌
   var holdings=_portHoldingsOwner==='all'?all:all.filter(function(h){return (h.owner||'윤식')===_portHoldingsOwner;});
+  // 필터 - 자산유형
+  if(_portHoldingsCat==='volatile') holdings=holdings.filter(function(h){return _VOLATILE_TYPES.indexOf(h.type)>=0;});
+  else if(_portHoldingsCat==='locked') holdings=holdings.filter(function(h){return _LOCKED_TYPES.indexOf(h.type)>=0;});
   // 정렬
   if(_portHoldingsSort!=='default'){
     holdings=holdings.slice().sort(function(a,b){
