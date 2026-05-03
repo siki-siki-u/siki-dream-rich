@@ -54,6 +54,32 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-seri
 .page-header h2{font-family:'S-Core Dream',sans-serif;font-weight:700;font-size:2rem;color:var(--text);margin-bottom:.3rem}
 .page-header p{color:var(--muted);font-size:.88rem}
 
+/* CHART TOOLTIP */
+#port-chart-tooltip{
+  position:fixed;pointer-events:none;z-index:9999;
+  background:rgba(20,24,38,.95);
+  border:1px solid rgba(108,138,255,.35);
+  border-radius:10px;padding:.5rem .85rem;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  box-shadow:0 8px 24px rgba(0,0,0,.5);
+  font-family:'Noto Sans KR',sans-serif;font-size:.8rem;
+  color:#e8eaf6;line-height:1.6;
+  white-space:nowrap;
+  opacity:0;transition:opacity .12s;
+  transform:translate(-50%,-100%) translateY(-10px);
+}
+#port-chart-tooltip.visible{opacity:1;}
+#port-chart-tooltip .tt-label{font-size:.7rem;color:#7b82a8;margin-bottom:.1rem;}
+#port-chart-tooltip .tt-value{font-size:.88rem;font-weight:700;color:#fff;}
+#port-chart-tooltip .tt-sub{font-size:.75rem;margin-top:.1rem;}
+#port-chart-tooltip::after{
+  content:'';position:absolute;left:50%;bottom:-6px;
+  transform:translateX(-50%);
+  border:6px solid transparent;
+  border-top-color:rgba(20,24,38,.95);
+  border-bottom:none;
+}
+
 /* CARDS */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:1.5rem;transition:border-color .2s}
 .card:hover{border-color:var(--border)}
@@ -5757,12 +5783,16 @@ function renderPortMonthlyChart(){
     var pctStr=inv>0?(profit>=0?'+':'')+Math.round(profit/inv*100)+'%':'';
     var dateParts=s.date.split('-');
     var dateLabel=(dateParts[1]||'').replace(/^0/,'')+'/'+((dateParts[2]||'').replace(/^0/,''));
-    var invTooltip='투자 원금: ₩'+inv.toLocaleString();
-    var profTooltip=profit>=0?'수익금: +₩'+profit.toLocaleString()+' ('+roiExact+')':'손실: ₩'+profit.toLocaleString()+' ('+roiExact+')';
+    var invAmt='₩'+inv.toLocaleString();
+    var profAmt=profit>=0?'+₩'+profit.toLocaleString():'₩'+profit.toLocaleString();
+    var invEv='onmouseover="showChartTooltip(event,\''+dateLabel+' 투자 원금\',\''+invAmt+'\',null,\'#a0b4ff\')" onmousemove="moveChartTooltip(event)" onmouseout="hideChartTooltip()"';
+    var profColor=profit>=0?'#52d9a3':'#f87171';
+    var profLabel=dateLabel+(profit>=0?' 수익금':' 손실');
+    var profEv='onmouseover="showChartTooltip(event,\''+profLabel+'\',\''+profAmt+'\',\''+roiExact+'\',\''+profColor+'\')" onmousemove="moveChartTooltip(event)" onmouseout="hideChartTooltip()"';
     return (
-      '<rect x="'+x+'" y="'+(bY-invH)+'" width="'+barW+'" height="'+invH+'" fill="#6c8aff" rx="4" style="cursor:pointer"><title>'+invTooltip+'</title></rect>'+
-      (profH>0?'<rect x="'+x+'" y="'+(bY-invH-profH)+'" width="'+barW+'" height="'+profH+'" fill="#52d9a3" rx="4" opacity=".9" style="cursor:pointer"><title>'+profTooltip+'</title></rect>':'')+
-      (lossH>0?'<rect x="'+x+'" y="'+(bY-invH)+'" width="'+barW+'" height="'+Math.min(lossH,invH)+'" fill="#f87171" rx="0" opacity=".7" style="cursor:pointer"><title>'+profTooltip+'</title></rect>':'')+
+      '<rect x="'+x+'" y="'+(bY-invH)+'" width="'+barW+'" height="'+invH+'" fill="#6c8aff" rx="4" style="cursor:pointer" '+invEv+'></rect>'+
+      (profH>0?'<rect x="'+x+'" y="'+(bY-invH-profH)+'" width="'+barW+'" height="'+profH+'" fill="#52d9a3" rx="4" opacity=".9" style="cursor:pointer" '+profEv+'></rect>':'')+
+      (lossH>0?'<rect x="'+x+'" y="'+(bY-invH)+'" width="'+barW+'" height="'+Math.min(lossH,invH)+'" fill="#f87171" rx="0" opacity=".7" style="cursor:pointer" '+profEv+'></rect>':'')+
       '<text x="'+(x+barW/2)+'" y="'+(H-padB+16)+'" text-anchor="middle" fill="#aaa" font-size="11">'+dateLabel+'</text>'+
       '<text x="'+(x+barW/2)+'" y="'+(bY-invH-(profH>0?profH:0)-7)+'" text-anchor="middle" fill="#ccc" font-size="10">'+invM+'</text>'+
       (pctStr?'<text x="'+(x+barW/2)+'" y="'+(bY-invH-(profH>0?profH:0)-20)+'" text-anchor="middle" fill="'+(profit>=0?'#52d9a3':'#f87171')+'" font-size="11" font-weight="bold">'+pctStr+'</text>':'')
@@ -6272,6 +6302,33 @@ function deleteApt(id) {
   syncFromSupabase();
 })();
 
+
+// ── Chart Tooltip ──
+var _ttEl=null;
+function _getTT(){
+  if(!_ttEl){ _ttEl=document.getElementById('port-chart-tooltip'); }
+  return _ttEl;
+}
+function showChartTooltip(evt,label,value,sub,color){
+  var tt=_getTT(); if(!tt) return;
+  tt.innerHTML=
+    (label?'<div class="tt-label">'+label+'</div>':'')+
+    '<div class="tt-value" style="color:'+(color||'#fff')+'">'+value+'</div>'+
+    (sub?'<div class="tt-sub" style="color:'+(color||'#aaa')+'">'+sub+'</div>':'');
+  tt.style.left=evt.clientX+'px';
+  tt.style.top=(evt.clientY)+'px';
+  tt.classList.add('visible');
+}
+function moveChartTooltip(evt){
+  var tt=_getTT(); if(!tt) return;
+  tt.style.left=evt.clientX+'px';
+  tt.style.top=(evt.clientY)+'px';
+}
+function hideChartTooltip(){
+  var tt=_getTT(); if(!tt) return;
+  tt.classList.remove('visible');
+}
 </script>
+<div id="port-chart-tooltip"></div>
 </body>
 </html>
