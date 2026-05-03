@@ -3890,16 +3890,23 @@ function renderMarriageGrowth() {
   var el = document.getElementById('marriage-growth-content');
   if (!el) return;
 
-  var snaps = S.get('portfolio_snapshots') || [];
-  if (!snaps.length) {
+  var holdings = S.get('portfolio_holdings') || [];
+  if (!holdings.length) {
     el.innerHTML = '<div style="text-align:center;padding:1.2rem 0;color:var(--muted);font-size:.82rem">' +
-      '자산현황 탭에서 <b style="color:var(--text)">오늘 저장</b>을 누르면 자동으로 집계됩니다</div>';
+      '자산현황 탭에서 종목을 추가하면 자동으로 집계됩니다</div>';
     return;
   }
 
-  var latest = snaps[snaps.length - 1];
-  var currInv = latest.investedKRW || 0;
-  var currVal = latest.valueKRW || currInv;
+  var totInv = 0, totVal = 0;
+  holdings.forEach(function(h) {
+    var v = portValueKRW(h);
+    var vkrw = v != null ? v : (h.investedKRW || 0);
+    totInv += h.investedKRW || 0;
+    totVal += vkrw;
+  });
+
+  var currInv = totInv;
+  var currVal = Math.round(totVal);
   var invGrowth = currInv - MARRIAGE_BASE.total;
   var valGrowth = currVal - MARRIAGE_BASE.total;
   var profitOnly = currVal - currInv;
@@ -3919,8 +3926,7 @@ function renderMarriageGrowth() {
       : Math.round(n / 10000).toLocaleString() + '만';
   }
 
-  var dateParts = latest.date.split('-');
-  var dateLabel = dateParts[0].slice(2) + '.' + dateParts[1].replace(/^0/, '') + '.' + dateParts[2].replace(/^0/, '') + ' 기준';
+  var dateLabel = '현재 보유 기준';
 
   var invClr = invGrowth >= 0 ? 'var(--success)' : 'var(--danger)';
   var valClr = valGrowth >= 0 ? 'var(--success)' : 'var(--danger)';
@@ -6079,6 +6085,7 @@ function savePortSnapshot(){
   snaps.sort(function(a,b){return a.date.localeCompare(b.date);});
   S.set('portfolio_snapshots',snaps);
   renderPortMonthlyChart();
+  try { renderMarriageGrowth(); } catch(e){}
   alert('✅ '+date+' 현황이 저장됐어요!');
 }
 
