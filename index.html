@@ -837,6 +837,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
                 style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>
             <button class="btn btn-primary" onclick="calcPortReverse('search')" style="font-size:.75rem;padding:.28rem .55rem">계산</button>
           </div>
+          <div id="port-rev-result-search" style="display:none;margin-top:.5rem;padding:.45rem .6rem;background:rgba(108,138,255,.1);border:1px solid rgba(108,138,255,.25);border-radius:7px;font-size:.78rem;line-height:1.7"></div>
         </div>
         <div style="margin-bottom:.3rem"></div>
       </div>
@@ -870,6 +871,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
                 style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>
             <button class="btn btn-primary" onclick="calcPortReverse('direct')" style="font-size:.75rem;padding:.28rem .55rem">계산</button>
           </div>
+          <div id="port-rev-result-direct" style="display:none;margin-top:.5rem;padding:.45rem .6rem;background:rgba(108,138,255,.1);border:1px solid rgba(108,138,255,.25);border-radius:7px;font-size:.78rem;line-height:1.7"></div>
         </div>
         <div style="margin-bottom:.3rem"></div>
       </div>
@@ -5447,21 +5449,47 @@ function calcPortReverse(form){
   if(form==='direct'){
     value=parseInt((document.getElementById('port-direct-value').value||'').replace(/,/g,''));
     roi=parseFloat(document.getElementById('port-rev-roi-direct').value);
-    if(!value||value<=0){alert('먼저 평가금액을 입력해주세요.');return;}
-    if(isNaN(roi)){alert('수익률(%)을 입력해주세요.');return;}
+    if(!value||value<=0){_showRevError('direct','평가금액을 먼저 입력해주세요.');return;}
+    if(isNaN(roi)){_showRevError('direct','수익률(%)을 입력해주세요.');return;}
     inv=Math.round(value/(1+roi/100));
     document.getElementById('port-direct-invested').value=inv.toLocaleString();
   } else {
     value=parseInt((document.getElementById('port-rev-value-search').value||'').replace(/,/g,''));
     roi=parseFloat(document.getElementById('port-rev-roi-search').value);
-    if(!value||value<=0){alert('평가금액을 입력해주세요.');return;}
-    if(isNaN(roi)){alert('수익률(%)을 입력해주세요.');return;}
+    if(!value||value<=0){_showRevError('search','평가금액을 입력해주세요.');return;}
+    if(isNaN(roi)){_showRevError('search','수익률(%)을 입력해주세요.');return;}
     inv=Math.round(value/(1+roi/100));
     document.getElementById('port-invested-input').value=inv.toLocaleString();
   }
-  // 계산 결과 표시
-  var pct=((value-inv)/inv*100).toFixed(2);
-  alert('✅ 원금: ₩'+inv.toLocaleString()+'\n수익금: ₩'+(value-inv).toLocaleString()+' ('+pct+'%)');
+  var profit=value-inv;
+  var profitStr=profit>=0?'+₩'+profit.toLocaleString():'₩'+profit.toLocaleString();
+  var profitColor=profit>=0?'#52d9a3':'#f87171';
+  var pct=(profit/inv*100).toFixed(2);
+  var html=
+    '<div style="display:flex;justify-content:space-between;align-items:center">'+
+    '<span style="color:var(--muted)">투자 원금</span>'+
+    '<span style="font-weight:700;color:#a0b4ff">₩'+inv.toLocaleString()+'</span></div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center">'+
+    '<span style="color:var(--muted)">'+(profit>=0?'수익금':'손실')+'</span>'+
+    '<span style="font-weight:700;color:'+profitColor+'">'+profitStr+' ('+pct+'%)</span></div>'+
+    '<div style="margin-top:.3rem;font-size:.7rem;color:var(--muted)">↑ 투자 원금란에 자동 입력됐어요</div>';
+  _showRevResult(form, html);
+}
+function _showRevError(form,msg){
+  var el=document.getElementById('port-rev-result-'+form);
+  if(!el) return;
+  el.innerHTML='<span style="color:#f87171">⚠ '+msg+'</span>';
+  el.style.background='rgba(248,113,113,.08)';
+  el.style.borderColor='rgba(248,113,113,.3)';
+  el.style.display='block';
+}
+function _showRevResult(form,html){
+  var el=document.getElementById('port-rev-result-'+form);
+  if(!el) return;
+  el.innerHTML=html;
+  el.style.background='rgba(108,138,255,.1)';
+  el.style.borderColor='rgba(108,138,255,.25)';
+  el.style.display='block';
 }
 
 async function selectPortTicker(ticker,name,type){
