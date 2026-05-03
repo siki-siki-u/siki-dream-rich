@@ -5946,7 +5946,8 @@ function renderPortHoldings(){
       '<span style="color:var(--muted)">원금 <b style="font-family:JetBrains Mono,monospace;color:var(--text)">₩'+Math.round(h.investedKRW||0).toLocaleString()+'</b></span>':
       '<span style="color:var(--muted)">현재가 <b style="font-family:JetBrains Mono,monospace;color:var(--text)">'+priceStr+'</b>'+(chStr?'<span style="color:'+(pd&&pd.changeP>=0?'var(--success)':'var(--danger)')+';font-size:.68rem"> '+chStr+'</span>':'')+'</span>'+
       '<span style="color:var(--muted)">'+h.qty+'주 · ₩'+Math.round(h.investedKRW||0).toLocaleString()+'</span>';
-    return '<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid '+(pos?'var(--success)':'var(--danger)')+';border-radius:9px;padding:.5rem .75rem;margin-bottom:.35rem">'+
+    var borderClr=h.type==='HOUSING'?'var(--muted)':(pos?'var(--success)':'var(--danger)');
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid '+borderClr+';border-radius:9px;padding:.5rem .75rem;margin-bottom:.35rem">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem">'+
         '<div style="min-width:0;flex:1;overflow:hidden">'+
           '<span style="font-weight:700;color:var(--text);font-size:.84rem">'+pEsc(h.name)+'</span>'+
@@ -5961,7 +5962,7 @@ function renderPortHoldings(){
       '<div style="display:flex;flex-wrap:wrap;gap:.4rem .8rem;margin-top:.25rem;font-size:.75rem;align-items:baseline">'+
         infoRow+
         '<span style="font-family:JetBrains Mono,monospace;color:var(--accent4);font-weight:600">'+valStr+'</span>'+
-        '<span style="color:'+pclr+'">'+pStr+' ('+rStr+')</span>'+
+        (h.type!=='HOUSING'?'<span style="color:'+pclr+'">'+pStr+' ('+rStr+')</span>':'')+
       '</div>'+
       buyForm+
     '</div>';
