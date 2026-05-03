@@ -798,8 +798,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <button class="btn btn-ghost" id="port-type-GOLD"    onclick="setPortType('GOLD')"    style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🥇 금</button>
         <button class="btn btn-ghost" id="port-type-PENSION" onclick="setPortType('PENSION')" style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🛡️ 연금</button>
         <button class="btn btn-ghost" id="port-type-HOUSING" onclick="setPortType('HOUSING')" style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🏠 청약</button>
-        <button class="btn btn-ghost" id="port-type-SAVINGS" onclick="setPortType('SAVINGS')" style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🏦 적금</button>
-        <button class="btn btn-ghost" id="port-type-LEASE"   onclick="setPortType('LEASE')"   style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🔑 전세</button>
+        <button class="btn btn-ghost" id="port-type-ETC"     onclick="setPortType('ETC')"     style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🗂 기타</button>
       </div>
 
       <!-- 검색 폼 (US/KR/CRYPTO) -->
@@ -845,11 +844,25 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div style="margin-bottom:.3rem"></div>
       </div>
 
-      <!-- 직접입력 폼 (GOLD/PENSION) -->
+      <!-- 직접입력 폼 (GOLD/PENSION/ETC) -->
       <div id="port-form-direct" style="display:none">
         <div style="margin-bottom:.6rem">
           <label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">자산명</label>
+          <!-- 고정 이름 타입 (금·연금·청약) -->
           <input id="port-direct-name" type="text" class="input" placeholder="예: 금 현물, 퇴직연금 IRP" style="width:100%;box-sizing:border-box"/>
+          <!-- 기타 타입: 드롭다운 + 직접입력 -->
+          <div id="port-direct-name-etc" style="display:none">
+            <select id="port-direct-name-select" class="input" style="width:100%;box-sizing:border-box" onchange="onEtcNameSelect(this)">
+              <option value="적금">🏦 적금</option>
+              <option value="정기예금">💵 정기예금</option>
+              <option value="전세보증금">🔑 전세보증금</option>
+              <option value="월세보증금">🏠 월세보증금</option>
+              <option value="보험">🛡️ 보험</option>
+              <option value="기타">📦 기타</option>
+              <option value="__custom__">✏️ 직접입력...</option>
+            </select>
+            <input id="port-direct-name-custom" type="text" class="input" placeholder="자산명을 입력하세요" style="display:none;width:100%;box-sizing:border-box;margin-top:.35rem"/>
+          </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.4rem">
           <div><label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">현재 평가금액 (₩)</label>
@@ -5454,10 +5467,10 @@ function deleteJournal(id){
 
 // ── 포트폴리오 관리 ──
 var _portType='US', _portOwner='윤식', _portSelTicker=null, _portPrices={}, _portUsdKrw=1380, _portSearchTimer=null;
-var _portDirectTypes={'GOLD':true,'PENSION':true,'HOUSING':true,'SAVINGS':true,'LEASE':true};
+var _portDirectTypes={'GOLD':true,'PENSION':true,'HOUSING':true,'ETC':true};
 var _VOLATILE_TYPES=['US','KR','CRYPTO','GOLD'];
 var _LOCKED_TYPES=['PENSION','HOUSING'];
-var _FIXED_TYPES=['SAVINGS','LEASE'];
+var _FIXED_TYPES=['SAVINGS','LEASE','ETC']; // SAVINGS/LEASE: 레거시 호환
 
 function setPortOwner(o){
   _portOwner=o;
@@ -5469,7 +5482,7 @@ function setPortOwner(o){
 
 function setPortType(t){
   _portType=t;
-  ['US','KR','CRYPTO','GOLD','PENSION','HOUSING','SAVINGS','LEASE'].forEach(function(x){
+  ['US','KR','CRYPTO','GOLD','PENSION','HOUSING','ETC'].forEach(function(x){
     var b=document.getElementById('port-type-'+x);
     if(b) b.className='btn '+(x===t?'btn-primary':'btn-ghost');
   });
@@ -5480,7 +5493,11 @@ function setPortType(t){
   if(fd) fd.style.display=isDirect?'block':'none';
   if(isDirect){
     var dn=document.getElementById('port-direct-name');
-    if(dn) dn.value=t==='GOLD'?'금 현물':t==='PENSION'?'퇴직연금':t==='HOUSING'?'주택청약':t==='SAVINGS'?'적금':t==='LEASE'?'전세보증금':'';
+    var isEtc=t==='ETC';
+    var etcDiv=document.getElementById('port-direct-name-etc');
+    if(dn) dn.style.display=isEtc?'none':'block';
+    if(etcDiv) etcDiv.style.display=isEtc?'block':'none';
+    if(!isEtc&&dn) dn.value=t==='GOLD'?'금 현물':t==='PENSION'?'퇴직연금':t==='HOUSING'?'주택청약':'';
   } else {
     var ph={'US':'티커 또는 종목명 (예: AAPL, 애플, NVDA)','KR':'티커 또는 종목명 (예: 005930, 삼성전자)','CRYPTO':'코인명 (예: bitcoin, ethereum)'};
     var si=document.getElementById('port-search');
@@ -5643,11 +5660,41 @@ function portValueKRW(holding){
   return Math.round(pd.currency==='USD'||holding.type==='US'?raw*_portUsdKrw:raw);
 }
 
+function onEtcNameSelect(sel){
+  var custom=document.getElementById('port-direct-name-custom');
+  if(!custom) return;
+  if(sel.value==='__custom__'){custom.style.display='block';custom.focus();}
+  else{custom.style.display='none';custom.value='';}
+}
+
+function _getDirectName(){
+  if(_portType==='ETC'){
+    var sel=document.getElementById('port-direct-name-select');
+    if(sel&&sel.value==='__custom__'){
+      return (document.getElementById('port-direct-name-custom').value||'').trim();
+    }
+    return sel?sel.value:'';
+  }
+  return (document.getElementById('port-direct-name').value||'').trim();
+}
+
+function _resetDirectName(){
+  if(_portType==='ETC'){
+    var sel=document.getElementById('port-direct-name-select');
+    if(sel) sel.selectedIndex=0;
+    var custom=document.getElementById('port-direct-name-custom');
+    if(custom){custom.style.display='none';custom.value='';}
+  } else {
+    var dn=document.getElementById('port-direct-name');
+    if(dn) dn.value='';
+  }
+}
+
 function addPortHolding(){
   var holdings=S.get('portfolio_holdings')||[];
   var isDirect=!!_portDirectTypes[_portType];
   if(isDirect){
-    var name=(document.getElementById('port-direct-name').value||'').trim();
+    var name=_getDirectName();
     var curVal=parseInt((document.getElementById('port-direct-value').value||'').replace(/,/g,''));
     var inv2=parseInt((document.getElementById('port-direct-invested').value||'').replace(/,/g,''));
     if(!name){alert('자산명을 입력해주세요.');return;}
@@ -5656,7 +5703,7 @@ function addPortHolding(){
     var ticker='DIRECT_'+_portType+'_'+_portOwner+'_'+Date.now();
     holdings.push({id:Date.now(),ticker:ticker,name:name,type:_portType,owner:_portOwner,isDirect:true,currentKRW:curVal,investedKRW:inv2,addedAt:today()});
     S.set('portfolio_holdings',holdings);
-    document.getElementById('port-direct-name').value='';
+    _resetDirectName();
     document.getElementById('port-direct-value').value='';
     document.getElementById('port-direct-invested').value='';
   } else {
@@ -5855,7 +5902,7 @@ function renderPortHoldings(){
     var valStr=vKRW!=null?'₩'+vKRW.toLocaleString():'–';
     var pStr=profit!=null?(profit>=0?'+':'')+'₩'+Math.round(profit).toLocaleString():'–';
     var rStr=roi!=null?(roi>=0?'+':'')+roi.toFixed(2)+'%':'–';
-    var typeTag={'US':'🇺🇸','KR':'🇰🇷','GOLD':'🥇','PENSION':'🛡️','CRYPTO':'💰','HOUSING':'🏠','SAVINGS':'🏦','LEASE':'🔑'}[h.type]||h.type;
+    var typeTag={'US':'🇺🇸','KR':'🇰🇷','GOLD':'🥇','PENSION':'🛡️','CRYPTO':'💰','HOUSING':'🏠','SAVINGS':'🏦','LEASE':'🔑','ETC':'🗂'}[h.type]||h.type;
     var isVolatile=_VOLATILE_TYPES.indexOf(h.type)>=0;
     var isLocked=_LOCKED_TYPES.indexOf(h.type)>=0;
     var isFixed=_FIXED_TYPES.indexOf(h.type)>=0;
