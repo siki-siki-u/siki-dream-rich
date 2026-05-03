@@ -798,6 +798,8 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <button class="btn btn-ghost" id="port-type-GOLD"    onclick="setPortType('GOLD')"    style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🥇 금</button>
         <button class="btn btn-ghost" id="port-type-PENSION" onclick="setPortType('PENSION')" style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🛡️ 연금</button>
         <button class="btn btn-ghost" id="port-type-HOUSING" onclick="setPortType('HOUSING')" style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🏠 청약</button>
+        <button class="btn btn-ghost" id="port-type-SAVINGS" onclick="setPortType('SAVINGS')" style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🏦 적금</button>
+        <button class="btn btn-ghost" id="port-type-LEASE"   onclick="setPortType('LEASE')"   style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🔑 전세</button>
       </div>
 
       <!-- 검색 폼 (US/KR/CRYPTO) -->
@@ -901,12 +903,17 @@ tr:hover td{background:rgba(108,138,255,.03)}
           <button id="pf-cat-all"      onclick="setPortHoldingsCat('all')"      style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--accent);background:rgba(108,138,255,.18);color:var(--accent);cursor:pointer">전체</button>
           <button id="pf-cat-volatile" onclick="setPortHoldingsCat('volatile')" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">📈 변동자산</button>
           <button id="pf-cat-locked"   onclick="setPortHoldingsCat('locked')"   style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">🔒 해지필요</button>
+          <button id="pf-cat-fixed"    onclick="setPortHoldingsCat('fixed')"    style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">🏦 고정자산</button>
         </div>
         <!-- 해지필요 설명 -->
         <div id="pf-locked-desc" style="display:none;font-size:.68rem;color:#ffbe5c;background:rgba(255,190,92,.07);border:1px solid rgba(255,190,92,.2);border-radius:7px;padding:.3rem .55rem;line-height:1.5">
           🔒 <b>해지필요 자산</b>이란 부동산 매매 시, 추가적으로 충당할 수 있는 금액입니다.<br>
           <span style="color:var(--muted)">단, 중도 해지 시 원금 손실·세금 불이익이 발생할 수 있는 자산입니다.</span><br>
           <span style="color:var(--muted)">퇴직연금(IRP·DC·DB), 주택청약 등이 해당됩니다.</span>
+        </div>
+        <div id="pf-fixed-desc" style="display:none;font-size:.68rem;color:#86efac;background:rgba(134,239,172,.07);border:1px solid rgba(134,239,172,.2);border-radius:7px;padding:.3rem .55rem;line-height:1.5">
+          🏦 <b>고정자산</b>이란 원금이 안전하게 유지되는 확정 수익형 자산입니다.<br>
+          <span style="color:var(--muted)">적금, 전세보증금 등 만기 시 원금이 보장되는 자산입니다.</span>
         </div>
         <!-- 정렬 -->
         <div style="display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;padding-top:.1rem;border-top:1px solid var(--border)">
@@ -949,6 +956,16 @@ tr:hover td{background:rgba(108,138,255,.03)}
           <span style="font-size:.67rem;color:var(--muted);opacity:.6">퇴직연금·주택청약</span>
         </div>
         <div id="port-chart-locked" style="min-height:80px"></div>
+      </div>
+
+      <!-- 고정자산 미니 차트 -->
+      <div style="margin-bottom:1rem">
+        <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem">
+          <span style="width:8px;height:8px;border-radius:2px;background:#86efac;display:inline-block;flex-shrink:0"></span>
+          <span style="font-size:.74rem;color:var(--muted);font-weight:600;letter-spacing:.03em">고정자산 추이</span>
+          <span style="font-size:.67rem;color:var(--muted);opacity:.6">적금·전세보증금</span>
+        </div>
+        <div id="port-chart-fixed" style="min-height:80px"></div>
       </div>
 
       <!-- 전체 합계 차트 -->
@@ -5437,9 +5454,10 @@ function deleteJournal(id){
 
 // ── 포트폴리오 관리 ──
 var _portType='US', _portOwner='윤식', _portSelTicker=null, _portPrices={}, _portUsdKrw=1380, _portSearchTimer=null;
-var _portDirectTypes={'GOLD':true,'PENSION':true,'HOUSING':true};
+var _portDirectTypes={'GOLD':true,'PENSION':true,'HOUSING':true,'SAVINGS':true,'LEASE':true};
 var _VOLATILE_TYPES=['US','KR','CRYPTO','GOLD'];
 var _LOCKED_TYPES=['PENSION','HOUSING'];
+var _FIXED_TYPES=['SAVINGS','LEASE'];
 
 function setPortOwner(o){
   _portOwner=o;
@@ -5451,7 +5469,7 @@ function setPortOwner(o){
 
 function setPortType(t){
   _portType=t;
-  ['US','KR','CRYPTO','GOLD','PENSION','HOUSING'].forEach(function(x){
+  ['US','KR','CRYPTO','GOLD','PENSION','HOUSING','SAVINGS','LEASE'].forEach(function(x){
     var b=document.getElementById('port-type-'+x);
     if(b) b.className='btn '+(x===t?'btn-primary':'btn-ghost');
   });
@@ -5462,7 +5480,7 @@ function setPortType(t){
   if(fd) fd.style.display=isDirect?'block':'none';
   if(isDirect){
     var dn=document.getElementById('port-direct-name');
-    if(dn) dn.value=t==='GOLD'?'금 현물':t==='PENSION'?'퇴직연금':t==='HOUSING'?'주택청약':'';
+    if(dn) dn.value=t==='GOLD'?'금 현물':t==='PENSION'?'퇴직연금':t==='HOUSING'?'주택청약':t==='SAVINGS'?'적금':t==='LEASE'?'전세보증금':'';
   } else {
     var ph={'US':'티커 또는 종목명 (예: AAPL, 애플, NVDA)','KR':'티커 또는 종목명 (예: 005930, 삼성전자)','CRYPTO':'코인명 (예: bitcoin, ethereum)'};
     var si=document.getElementById('port-search');
@@ -5729,18 +5747,24 @@ function setPortHoldingsOwner(v){
 
 function setPortHoldingsCat(v){
   _portHoldingsCat=v;
-  ['all','volatile','locked'].forEach(function(k){
+  var cfg={
+    'all':     {bg:'rgba(108,138,255,.18)', bd:'var(--accent)',          cl:'var(--accent)'},
+    'volatile':{bg:'rgba(34,211,238,.15)',  bd:'rgba(34,211,238,.6)',    cl:'#22d3ee'},
+    'locked':  {bg:'rgba(255,190,92,.15)',  bd:'rgba(255,190,92,.6)',    cl:'#ffbe5c'},
+    'fixed':   {bg:'rgba(134,239,172,.15)', bd:'rgba(134,239,172,.6)',   cl:'#86efac'},
+  };
+  ['all','volatile','locked','fixed'].forEach(function(k){
     var el=document.getElementById('pf-cat-'+k);
     if(!el) return;
-    var on=k===v;
-    var isLocked=k==='locked';
-    var isVolatile=k==='volatile';
-    el.style.background=on?(isLocked?'rgba(255,190,92,.15)':isVolatile?'rgba(34,211,238,.15)':'rgba(108,138,255,.18)'):'none';
-    el.style.borderColor=on?(isLocked?'rgba(255,190,92,.6)':isVolatile?'rgba(34,211,238,.6)':'var(--accent)'):'var(--border)';
-    el.style.color=on?(isLocked?'#ffbe5c':isVolatile?'#22d3ee':'var(--accent)'):'var(--muted)';
+    var on=k===v, c=cfg[k];
+    el.style.background=on?c.bg:'none';
+    el.style.borderColor=on?c.bd:'var(--border)';
+    el.style.color=on?c.cl:'var(--muted)';
   });
-  var desc=document.getElementById('pf-locked-desc');
-  if(desc) desc.style.display=v==='locked'?'block':'none';
+  var lockedDesc=document.getElementById('pf-locked-desc');
+  if(lockedDesc) lockedDesc.style.display=v==='locked'?'block':'none';
+  var fixedDesc=document.getElementById('pf-fixed-desc');
+  if(fixedDesc) fixedDesc.style.display=v==='fixed'?'block':'none';
   renderPortHoldings();
 }
 
@@ -5800,6 +5824,7 @@ function renderPortHoldings(){
   // 필터 - 자산유형
   if(_portHoldingsCat==='volatile') holdings=holdings.filter(function(h){return _VOLATILE_TYPES.indexOf(h.type)>=0;});
   else if(_portHoldingsCat==='locked') holdings=holdings.filter(function(h){return _LOCKED_TYPES.indexOf(h.type)>=0;});
+  else if(_portHoldingsCat==='fixed')  holdings=holdings.filter(function(h){return _FIXED_TYPES.indexOf(h.type)>=0;});
   // 정렬
   if(_portHoldingsSort!=='default'){
     holdings=holdings.slice().sort(function(a,b){
@@ -5830,13 +5855,16 @@ function renderPortHoldings(){
     var valStr=vKRW!=null?'₩'+vKRW.toLocaleString():'–';
     var pStr=profit!=null?(profit>=0?'+':'')+'₩'+Math.round(profit).toLocaleString():'–';
     var rStr=roi!=null?(roi>=0?'+':'')+roi.toFixed(2)+'%':'–';
-    var typeTag={'US':'🇺🇸','KR':'🇰🇷','GOLD':'🥇','PENSION':'🛡️','CRYPTO':'💰','HOUSING':'🏠'}[h.type]||h.type;
+    var typeTag={'US':'🇺🇸','KR':'🇰🇷','GOLD':'🥇','PENSION':'🛡️','CRYPTO':'💰','HOUSING':'🏠','SAVINGS':'🏦','LEASE':'🔑'}[h.type]||h.type;
     var isVolatile=_VOLATILE_TYPES.indexOf(h.type)>=0;
     var isLocked=_LOCKED_TYPES.indexOf(h.type)>=0;
+    var isFixed=_FIXED_TYPES.indexOf(h.type)>=0;
     var catTag=isVolatile?
       '<span style="font-size:.6rem;background:rgba(34,211,238,.15);color:#22d3ee;border-radius:3px;padding:.05rem .28rem;margin-left:.2rem">변동자산</span>':
       isLocked?
-      '<span style="font-size:.6rem;background:rgba(255,190,92,.15);color:#ffbe5c;border-radius:3px;padding:.05rem .28rem;margin-left:.2rem">해지필요</span>':'';
+      '<span style="font-size:.6rem;background:rgba(255,190,92,.15);color:#ffbe5c;border-radius:3px;padding:.05rem .28rem;margin-left:.2rem">해지필요</span>':
+      isFixed?
+      '<span style="font-size:.6rem;background:rgba(134,239,172,.15);color:#86efac;border-radius:3px;padding:.05rem .28rem;margin-left:.2rem">고정자산</span>':'';
     var ownerTag=h.owner==='유진'?'<span style="font-size:.63rem;background:rgba(244,114,182,.18);color:#f472b6;border-radius:3px;padding:.05rem .3rem;margin-left:.25rem">👩유진계좌</span>':
                  '<span style="font-size:.63rem;background:rgba(108,138,255,.18);color:var(--accent);border-radius:3px;padding:.05rem .3rem;margin-left:.25rem">👨윤식계좌</span>';
     var buyOpen=!!_portBuyOpen[h.id];
@@ -5898,19 +5926,20 @@ function renderPortHoldings(){
 
 function savePortSnapshot(){
   var holdings=S.get('portfolio_holdings')||[];
-  var totInv=0,totVal=0,vInv=0,vVal=0,lInv=0,lVal=0;
+  var totInv=0,totVal=0,vInv=0,vVal=0,lInv=0,lVal=0,fInv=0,fVal=0;
   var holdingsSnap=holdings.map(function(h){
     var v=portValueKRW(h);
     var vkrw=v!=null?v:(h.investedKRW||0);
     totInv+=h.investedKRW||0; totVal+=vkrw;
     if(_VOLATILE_TYPES.indexOf(h.type)>=0){vInv+=h.investedKRW||0;vVal+=Math.round(vkrw);}
     if(_LOCKED_TYPES.indexOf(h.type)>=0){lInv+=h.investedKRW||0;lVal+=Math.round(vkrw);}
+    if(_FIXED_TYPES.indexOf(h.type)>=0){fInv+=h.investedKRW||0;fVal+=Math.round(vkrw);}
     return {id:h.id,name:h.name||h.ticker||'',ticker:h.ticker||'',type:h.type||'',owner:h.owner||'',isDirect:!!h.isDirect,investedKRW:h.investedKRW||0,qty:h.qty||0,valueKRW:Math.round(vkrw)};
   });
   var date=today();
   var snaps=S.get('portfolio_snapshots')||[];
   var idx=snaps.findIndex(function(s){return s.date===date;});
-  var entry={date:date,investedKRW:totInv,valueKRW:Math.round(totVal),volatileInvKRW:vInv,volatileValKRW:Math.round(vVal),lockedInvKRW:lInv,lockedValKRW:Math.round(lVal),holdings:holdingsSnap};
+  var entry={date:date,investedKRW:totInv,valueKRW:Math.round(totVal),volatileInvKRW:vInv,volatileValKRW:Math.round(vVal),lockedInvKRW:lInv,lockedValKRW:Math.round(lVal),fixedInvKRW:fInv,fixedValKRW:Math.round(fVal),holdings:holdingsSnap};
   if(idx>=0) snaps[idx]=entry; else snaps.push(entry);
   snaps.sort(function(a,b){return a.date.localeCompare(b.date);});
   S.set('portfolio_snapshots',snaps);
@@ -6091,34 +6120,39 @@ function renderPortMonthlyChart(){
   var elTotal=document.getElementById('port-monthly-chart');
   if(!snaps.length&&elTotal){
     elTotal.innerHTML='<div style="text-align:center;padding:2rem;color:var(--muted);font-size:.85rem">저장된 데이터가 없어요<br><span style="font-size:.78rem">시세 갱신 후 "오늘 저장"을 눌러주세요</span></div>';
-    document.getElementById('port-chart-volatile').innerHTML='';
-    document.getElementById('port-chart-locked').innerHTML='';
+    ['port-chart-volatile','port-chart-locked','port-chart-fixed'].forEach(function(id){
+      var e=document.getElementById(id); if(e) e.innerHTML='';
+    });
     return;
   }
 
   // 카테고리별 스냅샷 계산
-  var volatileSnaps=[], lockedSnaps=[];
+  var volatileSnaps=[], lockedSnaps=[], fixedSnaps=[];
   snaps.forEach(function(s){
-    var vInv=0,vVal=0,lInv=0,lVal=0,hasSplit=false;
+    var vInv=0,vVal=0,lInv=0,lVal=0,fInv=0,fVal=0,hasSplit=false;
     if(s.volatileInvKRW!==undefined){
       vInv=s.volatileInvKRW;vVal=s.volatileValKRW||vInv;
       lInv=s.lockedInvKRW||0;lVal=s.lockedValKRW||lInv;
+      fInv=s.fixedInvKRW||0;fVal=s.fixedValKRW||fInv;
       hasSplit=true;
     } else if(s.holdings&&s.holdings.length){
       s.holdings.forEach(function(h){
         if(_VOLATILE_TYPES.indexOf(h.type)>=0){vInv+=h.investedKRW||0;vVal+=h.valueKRW||0;}
         if(_LOCKED_TYPES.indexOf(h.type)>=0){lInv+=h.investedKRW||0;lVal+=h.valueKRW||0;}
+        if(_FIXED_TYPES.indexOf(h.type)>=0){fInv+=h.investedKRW||0;fVal+=h.valueKRW||0;}
       });
       hasSplit=true;
     }
     if(hasSplit){
       if(vInv>0||vVal>0) volatileSnaps.push({date:s.date,investedKRW:vInv,valueKRW:vVal});
       if(lInv>0||lVal>0) lockedSnaps.push({date:s.date,investedKRW:lInv,valueKRW:lVal});
+      if(fInv>0||fVal>0) fixedSnaps.push({date:s.date,investedKRW:fInv,valueKRW:fVal});
     }
   });
 
   _renderPortBarChart(document.getElementById('port-chart-volatile'), volatileSnaps, '#6c8aff', 160, false);
   _renderPortBarChart(document.getElementById('port-chart-locked'),   lockedSnaps,   '#6c8aff', 160, false);
+  _renderPortBarChart(document.getElementById('port-chart-fixed'),    fixedSnaps,    '#6c8aff', 160, false);
   _renderPortBarChart(elTotal, snaps, '#6c8aff', 220, true);
 }
 
