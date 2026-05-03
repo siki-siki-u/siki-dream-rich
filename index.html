@@ -881,9 +881,25 @@ tr:hover td{background:rgba(108,138,255,.03)}
 
     <!-- 보유 종목 -->
     <div class="card" style="margin-bottom:1.5rem">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
         <div class="sec-title" style="margin:0">📋 보유 종목</div>
         <button class="btn btn-ghost" id="port-refresh-btn" style="font-size:.72rem;padding:.25rem .6rem" onclick="refreshPortPrices()">🔄 시세 갱신</button>
+      </div>
+      <!-- 필터/정렬 -->
+      <div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.65rem">
+        <div style="display:flex;gap:.25rem;flex-wrap:wrap">
+          <button id="pf-owner-all"   onclick="setPortHoldingsOwner('all')"   class="pf-btn pf-btn-on"  style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--accent);background:rgba(108,138,255,.18);color:var(--accent);cursor:pointer">전체</button>
+          <button id="pf-owner-윤식"  onclick="setPortHoldingsOwner('윤식')"  class="pf-btn pf-btn-off" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">👨 윤식</button>
+          <button id="pf-owner-유진"  onclick="setPortHoldingsOwner('유진')"  class="pf-btn pf-btn-off" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">👩 유진</button>
+        </div>
+        <div style="width:1px;background:var(--border);margin:.1rem 0"></div>
+        <div style="display:flex;gap:.25rem;flex-wrap:wrap">
+          <button id="pf-sort-default"  onclick="setPortHoldingsSort('default')"  class="pf-sort pf-sort-on"  style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--accent);background:rgba(108,138,255,.18);color:var(--accent);cursor:pointer">기본</button>
+          <button id="pf-sort-profit"   onclick="setPortHoldingsSort('profit')"   class="pf-sort pf-sort-off" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">수익 ↓</button>
+          <button id="pf-sort-roi"      onclick="setPortHoldingsSort('roi')"      class="pf-sort pf-sort-off" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">수익률 ↓</button>
+          <button id="pf-sort-loss"     onclick="setPortHoldingsSort('loss')"     class="pf-sort pf-sort-off" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">손실 ↑</button>
+          <button id="pf-sort-inv"      onclick="setPortHoldingsSort('inv')"      class="pf-sort pf-sort-off" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">원금 ↓</button>
+        </div>
       </div>
       <div id="port-holdings"></div>
     </div>
@@ -5649,6 +5665,33 @@ function renderPortSummary(){
 }
 
 var _portBuyOpen={};
+var _portHoldingsSort='default', _portHoldingsOwner='all';
+
+function setPortHoldingsOwner(v){
+  _portHoldingsOwner=v;
+  ['all','윤식','유진'].forEach(function(k){
+    var el=document.getElementById('pf-owner-'+k);
+    if(!el) return;
+    var on=k===v;
+    el.style.background=on?'rgba(108,138,255,.18)':'none';
+    el.style.borderColor=on?'var(--accent)':'var(--border)';
+    el.style.color=on?'var(--accent)':'var(--muted)';
+  });
+  renderPortHoldings();
+}
+
+function setPortHoldingsSort(v){
+  _portHoldingsSort=v;
+  ['default','profit','roi','loss','inv'].forEach(function(k){
+    var el=document.getElementById('pf-sort-'+k);
+    if(!el) return;
+    var on=k===v;
+    el.style.background=on?'rgba(108,138,255,.18)':'none';
+    el.style.borderColor=on?'var(--accent)':'var(--border)';
+    el.style.color=on?'var(--accent)':'var(--muted)';
+  });
+  renderPortHoldings();
+}
 function togglePortBuy(id){
   _portBuyOpen[id]=!_portBuyOpen[id];
   renderPortHoldings();
@@ -5681,11 +5724,31 @@ function confirmPortBuy(id){
 }
 
 function renderPortHoldings(){
-  var holdings=S.get('portfolio_holdings')||[];
+  var all=S.get('portfolio_holdings')||[];
   var el=document.getElementById('port-holdings');
   if(!el) return;
-  if(!holdings.length){
+  if(!all.length){
     el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--muted);font-size:.85rem">아직 종목이 없어요<br><span style="font-size:.75rem">위에서 종목을 검색해 추가해보세요</span></div>';
+    return;
+  }
+  // 필터
+  var holdings=_portHoldingsOwner==='all'?all:all.filter(function(h){return (h.owner||'윤식')===_portHoldingsOwner;});
+  // 정렬
+  if(_portHoldingsSort!=='default'){
+    holdings=holdings.slice().sort(function(a,b){
+      var profA=(portValueKRW(a)||a.investedKRW||0)-(a.investedKRW||0);
+      var profB=(portValueKRW(b)||b.investedKRW||0)-(b.investedKRW||0);
+      var roiA=a.investedKRW>0?profA/a.investedKRW:0;
+      var roiB=b.investedKRW>0?profB/b.investedKRW:0;
+      if(_portHoldingsSort==='profit') return profB-profA;
+      if(_portHoldingsSort==='roi')    return roiB-roiA;
+      if(_portHoldingsSort==='loss')   return profA-profB;
+      if(_portHoldingsSort==='inv')    return (b.investedKRW||0)-(a.investedKRW||0);
+      return 0;
+    });
+  }
+  if(!holdings.length){
+    el.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:.82rem">해당 계좌에 종목이 없어요</div>';
     return;
   }
   el.innerHTML=holdings.map(function(h){
@@ -5919,7 +5982,7 @@ function renderPortMonthlyChart(){
     var lossH=profit<0?Math.round(Math.abs(profit)/maxVal*chartH):0;
     var x=padL+gap/2+i*(barW+gap);
     var bY=H-padB;
-    var invM=inv>=100000000?(inv/100000000).toFixed(1).replace(/\.0$/,'')+'억':Math.round(inv/10000)+'만';
+    var invM=inv>=100000000?(inv/100000000).toFixed(2).replace(/\.?0+$/,'')+'억':(inv/10000).toFixed(2).replace(/\.?0+$/,'')+'만';
     var roiExact=inv>0?((profit/inv)*100).toFixed(2)+'%':'–';
     var pctStr=inv>0?(profit>=0?'+':'')+Math.round(profit/inv*100)+'%':'';
     var dateParts=s.date.split('-');
