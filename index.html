@@ -797,7 +797,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <button class="btn btn-ghost" id="port-type-CRYPTO"  onclick="setPortType('CRYPTO')"  style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">💰 코인</button>
         <button class="btn btn-ghost" id="port-type-GOLD"    onclick="setPortType('GOLD')"    style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🥇 금</button>
         <button class="btn btn-ghost" id="port-type-PENSION" onclick="setPortType('PENSION')" style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🛡️ 연금</button>
-        <button class="btn btn-ghost" id="port-type-HOUSING" onclick="setPortType('HOUSING')" style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🏠 청약</button>
+        <button class="btn btn-ghost" id="port-type-FUND"    onclick="setPortType('FUND')"    style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">📈 펀드</button>
         <button class="btn btn-ghost" id="port-type-ETC"     onclick="setPortType('ETC')"     style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🗂 기타</button>
       </div>
 
@@ -856,6 +856,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
               <option value="적금">적금</option>
               <option value="예금">예금</option>
               <option value="전세보증금">전세보증금</option>
+              <option value="주택청약">주택청약</option>
               <option value="__custom__">직접입력...</option>
             </select>
             <input id="port-direct-name-custom" type="text" class="input" placeholder="자산명을 입력하세요" style="display:none;width:100%;box-sizing:border-box;margin-top:.35rem"/>
@@ -5464,10 +5465,10 @@ function deleteJournal(id){
 
 // ── 포트폴리오 관리 ──
 var _portType='US', _portOwner='윤식', _portSelTicker=null, _portPrices={}, _portUsdKrw=1380, _portSearchTimer=null;
-var _portDirectTypes={'GOLD':true,'PENSION':true,'HOUSING':true,'ETC':true};
-var _VOLATILE_TYPES=['US','KR','CRYPTO','GOLD'];
-var _LOCKED_TYPES=['PENSION','HOUSING'];
-var _FIXED_TYPES=['SAVINGS','LEASE','ETC']; // SAVINGS/LEASE: 레거시 호환
+var _portDirectTypes={'GOLD':true,'PENSION':true,'FUND':true,'ETC':true};
+var _VOLATILE_TYPES=['US','KR','CRYPTO','GOLD','FUND'];
+var _LOCKED_TYPES=['PENSION','HOUSING']; // HOUSING: 레거시 호환
+var _FIXED_TYPES=['SAVINGS','LEASE','ETC','HOUSING']; // SAVINGS/LEASE/HOUSING: 레거시 호환
 
 function setPortOwner(o){
   _portOwner=o;
@@ -5479,7 +5480,7 @@ function setPortOwner(o){
 
 function setPortType(t){
   _portType=t;
-  ['US','KR','CRYPTO','GOLD','PENSION','HOUSING','ETC'].forEach(function(x){
+  ['US','KR','CRYPTO','GOLD','PENSION','FUND','ETC'].forEach(function(x){
     var b=document.getElementById('port-type-'+x);
     if(b) b.className='btn '+(x===t?'btn-primary':'btn-ghost');
   });
@@ -5494,7 +5495,7 @@ function setPortType(t){
     var etcDiv=document.getElementById('port-direct-name-etc');
     if(dn) dn.style.display=isEtc?'none':'block';
     if(etcDiv) etcDiv.style.display=isEtc?'block':'none';
-    if(!isEtc&&dn) dn.value=t==='GOLD'?'금 현물':t==='PENSION'?'퇴직연금':t==='HOUSING'?'주택청약':'';
+    if(!isEtc&&dn) dn.value=t==='GOLD'?'금 현물':t==='PENSION'?'퇴직연금':t==='FUND'?'펀드':'';
   } else {
     var ph={'US':'티커 또는 종목명 (예: AAPL, 애플, NVDA)','KR':'티커 또는 종목명 (예: 005930, 삼성전자)','CRYPTO':'코인명 (예: bitcoin, ethereum)'};
     var si=document.getElementById('port-search');
@@ -5899,7 +5900,7 @@ function renderPortHoldings(){
     var valStr=vKRW!=null?'₩'+vKRW.toLocaleString():'–';
     var pStr=profit!=null?(profit>=0?'+':'')+'₩'+Math.round(profit).toLocaleString():'–';
     var rStr=roi!=null?(roi>=0?'+':'')+roi.toFixed(2)+'%':'–';
-    var typeTag={'US':'🇺🇸','KR':'🇰🇷','GOLD':'🥇','PENSION':'🛡️','CRYPTO':'💰','HOUSING':'🏠','SAVINGS':'🏦','LEASE':'🔑','ETC':'🗂'}[h.type]||h.type;
+    var typeTag={'US':'🇺🇸','KR':'🇰🇷','GOLD':'🥇','PENSION':'🛡️','CRYPTO':'💰','HOUSING':'🏠','SAVINGS':'🏦','LEASE':'🔑','ETC':'🗂','FUND':'📈'}[h.type]||h.type;
     var isVolatile=_VOLATILE_TYPES.indexOf(h.type)>=0;
     var isLocked=_LOCKED_TYPES.indexOf(h.type)>=0;
     var isFixed=_FIXED_TYPES.indexOf(h.type)>=0;
