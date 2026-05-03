@@ -5752,20 +5752,19 @@ function renderPortMonthlyChart(){
     var lossH=profit<0?Math.round(Math.abs(profit)/maxVal*chartH):0;
     var x=padL+gap/2+i*(barW+gap);
     var bY=H-padB;
-    var invM=inv>=100000000?Math.round(inv/100000000)+'억':Math.round(inv/10000)+'만';
+    var invM=inv>=100000000?(inv/100000000).toFixed(1).replace(/\.0$/,'')+'억':Math.round(inv/10000)+'만';
+    var roiExact=inv>0?((profit/inv)*100).toFixed(2)+'%':'–';
     var pctStr=inv>0?(profit>=0?'+':'')+Math.round(profit/inv*100)+'%':'';
-    // 날짜 레이블: MM/DD
     var dateParts=s.date.split('-');
     var dateLabel=(dateParts[1]||'').replace(/^0/,'')+'/'+((dateParts[2]||'').replace(/^0/,''));
+    var invTooltip='투자 원금: ₩'+inv.toLocaleString();
+    var profTooltip=profit>=0?'수익금: +₩'+profit.toLocaleString()+' ('+roiExact+')':'손실: ₩'+profit.toLocaleString()+' ('+roiExact+')';
     return (
-      '<rect x="'+x+'" y="'+(bY-invH)+'" width="'+barW+'" height="'+invH+'" fill="#6c8aff" rx="4"/>'+
-      (profH>0?'<rect x="'+x+'" y="'+(bY-invH-profH)+'" width="'+barW+'" height="'+profH+'" fill="#52d9a3" rx="4" opacity=".9"/>':'')+
-      (lossH>0?'<rect x="'+x+'" y="'+(bY-invH)+'" width="'+barW+'" height="'+Math.min(lossH,invH)+'" fill="#f87171" rx="0" opacity=".7"/>':'')+
-      // 날짜
+      '<rect x="'+x+'" y="'+(bY-invH)+'" width="'+barW+'" height="'+invH+'" fill="#6c8aff" rx="4" style="cursor:pointer"><title>'+invTooltip+'</title></rect>'+
+      (profH>0?'<rect x="'+x+'" y="'+(bY-invH-profH)+'" width="'+barW+'" height="'+profH+'" fill="#52d9a3" rx="4" opacity=".9" style="cursor:pointer"><title>'+profTooltip+'</title></rect>':'')+
+      (lossH>0?'<rect x="'+x+'" y="'+(bY-invH)+'" width="'+barW+'" height="'+Math.min(lossH,invH)+'" fill="#f87171" rx="0" opacity=".7" style="cursor:pointer"><title>'+profTooltip+'</title></rect>':'')+
       '<text x="'+(x+barW/2)+'" y="'+(H-padB+16)+'" text-anchor="middle" fill="#aaa" font-size="11">'+dateLabel+'</text>'+
-      // 원금 금액
       '<text x="'+(x+barW/2)+'" y="'+(bY-invH-(profH>0?profH:0)-7)+'" text-anchor="middle" fill="#ccc" font-size="10">'+invM+'</text>'+
-      // 수익률
       (pctStr?'<text x="'+(x+barW/2)+'" y="'+(bY-invH-(profH>0?profH:0)-20)+'" text-anchor="middle" fill="'+(profit>=0?'#52d9a3':'#f87171')+'" font-size="11" font-weight="bold">'+pctStr+'</text>':'')
     );
   }).join('');
