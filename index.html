@@ -1818,34 +1818,22 @@ async function syncFromSupabase() {
       else if(s.key === 'cq_account')  S.set('cq_account',  parseInt(s.value)||0);
       else if(s.key === 'yt_last_seen_id') S.set('yt_last_seen_id', s.value);
       else if(s.key === 'home_goal_price') S.set('home_goal_price', parseFloat(s.value)||0);
+      else if(s.key === 'portfolio_holdings') {
+        try { var _ph=JSON.parse(s.value); if(_ph&&_ph.length>0) S.set('portfolio_holdings',_ph); } catch(e){}
+      }
+      else if(s.key === 'portfolio_snapshots') {
+        try { var _ps=JSON.parse(s.value); if(_ps&&_ps.length>0) S.set('portfolio_snapshots',_ps); } catch(e){}
+      }
     });
-    // ── portfolio_holdings — DB 단방향 (DB→로컬). 로컬에만 있으면 DB에 seed ──
-    const { data: dbHoldings } = await supa.from('portfolio_holdings').select('*').order('created_at', {ascending:true});
-    if(dbHoldings && dbHoldings.length > 0) {
-      S.set('portfolio_holdings', dbHoldings.map(function(h){
-        return {id:h.id, ticker:h.ticker||'', name:h.name||'', type:h.type||'US',
-          owner:h.owner||'윤식', isDirect:!!h.is_direct,
-          currentKRW:h.current_krw||0, investedKRW:h.invested_krw||0,
-          qty:h.qty||0, addedAt:h.added_at||''};
-      }));
-    } else {
-      // DB 비어있으면 로컬 → DB seed (데스크탑 최초 동기화)
-      var localHoldings = S.get('portfolio_holdings') || [];
-      localHoldings.forEach(function(h){ dbUpsert('portfolio_holdings', _holdingToDbRow(h)); });
+    // ── portfolio: 로컬에만 있으면 settings 테이블로 자동 seed ──
+    var _settingsKeys = new Set((settings||[]).map(function(s){return s.key;}));
+    if(!_settingsKeys.has('portfolio_holdings')) {
+      var _lh = S.get('portfolio_holdings')||[];
+      if(_lh.length>0) dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(_lh)});
     }
-    // ── portfolio_snapshots — DB 단방향. 로컬에만 있으면 seed ──
-    const { data: dbSnaps } = await supa.from('portfolio_snapshots').select('*').order('date', {ascending:true});
-    if(dbSnaps && dbSnaps.length > 0) {
-      S.set('portfolio_snapshots', dbSnaps.map(function(s){
-        return {date:s.date, investedKRW:s.invested_krw||0, valueKRW:s.value_krw||0,
-          volatileInvKRW:s.volatile_inv_krw||0, volatileValKRW:s.volatile_val_krw||0,
-          lockedInvKRW:s.locked_inv_krw||0, lockedValKRW:s.locked_val_krw||0,
-          fixedInvKRW:s.fixed_inv_krw||0, fixedValKRW:s.fixed_val_krw||0,
-          holdings:s.holdings||[]};
-      }));
-    } else {
-      var localPortSnaps = S.get('portfolio_snapshots') || [];
-      localPortSnaps.forEach(function(snap){ dbUpsert('portfolio_snapshots', _snapToDbRow(snap)); });
+    if(!_settingsKeys.has('portfolio_snapshots')) {
+      var _ls = S.get('portfolio_snapshots')||[];
+      if(_ls.length>0) dbUpsert('settings',{key:'portfolio_snapshots',value:JSON.stringify(_ls)});
     }
     // asset_shots — DB 기준 양방향 sync (삭제 전파)
     // pending: 이 디바이스에서 업로드했지만 DB 확인 안 된 ID
@@ -5952,7 +5940,7 @@ function addPortHolding(){
     var newDirect={id:Date.now(),ticker:ticker,name:name,type:_portType,owner:_portOwner,isDirect:true,currentKRW:curVal,investedKRW:inv2,addedAt:today()};
     holdings.push(newDirect);
     S.set('portfolio_holdings',holdings);
-    dbUpsert('portfolio_holdings',_holdingToDbRow(newDirect));
+    dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
     _resetDirectName();
     document.getElementById('port-direct-value').value='';
     document.getElementById('port-direct-invested').value='';
@@ -5975,7 +5963,7 @@ function addPortHolding(){
       syncTarget=newH;
     }
     S.set('portfolio_holdings',holdings);
-    dbUpsert('portfolio_holdings',_holdingToDbRow(syncTarget));
+    dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
     _portSelTicker=null;
     document.getElementById('port-search').value='';
     document.getElementById('port-qty').value='';
@@ -5987,8 +5975,9 @@ function addPortHolding(){
 
 function deletePortHolding(id){
   if(!confirm('이 종목을 삭제할까요?')) return;
-  S.set('portfolio_holdings',(S.get('portfolio_holdings')||[]).filter(function(h){return h.id!==id;}));
-  if(supa) supa.from('portfolio_holdings').delete().eq('id',id).then(function(){});
+  var _afterDel=(S.get('portfolio_holdings')||[]).filter(function(h){return h.id!==id;});
+  S.set('portfolio_holdings',_afterDel);
+  dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(_afterDel)});
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
 }
 
@@ -6110,7 +6099,7 @@ function confirmPortBuy(id){
     h.investedKRW=(h.investedKRW||0)+inv2;
   }
   S.set('portfolio_holdings',holdings);
-  dbUpsert('portfolio_holdings',_holdingToDbRow(h));
+  dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
   delete _portBuyOpen[id];
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
 }
@@ -6248,7 +6237,7 @@ function savePortSnapshot(){
   if(idx>=0) snaps[idx]=entry; else snaps.push(entry);
   snaps.sort(function(a,b){return a.date.localeCompare(b.date);});
   S.set('portfolio_snapshots',snaps);
-  dbUpsert('portfolio_snapshots', _snapToDbRow(entry));
+  dbUpsert('settings',{key:'portfolio_snapshots',value:JSON.stringify(snaps)});
   renderPortMonthlyChart();
   try { renderMarriageGrowth(); } catch(e){}
   alert('✅ '+date+' 현황이 저장됐어요!');
@@ -6258,7 +6247,7 @@ function deletePortSnapshot(date){
   if(!confirm(date+' 기록을 삭제할까요?')) return;
   var snaps=(S.get('portfolio_snapshots')||[]).filter(function(s){return s.date!==date;});
   S.set('portfolio_snapshots',snaps);
-  if(supa) supa.from('portfolio_snapshots').delete().eq('date',date).then(function(){});
+  dbUpsert('settings',{key:'portfolio_snapshots',value:JSON.stringify(snaps)});
   renderPortMonthlyChart();
 }
 
