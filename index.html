@@ -1894,16 +1894,16 @@ async function syncFromSupabase() {
     newLocalSnaps.sort(function(a,b){return b.id-a.id;});
     S.set('asset_snapshots', newLocalSnaps.slice(0,100));
     S.set('_pending_snap_ids', Array.from(pendingSnapIds));
-    // events — 양방향 sync
-    const { data: dbEvents } = await supa.from('events').select('*');
-    var localEvents = S.get('events') || [];
-    var dbEvIds = new Set((dbEvents||[]).map(function(e){return e.id;}));
-    localEvents.forEach(function(e){ if(!dbEvIds.has(e.id)) dbUpsert('events', e); });
-    if(dbEvents && dbEvents.length > 0) {
-      var localEvIds = new Set(localEvents.map(function(e){return e.id;}));
-      dbEvents.forEach(function(e){ if(!localEvIds.has(e.id)) localEvents.push({id:e.id, date:e.date, title:e.title, color:e.color}); });
-      S.set('events', localEvents);
+    // events — Supabase 단일 진실 소스 (localStorage 완전 제거)
+    const { data: dbEvents } = await supa.from('events').select('*').order('date', {ascending:true});
+    // 한 번만: localStorage에 남아있는 이전 events를 Supabase로 마이그레이션
+    var legacyEvents = JSON.parse(localStorage.getItem('events')||'[]');
+    if(legacyEvents.length > 0) {
+      var dbEvIdSet = new Set((dbEvents||[]).map(function(e){return e.id;}));
+      legacyEvents.forEach(function(e){ if(!dbEvIdSet.has(e.id)) dbUpsert('events', e); });
+      localStorage.removeItem('events');
     }
+    _events = (dbEvents||[]).map(function(e){ return {id:e.id, date:e.date, title:e.title, color:e.color||'blue'}; });
     // yt_summaries — 양방향 sync
     const { data: dbYt } = await supa.from('yt_summaries').select('*').order('saved_at', {ascending:false}).limit(50);
     var localYt = S.get('yt_summaries') || [];
@@ -1962,6 +1962,9 @@ const S = {
   get: k => { try { return JSON.parse(localStorage.getItem(k)) } catch { return null } },
   set: (k,v) => localStorage.setItem(k, JSON.stringify(v)),
 };
+
+// ── EVENTS IN-MEMORY STORE (Supabase only, no localStorage) ──
+var _events = [];  // populated by syncFromSupabase; written directly to Supabase
 
 // ── PORTFOLIO DB ROW HELPERS ──
 function _holdingToDbRow(h) {
@@ -2586,7 +2589,7 @@ function renderCalendar() {
   const days = new Date(calYear, calMonth+1, 0).getDate();
   const prevDays = new Date(calYear, calMonth, 0).getDate();
   const todayStr = today();
-  const events = S.get('events') || [];
+  const events = _events;
 
   let cells = '';
   let total = first + days;
@@ -2628,16 +2631,15 @@ function addEvent() {
   const color = document.getElementById('ev-color').value;
   if(!date||!title) return;
   const ev = { id: Date.now(), date, title, color };
-  const events = S.get('events') || [];
-  events.push(ev);
-  S.set('events', events);
+  _events.push(ev);
+  _events.sort(function(a,b){return a.date.localeCompare(b.date);});
   dbUpsert('events', ev);
   document.getElementById('ev-title').value = '';
   renderCalendar();
 }
 
 function renderEventList() {
-  const events = (S.get('events') || []).sort((a,b) => a.date.localeCompare(b.date));
+  const events = _events.slice().sort((a,b) => a.date.localeCompare(b.date));
   const el = document.getElementById('ev-list');
   if(!events.length) { el.innerHTML = '<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:1rem">등록된 일정이 없어요</div>'; return; }
   el.innerHTML = events.map(e => `
@@ -2651,7 +2653,7 @@ function renderEventList() {
 }
 
 function deleteEvent(id) {
-  S.set('events', (S.get('events')||[]).filter(e=>e.id!==id));
+  _events = _events.filter(e=>e.id!==id);
   dbDelete('events', id);
   renderCalendar();
 }
@@ -4150,7 +4152,7 @@ function refreshDashboard() {
 
   // 이번달 일정
   var now = new Date();
-  var events = (S.get('events')||[]).filter(function(e){
+  var events = _events.filter(function(e){
     var d = new Date(e.date);
     return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
   }).sort(function(a,b){return a.date.localeCompare(b.date);});
