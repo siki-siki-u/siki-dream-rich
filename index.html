@@ -54,6 +54,12 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-seri
 .page-header h2{font-family:'S-Core Dream',sans-serif;font-weight:700;font-size:2rem;color:var(--text);margin-bottom:.3rem}
 .page-header p{color:var(--muted);font-size:.88rem}
 
+/* HOME GOAL */
+#home-goal-bar-wrap{background:var(--surface2);border-radius:999px;height:12px;overflow:hidden;margin:.7rem 0 .35rem}
+#home-goal-bar{height:100%;border-radius:999px;background:linear-gradient(90deg,#6c8aff,#a78bfa);transition:width .8s cubic-bezier(.4,0,.2,1)}
+.home-goal-edit-form{display:flex;gap:.5rem;align-items:center;margin-top:.8rem;flex-wrap:wrap}
+.home-goal-edit-form input{flex:1;min-width:0;padding:.4rem .7rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.88rem;font-family:JetBrains Mono,monospace}
+.home-goal-edit-form button{padding:.4rem .85rem;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:.82rem;cursor:pointer;white-space:nowrap}
 /* CHART TOOLTIP */
 #port-chart-tooltip{
   position:fixed;pointer-events:none;z-index:9999;
@@ -492,6 +498,24 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div style="font-size:.68rem;color:var(--muted);background:var(--surface2);border-radius:6px;padding:.15rem .45rem">25.10 결혼 기준</div>
       </div>
       <div id="marriage-growth-content"></div>
+    </div>
+
+    <!-- 내 집 마련 목표 -->
+    <div class="card" style="margin-bottom:1.5rem;position:relative;overflow:hidden">
+      <div style="position:absolute;right:-10px;top:-10px;font-size:4.5rem;opacity:.05;pointer-events:none">🏠</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.9rem">
+        <div class="sec-title" style="margin:0">🏠 내 집 마련 목표</div>
+        <button onclick="toggleHomeGoalEdit()" id="home-goal-edit-btn" style="font-size:.72rem;color:var(--muted);background:var(--surface2);border:none;border-radius:6px;padding:.15rem .5rem;cursor:pointer">목표설정</button>
+      </div>
+      <div id="home-goal-content"></div>
+      <div id="home-goal-edit-area" style="display:none">
+        <div class="home-goal-edit-form">
+          <input id="home-goal-input" type="number" placeholder="목표 금액 (원 단위, 예: 900000000)" min="0" step="10000000"/>
+          <button onclick="saveHomeGoal()">저장</button>
+          <button onclick="toggleHomeGoalEdit()" style="background:var(--surface2);color:var(--muted)">취소</button>
+        </div>
+        <div style="font-size:.7rem;color:var(--muted);margin-top:.35rem;padding-left:.1rem">9억이면 900000000 입력</div>
+      </div>
     </div>
 
     <!-- 미니 캘린더 + 특별한 날 -->
@@ -1793,7 +1817,36 @@ async function syncFromSupabase() {
       else if(s.key === 'cq_family')   S.set('cq_family',   parseInt(s.value)||0);
       else if(s.key === 'cq_account')  S.set('cq_account',  parseInt(s.value)||0);
       else if(s.key === 'yt_last_seen_id') S.set('yt_last_seen_id', s.value);
+      else if(s.key === 'home_goal_price') S.set('home_goal_price', parseFloat(s.value)||0);
     });
+    // ── portfolio_holdings — DB 단방향 (DB→로컬). 로컬에만 있으면 DB에 seed ──
+    const { data: dbHoldings } = await supa.from('portfolio_holdings').select('*').order('created_at', {ascending:true});
+    if(dbHoldings && dbHoldings.length > 0) {
+      S.set('portfolio_holdings', dbHoldings.map(function(h){
+        return {id:h.id, ticker:h.ticker||'', name:h.name||'', type:h.type||'US',
+          owner:h.owner||'윤식', isDirect:!!h.is_direct,
+          currentKRW:h.current_krw||0, investedKRW:h.invested_krw||0,
+          qty:h.qty||0, addedAt:h.added_at||''};
+      }));
+    } else {
+      // DB 비어있으면 로컬 → DB seed (데스크탑 최초 동기화)
+      var localHoldings = S.get('portfolio_holdings') || [];
+      localHoldings.forEach(function(h){ dbUpsert('portfolio_holdings', _holdingToDbRow(h)); });
+    }
+    // ── portfolio_snapshots — DB 단방향. 로컬에만 있으면 seed ──
+    const { data: dbSnaps } = await supa.from('portfolio_snapshots').select('*').order('date', {ascending:true});
+    if(dbSnaps && dbSnaps.length > 0) {
+      S.set('portfolio_snapshots', dbSnaps.map(function(s){
+        return {date:s.date, investedKRW:s.invested_krw||0, valueKRW:s.value_krw||0,
+          volatileInvKRW:s.volatile_inv_krw||0, volatileValKRW:s.volatile_val_krw||0,
+          lockedInvKRW:s.locked_inv_krw||0, lockedValKRW:s.locked_val_krw||0,
+          fixedInvKRW:s.fixed_inv_krw||0, fixedValKRW:s.fixed_val_krw||0,
+          holdings:s.holdings||[]};
+      }));
+    } else {
+      var localPortSnaps = S.get('portfolio_snapshots') || [];
+      localPortSnaps.forEach(function(snap){ dbUpsert('portfolio_snapshots', _snapToDbRow(snap)); });
+    }
     // asset_shots — DB 기준 양방향 sync (삭제 전파)
     // pending: 이 디바이스에서 업로드했지만 DB 확인 안 된 ID
     var localShots = S.get('asset_shots') || [];
@@ -1909,6 +1962,21 @@ const S = {
   get: k => { try { return JSON.parse(localStorage.getItem(k)) } catch { return null } },
   set: (k,v) => localStorage.setItem(k, JSON.stringify(v)),
 };
+
+// ── PORTFOLIO DB ROW HELPERS ──
+function _holdingToDbRow(h) {
+  return {id:h.id, ticker:h.ticker||'', name:h.name||'', type:h.type||'US',
+    owner:h.owner||'윤식', is_direct:!!h.isDirect,
+    current_krw:h.currentKRW||0, invested_krw:h.investedKRW||0,
+    qty:h.qty||0, added_at:h.addedAt||''};
+}
+function _snapToDbRow(snap) {
+  return {date:snap.date, invested_krw:snap.investedKRW||0, value_krw:snap.valueKRW||0,
+    volatile_inv_krw:snap.volatileInvKRW||0, volatile_val_krw:snap.volatileValKRW||0,
+    locked_inv_krw:snap.lockedInvKRW||0, locked_val_krw:snap.lockedValKRW||0,
+    fixed_inv_krw:snap.fixedInvKRW||0, fixed_val_krw:snap.fixedValKRW||0,
+    holdings:snap.holdings||[]};
+}
 
 // ── SIDEBAR MOBILE ──
 function toggleSidebar() {
@@ -3959,6 +4027,88 @@ function renderMarriageGrowth() {
     '</div>';
 }
 
+// ── 내 집 마련 목표 ──
+function renderHomeGoal() {
+  var el = document.getElementById('home-goal-content');
+  if (!el) return;
+  var goal = S.get('home_goal_price') || 0;
+  var btn = document.getElementById('home-goal-edit-btn');
+
+  if (!goal) {
+    el.innerHTML = '<div style="text-align:center;padding:1.2rem 0;color:var(--muted);font-size:.82rem">' +
+      '<b style="color:var(--text)">목표설정</b> 버튼을 눌러 목표 집 금액을 입력하세요</div>';
+    if (btn) btn.textContent = '목표설정';
+    return;
+  }
+
+  var holdings = S.get('portfolio_holdings') || [];
+  var totVal = 0;
+  holdings.forEach(function(h) {
+    var v = portValueKRW(h);
+    totVal += v != null ? v : (h.investedKRW || 0);
+  });
+  totVal = Math.round(totVal);
+
+  var pct = Math.min(totVal / goal * 100, 100);
+  var remain = Math.max(goal - totVal, 0);
+
+  function fmtW(n) {
+    if (n >= 100000000) return (n/100000000).toFixed(2).replace(/\.?0+$/,'')+'억';
+    if (n >= 10000)     return Math.round(n/10000).toLocaleString()+'만';
+    return n.toLocaleString()+'원';
+  }
+
+  if (btn) btn.textContent = '수정';
+
+  el.innerHTML =
+    '<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:.15rem">' +
+      '<div style="font-size:2rem;font-weight:900;font-family:JetBrains Mono,monospace;color:var(--accent);line-height:1">' +
+        pct.toFixed(1)+'<span style="font-size:1rem;font-weight:600">%</span>' +
+      '</div>' +
+      '<div style="font-size:.72rem;color:var(--muted);text-align:right;line-height:1.5">' +
+        '목표 <b style="color:var(--text)">₩'+fmtW(goal)+'</b><br>' +
+        '현재 <b style="color:var(--text)">₩'+fmtW(totVal)+'</b>' +
+      '</div>' +
+    '</div>' +
+    '<div id="home-goal-bar-wrap"><div id="home-goal-bar" style="width:0%"></div></div>' +
+    '<div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted)">' +
+      '<span>₩0</span>' +
+      '<span style="color:'+(remain===0?'var(--success)':'var(--muted)')+'">'+
+        (remain===0 ? '🎉 목표 달성!' : '앞으로 <b style="color:var(--text)">₩'+fmtW(remain)+'</b> 더') +
+      '</span>' +
+      '<span>₩'+fmtW(goal)+'</span>' +
+    '</div>';
+
+  // 애니메이션: requestAnimationFrame으로 bar 너비 설정
+  requestAnimationFrame(function(){
+    var bar = document.getElementById('home-goal-bar');
+    if (bar) bar.style.width = pct.toFixed(2)+'%';
+  });
+}
+
+function toggleHomeGoalEdit() {
+  var area = document.getElementById('home-goal-edit-area');
+  if (!area) return;
+  var isOpen = area.style.display !== 'none';
+  area.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    var inp = document.getElementById('home-goal-input');
+    var cur = S.get('home_goal_price') || 0;
+    if (inp) { inp.value = cur || ''; inp.focus(); }
+  }
+}
+
+function saveHomeGoal() {
+  var inp = document.getElementById('home-goal-input');
+  var val = parseInt((inp ? inp.value : '0') || '0');
+  if (!val || val <= 0) { alert('올바른 금액을 입력해주세요.'); return; }
+  S.set('home_goal_price', val);
+  dbUpsert('settings', {key:'home_goal_price', value: String(val)});
+  var area = document.getElementById('home-goal-edit-area');
+  if (area) area.style.display = 'none';
+  renderHomeGoal();
+}
+
 // ── DASHBOARD REFRESH ──
 function refreshDashboard() {
   // 가계부: 현재 달 기준
@@ -3991,6 +4141,9 @@ function refreshDashboard() {
 
   // 결혼 이후 자산 성장
   renderMarriageGrowth();
+
+  // 내 집 마련 목표
+  renderHomeGoal();
 
   // 미니 캘린더
   renderDashMiniCal();
@@ -5794,8 +5947,10 @@ function addPortHolding(){
     if(!curVal||curVal<=0){alert('현재 평가금액을 입력해주세요.');return;}
     if(!inv2||inv2<=0){alert('투자 원금을 입력해주세요.');return;}
     var ticker='DIRECT_'+_portType+'_'+_portOwner+'_'+Date.now();
-    holdings.push({id:Date.now(),ticker:ticker,name:name,type:_portType,owner:_portOwner,isDirect:true,currentKRW:curVal,investedKRW:inv2,addedAt:today()});
+    var newDirect={id:Date.now(),ticker:ticker,name:name,type:_portType,owner:_portOwner,isDirect:true,currentKRW:curVal,investedKRW:inv2,addedAt:today()};
+    holdings.push(newDirect);
     S.set('portfolio_holdings',holdings);
+    dbUpsert('portfolio_holdings',_holdingToDbRow(newDirect));
     _resetDirectName();
     document.getElementById('port-direct-value').value='';
     document.getElementById('port-direct-invested').value='';
@@ -5806,14 +5961,19 @@ function addPortHolding(){
     if(!qty||qty<=0){alert('보유 수량을 입력해주세요.');return;}
     if(!inv||inv<=0){alert('투자 원금(₩)을 입력해주세요.');return;}
     var ex=holdings.find(function(h){return h.ticker===_portSelTicker.ticker&&h.owner===_portOwner;});
+    var syncTarget;
     if(ex){
       if(!confirm('"'+ex.name+'" 이(가) 이미 있습니다. 수량과 원금을 추가할까요?')) return;
       ex.qty=parseFloat((ex.qty+qty).toFixed(8));
       ex.investedKRW=(ex.investedKRW||0)+inv;
+      syncTarget=ex;
     }else{
-      holdings.push({id:Date.now(),ticker:_portSelTicker.ticker,name:_portSelTicker.name,type:_portSelTicker.type||_portType,owner:_portOwner,qty:qty,investedKRW:inv,addedAt:today()});
+      var newH={id:Date.now(),ticker:_portSelTicker.ticker,name:_portSelTicker.name,type:_portSelTicker.type||_portType,owner:_portOwner,qty:qty,investedKRW:inv,addedAt:today()};
+      holdings.push(newH);
+      syncTarget=newH;
     }
     S.set('portfolio_holdings',holdings);
+    dbUpsert('portfolio_holdings',_holdingToDbRow(syncTarget));
     _portSelTicker=null;
     document.getElementById('port-search').value='';
     document.getElementById('port-qty').value='';
@@ -5826,6 +5986,7 @@ function addPortHolding(){
 function deletePortHolding(id){
   if(!confirm('이 종목을 삭제할까요?')) return;
   S.set('portfolio_holdings',(S.get('portfolio_holdings')||[]).filter(function(h){return h.id!==id;}));
+  if(supa) supa.from('portfolio_holdings').delete().eq('id',id).then(function(){});
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
 }
 
@@ -5947,6 +6108,7 @@ function confirmPortBuy(id){
     h.investedKRW=(h.investedKRW||0)+inv2;
   }
   S.set('portfolio_holdings',holdings);
+  dbUpsert('portfolio_holdings',_holdingToDbRow(h));
   delete _portBuyOpen[id];
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
 }
@@ -6084,6 +6246,7 @@ function savePortSnapshot(){
   if(idx>=0) snaps[idx]=entry; else snaps.push(entry);
   snaps.sort(function(a,b){return a.date.localeCompare(b.date);});
   S.set('portfolio_snapshots',snaps);
+  dbUpsert('portfolio_snapshots', _snapToDbRow(entry));
   renderPortMonthlyChart();
   try { renderMarriageGrowth(); } catch(e){}
   alert('✅ '+date+' 현황이 저장됐어요!');
@@ -6093,6 +6256,7 @@ function deletePortSnapshot(date){
   if(!confirm(date+' 기록을 삭제할까요?')) return;
   var snaps=(S.get('portfolio_snapshots')||[]).filter(function(s){return s.date!==date;});
   S.set('portfolio_snapshots',snaps);
+  if(supa) supa.from('portfolio_snapshots').delete().eq('date',date).then(function(){});
   renderPortMonthlyChart();
 }
 
