@@ -2006,7 +2006,6 @@ async function syncFromSupabase() {
       }
     })();
   } catch(e) { console.warn('[Supabase sync error]', e.message); }
-  _appSynced = true;
   // re-render — try/catch 밖에서 항상 실행 (sync 일부 실패해도 렌더는 반드시)
   try { renderStocks(); fetchAllPrices(); } catch(e){}
   try { renderBudget(); refreshDashboard(); recalcBudget(); } catch(e){}
@@ -2023,8 +2022,6 @@ const S = {
   set: (k,v) => localStorage.setItem(k, JSON.stringify(v)),
 };
 
-// ── SYNC STATE ──
-var _appSynced = false;  // true after first syncFromSupabase completes
 
 // ── EVENTS IN-MEMORY STORE (Supabase only, no localStorage) ──
 var _events = [];  // populated by syncFromSupabase; written directly to Supabase
@@ -4186,16 +4183,6 @@ function _dashSkel(lines) {
 }
 
 function refreshDashboard() {
-  if (!_appSynced) {
-    // sync 완료 전: 스켈레톤 로딩 표시
-    var mgEl = document.getElementById('marriage-growth-content');
-    var hgEl = document.getElementById('home-goal-content');
-    var rtEl = document.getElementById('dash-recent-tx');
-    if(mgEl) mgEl.innerHTML = '<div class="dash-skel dash-skel-big" style="width:60%"></div>'+_dashSkel(3);
-    if(hgEl) hgEl.innerHTML = '<div class="dash-skel dash-skel-big" style="width:40%"></div>'+_dashSkel(2);
-    if(rtEl) rtEl.innerHTML = _dashSkel(4);
-    return;
-  }
   // 가계부: 현재 달 기준
   var key = budgetYear+'-'+String(budgetMonth).padStart(2,'0');
   var income = S.get('income_'+key) || {};
@@ -4249,7 +4236,7 @@ function refreshDashboard() {
     }).join('') : '<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:1.5rem 0">이번 달 일정이 없어요</div>';
   }
 }
-try { refreshDashboard(); } catch(e){}  // _appSynced=false 이므로 스켈레톤만 그림
+try { refreshDashboard(); } catch(e){}
 // ── YOUTUBE 올랜도킴 분석 ──
 var YT_CHANNEL_ID = 'UCwSSqi-s0wcH6pJbH3YPZqQ';
 var ytVideos = [];
