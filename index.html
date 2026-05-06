@@ -1831,6 +1831,10 @@ async function syncFromSupabase() {
     const { data: realty } = await supa.from('realty').select('*');
     if(realty && realty.length > 0) S.set('apts', realty.map(function(r){ return r.data; }));
     // settings (고정비, 사용자 설정 등)
+    // forEach 전에 로컬 원본 캡처 (forEach가 덮어쓰기 전)
+    var _preLocalHoldings  = S.get('portfolio_holdings')  || [];
+    var _preLocalSnapshots = S.get('portfolio_snapshots') || [];
+    var _preLocalHomeGoal  = S.get('home_goal_price')     || 0;
     const { data: settings } = await supa.from('settings').select('*');
     if(settings && settings.length > 0) settings.forEach(function(s){
       if(s.key === 'fixed_costs') { try {
@@ -1856,38 +1860,40 @@ async function syncFromSupabase() {
         try { var _ps=JSON.parse(s.value); if(_ps&&_ps.length>0) S.set('portfolio_snapshots',_ps); } catch(e){}
       }
     });
-    // ── portfolio: DB와 로컬 비교 후 더 많은 쪽을 기준으로 동기화 ──
-    (function(){
-      var _settingsKeys = new Set((settings||[]).map(function(s){return s.key;}));
-      var _dbHRow = (settings||[]).find(function(s){return s.key==='portfolio_holdings';});
-      var _lh = S.get('portfolio_holdings')||[];
-      if(_dbHRow) {
-        try {
-          var _dbH = JSON.parse(_dbHRow.value)||[];
-          // DB 데이터가 있으면 DB 우선 (이미 위 forEach에서 S.set 완료)
-          // 단, 로컬이 DB보다 많으면 로컬 → DB push (데스크탑에서 추가한 경우)
-          if(_lh.length > _dbH.length) {
-            dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(_lh)});
-          }
-        } catch(e) {}
-      } else if(_lh.length > 0) {
-        // DB에 없음 → 로컬 seed
-        dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(_lh)});
+    // ── portfolio: DB ↔ 로컬 양방향 동기화 (forEach 덮어쓰기 전 원본 기준) ──
+    {
+      const _dbHRow = (settings||[]).find(s=>s.key==='portfolio_holdings');
+      const _dbSRow = (settings||[]).find(s=>s.key==='portfolio_snapshots');
+
+      // holdings
+      const _dbH = _dbHRow ? (()=>{try{return JSON.parse(_dbHRow.value)||[];}catch(e){return [];}})() : [];
+      if(_preLocalHoldings.length > 0 && _preLocalHoldings.length >= _dbH.length) {
+        // 로컬이 DB보다 같거나 많음 → 로컬이 최신(데스크탑) → DB에 push
+        await supa.from('settings').upsert({key:'portfolio_holdings', value:JSON.stringify(_preLocalHoldings)});
+        // 로컬은 이미 원본 유지 (forEach가 덮어써도 원본이 더 최신이므로 복원)
+        S.set('portfolio_holdings', _preLocalHoldings);
+      } else if(_dbH.length > 0) {
+        // DB가 더 최신(모바일에서 추가된 경우) → DB 우선 (forEach에서 이미 S.set 완료)
+      } else if(_preLocalHoldings.length > 0) {
+        // DB 없음, 로컬만 있음 → seed
+        await supa.from('settings').upsert({key:'portfolio_holdings', value:JSON.stringify(_preLocalHoldings)});
       }
 
-      var _dbSRow = (settings||[]).find(function(s){return s.key==='portfolio_snapshots';});
-      var _ls = S.get('portfolio_snapshots')||[];
-      if(_dbSRow) {
-        try {
-          var _dbS = JSON.parse(_dbSRow.value)||[];
-          if(_ls.length > _dbS.length) {
-            dbUpsert('settings',{key:'portfolio_snapshots',value:JSON.stringify(_ls)});
-          }
-        } catch(e) {}
-      } else if(_ls.length > 0) {
-        dbUpsert('settings',{key:'portfolio_snapshots',value:JSON.stringify(_ls)});
+      // snapshots
+      const _dbS = _dbSRow ? (()=>{try{return JSON.parse(_dbSRow.value)||[];}catch(e){return [];}})() : [];
+      if(_preLocalSnapshots.length > 0 && _preLocalSnapshots.length >= _dbS.length) {
+        await supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(_preLocalSnapshots)});
+        S.set('portfolio_snapshots', _preLocalSnapshots);
+      } else if(_preLocalSnapshots.length > 0 && _dbS.length === 0) {
+        await supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(_preLocalSnapshots)});
       }
-    })();
+
+      // home_goal_price: 로컬에만 있고 DB에 없으면 seed
+      const _dbGoalRow = (settings||[]).find(s=>s.key==='home_goal_price');
+      if(_preLocalHomeGoal > 0 && !_dbGoalRow) {
+        await supa.from('settings').upsert({key:'home_goal_price', value:String(_preLocalHomeGoal)});
+      }
+    }
     // asset_shots — DB 기준 양방향 sync (삭제 전파)
     // pending: 이 디바이스에서 업로드했지만 DB 확인 안 된 ID
     var localShots = S.get('asset_shots') || [];
