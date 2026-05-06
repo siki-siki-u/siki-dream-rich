@@ -979,6 +979,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div class="sec-title" style="margin:0">📊 자산 추이</div>
         <div style="display:flex;gap:.4rem">
           <button class="btn" style="font-size:.73rem;padding:.3rem .7rem;background:var(--surface2);border:1px solid var(--border);color:var(--muted)" onclick="showPortChanges()">🔍 변화 보기</button>
+          <button class="btn" id="port-cloud-sync-btn" style="font-size:.73rem;padding:.3rem .7rem;background:var(--surface2);border:1px solid var(--border);color:var(--muted)" onclick="forcePortCloudSync()">☁️ 클라우드 동기화</button>
           <button class="btn btn-primary" style="font-size:.73rem;padding:.3rem .7rem" onclick="savePortSnapshot()">💾 오늘 저장</button>
         </div>
       </div>
@@ -6216,6 +6217,25 @@ function renderPortHoldings(){
       buyForm+
     '</div>';
   }).join('');
+}
+
+async function forcePortCloudSync() {
+  var btn = document.getElementById('port-cloud-sync-btn');
+  if(!supa) { alert('Supabase 연결 없음'); return; }
+  if(btn) { btn.textContent = '⏳ 업로드 중...'; btn.disabled = true; }
+  try {
+    var holdings = S.get('portfolio_holdings') || [];
+    var snaps    = S.get('portfolio_snapshots') || [];
+    await Promise.all([
+      supa.from('settings').upsert({key:'portfolio_holdings',  value:JSON.stringify(holdings)}),
+      supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(snaps)}),
+    ]);
+    if(btn) { btn.textContent = '✅ 완료'; btn.style.color='var(--success)'; }
+    setTimeout(function(){ if(btn){btn.textContent='☁️ 클라우드 동기화';btn.style.color='';btn.disabled=false;} }, 2500);
+  } catch(e) {
+    alert('동기화 실패: ' + e.message);
+    if(btn) { btn.textContent = '☁️ 클라우드 동기화'; btn.disabled = false; }
+  }
 }
 
 function savePortSnapshot(){
