@@ -6333,11 +6333,43 @@ function savePortSnapshot(){
   var entry={date:date,investedKRW:totInv,valueKRW:Math.round(totVal),volatileInvKRW:vInv,volatileValKRW:Math.round(vVal),lockedInvKRW:lInv,lockedValKRW:Math.round(lVal),fixedInvKRW:fInv,fixedValKRW:Math.round(fVal),holdings:holdingsSnap};
   if(idx>=0) snaps[idx]=entry; else snaps.push(entry);
   snaps.sort(function(a,b){return a.date.localeCompare(b.date);});
-  S.set('portfolio_snapshots',snaps);
-  dbUpsert('settings',{key:'portfolio_snapshots',value:JSON.stringify(snaps)});
+
+  // 로컬 저장
+  S.set('portfolio_snapshots', snaps);
+
+  // Supabase에 holdings + snapshots 동시 push (다른 기기 동기화)
+  if(supa) {
+    supa.from('settings').upsert({key:'portfolio_holdings',  value:JSON.stringify(holdings)}).then(function(){});
+    supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(snaps)}).then(function(){});
+  }
+
+  // 차트 업데이트
   renderPortMonthlyChart();
-  try { renderMarriageGrowth(); } catch(e){}
-  alert('✅ '+date+' 현황이 저장됐어요!');
+
+  // 토스트 알림 (alert 대신)
+  _showSaveToast(date);
+
+  // 대시보드로 이동 + 결혼 이후 자산 성장 카드 업데이트
+  showPage('dashboard', null);
+  try { renderMarriageGrowth(); renderHomeGoal(); } catch(e){}
+}
+
+function _showSaveToast(date) {
+  var t = document.getElementById('port-save-toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'port-save-toast';
+    t.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);' +
+      'background:#1e2333;border:1px solid rgba(82,217,163,.4);border-radius:12px;' +
+      'padding:.65rem 1.2rem;font-size:.85rem;color:#52d9a3;z-index:9999;' +
+      'box-shadow:0 8px 24px rgba(0,0,0,.5);white-space:nowrap;' +
+      'opacity:0;transition:opacity .25s;pointer-events:none;';
+    document.body.appendChild(t);
+  }
+  t.textContent = '✅ ' + date + ' 저장 완료 · 모든 기기에 동기화됨';
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function(){ t.style.opacity = '0'; }, 2800);
 }
 
 function deletePortSnapshot(date){
