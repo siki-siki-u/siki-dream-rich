@@ -63,6 +63,11 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-seri
 .page-header h2{font-family:'S-Core Dream',sans-serif;font-weight:700;font-size:2rem;color:var(--text);margin-bottom:.3rem}
 .page-header p{color:var(--muted);font-size:.88rem}
 
+/* DASHBOARD SKELETON */
+.dash-skel{border-radius:10px;background:linear-gradient(90deg,var(--surface2) 25%,var(--surface) 50%,var(--surface2) 75%);background-size:200% 100%;animation:skelShine 1.4s infinite;}
+@keyframes skelShine{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.dash-skel-line{height:.85rem;margin-bottom:.5rem;border-radius:5px;}
+.dash-skel-big{height:1.6rem;margin-bottom:.6rem;border-radius:7px;}
 /* PWA UPDATE BANNER */
 #pwa-update-banner{
   position:fixed;bottom:72px;left:50%;transform:translateX(-50%);
@@ -1851,16 +1856,38 @@ async function syncFromSupabase() {
         try { var _ps=JSON.parse(s.value); if(_ps&&_ps.length>0) S.set('portfolio_snapshots',_ps); } catch(e){}
       }
     });
-    // ── portfolio: 로컬에만 있으면 settings 테이블로 자동 seed ──
-    var _settingsKeys = new Set((settings||[]).map(function(s){return s.key;}));
-    if(!_settingsKeys.has('portfolio_holdings')) {
+    // ── portfolio: DB와 로컬 비교 후 더 많은 쪽을 기준으로 동기화 ──
+    (function(){
+      var _settingsKeys = new Set((settings||[]).map(function(s){return s.key;}));
+      var _dbHRow = (settings||[]).find(function(s){return s.key==='portfolio_holdings';});
       var _lh = S.get('portfolio_holdings')||[];
-      if(_lh.length>0) dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(_lh)});
-    }
-    if(!_settingsKeys.has('portfolio_snapshots')) {
+      if(_dbHRow) {
+        try {
+          var _dbH = JSON.parse(_dbHRow.value)||[];
+          // DB 데이터가 있으면 DB 우선 (이미 위 forEach에서 S.set 완료)
+          // 단, 로컬이 DB보다 많으면 로컬 → DB push (데스크탑에서 추가한 경우)
+          if(_lh.length > _dbH.length) {
+            dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(_lh)});
+          }
+        } catch(e) {}
+      } else if(_lh.length > 0) {
+        // DB에 없음 → 로컬 seed
+        dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(_lh)});
+      }
+
+      var _dbSRow = (settings||[]).find(function(s){return s.key==='portfolio_snapshots';});
       var _ls = S.get('portfolio_snapshots')||[];
-      if(_ls.length>0) dbUpsert('settings',{key:'portfolio_snapshots',value:JSON.stringify(_ls)});
-    }
+      if(_dbSRow) {
+        try {
+          var _dbS = JSON.parse(_dbSRow.value)||[];
+          if(_ls.length > _dbS.length) {
+            dbUpsert('settings',{key:'portfolio_snapshots',value:JSON.stringify(_ls)});
+          }
+        } catch(e) {}
+      } else if(_ls.length > 0) {
+        dbUpsert('settings',{key:'portfolio_snapshots',value:JSON.stringify(_ls)});
+      }
+    })();
     // asset_shots — DB 기준 양방향 sync (삭제 전파)
     // pending: 이 디바이스에서 업로드했지만 DB 확인 안 된 ID
     var localShots = S.get('asset_shots') || [];
@@ -1961,6 +1988,7 @@ async function syncFromSupabase() {
       }
     })();
   } catch(e) { console.warn('[Supabase sync error]', e.message); }
+  _appSynced = true;
   // re-render — try/catch 밖에서 항상 실행 (sync 일부 실패해도 렌더는 반드시)
   try { renderStocks(); fetchAllPrices(); } catch(e){}
   try { renderBudget(); refreshDashboard(); recalcBudget(); } catch(e){}
@@ -1976,6 +2004,9 @@ const S = {
   get: k => { try { return JSON.parse(localStorage.getItem(k)) } catch { return null } },
   set: (k,v) => localStorage.setItem(k, JSON.stringify(v)),
 };
+
+// ── SYNC STATE ──
+var _appSynced = false;  // true after first syncFromSupabase completes
 
 // ── EVENTS IN-MEMORY STORE (Supabase only, no localStorage) ──
 var _events = [];  // populated by syncFromSupabase; written directly to Supabase
@@ -3977,7 +4008,7 @@ function renderMarriageGrowth() {
   var holdings = S.get('portfolio_holdings') || [];
   if (!holdings.length) {
     el.innerHTML = '<div style="text-align:center;padding:1.2rem 0;color:var(--muted);font-size:.82rem">' +
-      '자산현황 탭에서 종목을 추가하면 자동으로 집계됩니다</div>';
+      '자산현황 탭 → <b style="color:var(--text)">☁️ 클라우드 동기화</b> 버튼을 한 번 눌러주세요</div>';
     return;
   }
 
@@ -4126,7 +4157,23 @@ function saveHomeGoal() {
 }
 
 // ── DASHBOARD REFRESH ──
+function _dashSkel(lines) {
+  var h = '';
+  for(var i=0;i<lines;i++) h+='<div class="dash-skel dash-skel-line" style="width:'+(70+Math.random()*25).toFixed(0)+'%"></div>';
+  return '<div style="padding:.4rem 0">'+h+'</div>';
+}
+
 function refreshDashboard() {
+  if (!_appSynced) {
+    // sync 완료 전: 스켈레톤 로딩 표시
+    var mgEl = document.getElementById('marriage-growth-content');
+    var hgEl = document.getElementById('home-goal-content');
+    var rtEl = document.getElementById('dash-recent-tx');
+    if(mgEl) mgEl.innerHTML = '<div class="dash-skel dash-skel-big" style="width:60%"></div>'+_dashSkel(3);
+    if(hgEl) hgEl.innerHTML = '<div class="dash-skel dash-skel-big" style="width:40%"></div>'+_dashSkel(2);
+    if(rtEl) rtEl.innerHTML = _dashSkel(4);
+    return;
+  }
   // 가계부: 현재 달 기준
   var key = budgetYear+'-'+String(budgetMonth).padStart(2,'0');
   var income = S.get('income_'+key) || {};
@@ -4180,7 +4227,7 @@ function refreshDashboard() {
     }).join('') : '<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:1.5rem 0">이번 달 일정이 없어요</div>';
   }
 }
-try { refreshDashboard(); } catch(e){}
+try { refreshDashboard(); } catch(e){}  // _appSynced=false 이므로 스켈레톤만 그림
 // ── YOUTUBE 올랜도킴 분석 ──
 var YT_CHANNEL_ID = 'UCwSSqi-s0wcH6pJbH3YPZqQ';
 var ytVideos = [];
