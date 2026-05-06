@@ -4,6 +4,15 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>식식징구월드 🏠</title>
+<!-- PWA -->
+<link rel="manifest" href="/manifest.json"/>
+<meta name="theme-color" content="#FFB800"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="식식징구"/>
+<link rel="apple-touch-icon" href="/icons/icon-192.svg"/>
+<link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg"/>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Gugi&display=swap" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/gh/webfontworld/SCoreDream/SCoreDream.css" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -54,6 +63,22 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-seri
 .page-header h2{font-family:'S-Core Dream',sans-serif;font-weight:700;font-size:2rem;color:var(--text);margin-bottom:.3rem}
 .page-header p{color:var(--muted);font-size:.88rem}
 
+/* PWA UPDATE BANNER */
+#pwa-update-banner{
+  position:fixed;bottom:72px;left:50%;transform:translateX(-50%);
+  background:#1e2333;border:1px solid rgba(108,138,255,.35);
+  border-radius:12px;padding:.6rem 1rem;
+  display:flex;align-items:center;gap:.7rem;
+  font-size:.82rem;color:var(--text);
+  box-shadow:0 8px 24px rgba(0,0,0,.5);
+  z-index:9990;opacity:0;pointer-events:none;
+  transition:opacity .3s;white-space:nowrap;
+}
+#pwa-update-banner.show{opacity:1;pointer-events:auto;}
+#pwa-update-banner button{
+  padding:.25rem .65rem;border-radius:7px;border:none;
+  background:var(--accent);color:#fff;font-size:.78rem;cursor:pointer;
+}
 /* HOME GOAL */
 #home-goal-bar-wrap{background:var(--surface2);border-radius:999px;height:12px;overflow:hidden;margin:.7rem 0 .35rem}
 #home-goal-bar{height:100%;border-radius:999px;background:linear-gradient(90deg,#6c8aff,#a78bfa);transition:width .8s cubic-bezier(.4,0,.2,1)}
@@ -6993,5 +7018,71 @@ function hideChartTooltip(){
 }
 </script>
 <div id="port-chart-tooltip"></div>
+
+<!-- PWA 업데이트 배너 -->
+<div id="pwa-update-banner">
+  🆕 새 버전이 있어요
+  <button onclick="location.reload()">지금 업데이트</button>
+  <button onclick="document.getElementById('pwa-update-banner').classList.remove('show')" style="background:var(--surface2);color:var(--muted)">나중에</button>
+</div>
+
+<script>
+// ── Service Worker 등록 ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+      // 업데이트 감지
+      reg.addEventListener('updatefound', function() {
+        var newWorker = reg.installing;
+        newWorker.addEventListener('statechange', function() {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            document.getElementById('pwa-update-banner').classList.add('show');
+          }
+        });
+      });
+    }).catch(function(e) { console.warn('[SW]', e.message); });
+
+    // SW 메시지 수신 (activate 시 배너)
+    navigator.serviceWorker.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'SW_UPDATED') {
+        document.getElementById('pwa-update-banner').classList.add('show');
+      }
+    });
+  });
+}
+
+// ── Supabase Realtime 구독 ──
+(function() {
+  if (!supa) return;
+  var realtimeChannel = supa.channel('db-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, function(payload) {
+      try {
+        var bk = payload.new && payload.new.budget_key || payload.old && payload.old.budget_key;
+        if (!bk) return;
+        // DB에서 해당 월 거래 재로드
+        supa.from('transactions').select('*').eq('budget_key', bk).then(function(res) {
+          if (res.data) {
+            S.set('txs_' + bk, res.data.map(function(t) {
+              return {id:t.id, date:t.date, cat:t.cat, amount:t.amount, desc:t.descr||'', source:t.source||''};
+            }));
+            try { renderBudget(); refreshDashboard(); } catch(e) {}
+          }
+        });
+      } catch(e) {}
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, function(payload) {
+      try {
+        var row = payload.new;
+        if (!row) return;
+        if (row.key === 'portfolio_holdings') {
+          try { var ph = JSON.parse(row.value); if (ph) { S.set('portfolio_holdings', ph); try { renderPortHoldings(); renderPortSummary(); renderMarriageGrowth(); renderHomeGoal(); } catch(e) {} } } catch(e) {}
+        } else if (row.key === 'portfolio_snapshots') {
+          try { var ps = JSON.parse(row.value); if (ps) { S.set('portfolio_snapshots', ps); try { renderPortMonthlyChart(); } catch(e) {} } } catch(e) {}
+        }
+      } catch(e) {}
+    })
+    .subscribe();
+})();
+</script>
 </body>
 </html>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="96" fill="#FFB800"/>
+  <!-- 집 지붕 -->
+  <polygon points="256,96 400,216 112,216" fill="white" opacity="0.95"/>
+  <!-- 집 몸체 -->
+  <rect x="152" y="216" width="208" height="168" rx="10" fill="white" opacity="0.95"/>
+  <!-- 문 -->
+  <rect x="216" y="288" width="80" height="96" rx="10" fill="#FFB800"/>
+  <!-- 하트 -->
+  <path d="M256,196 C256,196 220,166 220,148 C220,136 230,128 242,132 C248,134 253,140 256,146 C259,140 264,134 270,132 C282,128 292,136 292,148 C292,166 256,196 256,196 Z" fill="#FFB800"/>
+</svg>
