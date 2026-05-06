@@ -1860,31 +1860,44 @@ async function syncFromSupabase() {
         try { var _ps=JSON.parse(s.value); if(_ps&&_ps.length>0) S.set('portfolio_snapshots',_ps); } catch(e){}
       }
     });
-    // ── portfolio: 로컬 원본 기준으로 DB 동기화 (비동기 fire-and-forget, sync를 블록하지 않음) ──
+    // ── portfolio: DB 우선, DB 없으면 local → DB seed ──
     (function() {
       try {
-        var _dbHRow = (settings||[]).find(function(s){return s.key==='portfolio_holdings';});
-        var _dbSRow = (settings||[]).find(function(s){return s.key==='portfolio_snapshots';});
+        var _dbHRow    = (settings||[]).find(function(s){return s.key==='portfolio_holdings';});
+        var _dbSRow    = (settings||[]).find(function(s){return s.key==='portfolio_snapshots';});
         var _dbGoalRow = (settings||[]).find(function(s){return s.key==='home_goal_price';});
 
-        // holdings: 로컬 원본이 있으면 → localStorage 복원 + DB 업로드
+        // holdings: DB 우선 (단일 진실 소스)
         var _dbH = [];
         try { if(_dbHRow) _dbH = JSON.parse(_dbHRow.value)||[]; } catch(e){}
-        if(_preLocalHoldings.length > 0) {
-          S.set('portfolio_holdings', _preLocalHoldings); // forEach가 덮어쓴 것 복원
-          if(_preLocalHoldings.length >= _dbH.length) {
-            supa.from('settings').upsert({key:'portfolio_holdings', value:JSON.stringify(_preLocalHoldings)}).then(function(){});
+        if(_dbH.length > 0) {
+          S.set('portfolio_holdings', _dbH);
+          _holdings = _dbH;
+          // 로컬이 DB보다 더 많은 항목이면 DB에 업로드 (데이터 손실 방지)
+          if(_preLocalHoldings.length > _dbH.length) {
+            S.set('portfolio_holdings', _preLocalHoldings);
+            _holdings = _preLocalHoldings;
+            supa.from('settings').upsert({key:'portfolio_holdings', value:JSON.stringify(_preLocalHoldings)}).then(function(r){ if(r&&r.error) console.error('[sync holdings push]', r.error); });
           }
+        } else if(_preLocalHoldings.length > 0) {
+          // DB 비어있고 로컬에 있으면 DB로 seed
+          S.set('portfolio_holdings', _preLocalHoldings);
+          _holdings = _preLocalHoldings;
+          supa.from('settings').upsert({key:'portfolio_holdings', value:JSON.stringify(_preLocalHoldings)}).then(function(r){ if(r&&r.error) console.error('[sync holdings seed]', r.error); });
         }
 
-        // snapshots
+        // snapshots: 동일 패턴
         var _dbS = [];
         try { if(_dbSRow) _dbS = JSON.parse(_dbSRow.value)||[]; } catch(e){}
-        if(_preLocalSnapshots.length > 0) {
-          S.set('portfolio_snapshots', _preLocalSnapshots);
-          if(_preLocalSnapshots.length >= _dbS.length) {
-            supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(_preLocalSnapshots)}).then(function(){});
+        if(_dbS.length > 0) {
+          S.set('portfolio_snapshots', _dbS);
+          if(_preLocalSnapshots.length > _dbS.length) {
+            S.set('portfolio_snapshots', _preLocalSnapshots);
+            supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(_preLocalSnapshots)}).then(function(r){ if(r&&r.error) console.error('[sync snapshots push]', r.error); });
           }
+        } else if(_preLocalSnapshots.length > 0) {
+          S.set('portfolio_snapshots', _preLocalSnapshots);
+          supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(_preLocalSnapshots)}).then(function(r){ if(r&&r.error) console.error('[sync snapshots seed]', r.error); });
         }
 
         // home_goal_price: 로컬에만 있고 DB에 없으면 seed
@@ -2015,6 +2028,9 @@ var _appSynced = false;  // true after first syncFromSupabase completes
 
 // ── EVENTS IN-MEMORY STORE (Supabase only, no localStorage) ──
 var _events = [];  // populated by syncFromSupabase; written directly to Supabase
+
+// ── PORTFOLIO HOLDINGS IN-MEMORY (single source of truth after sync) ──
+var _holdings = [];  // set by syncFromSupabase; prevents stale-localStorage issue
 
 // ── PORTFOLIO DB ROW HELPERS ──
 function _holdingToDbRow(h) {
@@ -4010,10 +4026,11 @@ function renderMarriageGrowth() {
   var el = document.getElementById('marriage-growth-content');
   if (!el) return;
 
-  var holdings = S.get('portfolio_holdings') || [];
+  // _holdings: sync 후 채워진 모듈 변수 (localStorage 의존 제거)
+  var holdings = (_holdings && _holdings.length) ? _holdings : (S.get('portfolio_holdings') || []);
   if (!holdings.length) {
     el.innerHTML = '<div style="text-align:center;padding:1.2rem 0;color:var(--muted);font-size:.82rem">' +
-      '자산현황 탭 → <b style="color:var(--text)">☁️ 클라우드 동기화</b> 버튼을 한 번 눌러주세요</div>';
+      '자산현황 탭 → <b style="color:var(--text)">오늘 저장</b> 버튼을 눌러주세요</div>';
     return;
   }
 
@@ -6334,13 +6351,14 @@ function savePortSnapshot(){
   if(idx>=0) snaps[idx]=entry; else snaps.push(entry);
   snaps.sort(function(a,b){return a.date.localeCompare(b.date);});
 
-  // 로컬 저장
+  // 로컬 저장 + 모듈 변수 업데이트 (즉시 렌더에 반영)
   S.set('portfolio_snapshots', snaps);
+  _holdings = holdings;
 
   // Supabase에 holdings + snapshots 동시 push (다른 기기 동기화)
   if(supa) {
-    supa.from('settings').upsert({key:'portfolio_holdings',  value:JSON.stringify(holdings)}).then(function(){});
-    supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(snaps)}).then(function(){});
+    supa.from('settings').upsert({key:'portfolio_holdings',  value:JSON.stringify(holdings)}).then(function(r){ if(r&&r.error) console.error('[save holdings]', r.error); });
+    supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(snaps)}).then(function(r){ if(r&&r.error) console.error('[save snapshots]', r.error); });
   }
 
   // 차트 업데이트
@@ -7159,7 +7177,7 @@ if ('serviceWorker' in navigator) {
         var row = payload.new;
         if (!row) return;
         if (row.key === 'portfolio_holdings') {
-          try { var ph = JSON.parse(row.value); if (ph) { S.set('portfolio_holdings', ph); try { renderPortHoldings(); renderPortSummary(); renderMarriageGrowth(); renderHomeGoal(); } catch(e) {} } } catch(e) {}
+          try { var ph = JSON.parse(row.value); if (ph) { S.set('portfolio_holdings', ph); _holdings = ph; try { renderPortHoldings(); renderPortSummary(); renderMarriageGrowth(); renderHomeGoal(); } catch(e) {} } } catch(e) {}
         } else if (row.key === 'portfolio_snapshots') {
           try { var ps = JSON.parse(row.value); if (ps) { S.set('portfolio_snapshots', ps); try { renderPortMonthlyChart(); } catch(e) {} } } catch(e) {}
         }
