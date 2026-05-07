@@ -1851,7 +1851,7 @@ async function syncFromSupabase() {
       else if(s.key === 'cq_family')   S.set('cq_family',   parseInt(s.value)||0);
       else if(s.key === 'cq_account')  S.set('cq_account',  parseInt(s.value)||0);
       else if(s.key === 'yt_last_seen_id') S.set('yt_last_seen_id', s.value);
-      else if(s.key === 'home_goal_price') S.set('home_goal_price', parseFloat(s.value)||0);
+      else if(s.key === 'home_goal_price') { var _hgp=parseFloat(s.value)||0; S.set('home_goal_price',_hgp); if(_hgp>0) _homeGoalPrice=_hgp; }
       else if(s.key === 'portfolio_holdings') {
         try { var _ph=JSON.parse(s.value); if(_ph&&_ph.length>0) S.set('portfolio_holdings',_ph); } catch(e){}
       }
@@ -1901,6 +1901,7 @@ async function syncFromSupabase() {
 
         // home_goal_price: 로컬에만 있고 DB에 없으면 seed
         if(_preLocalHomeGoal > 0 && !_dbGoalRow) {
+          _homeGoalPrice = _preLocalHomeGoal;
           supa.from('settings').upsert({key:'home_goal_price', value:String(_preLocalHomeGoal)}).then(function(){});
         }
       } catch(e) { console.warn('[portfolio sync]', e.message); }
@@ -2005,9 +2006,11 @@ async function syncFromSupabase() {
       }
     })();
   } catch(e) { console.warn('[Supabase sync error]', e.message); }
-  // re-render — try/catch 밖에서 항상 실행 (sync 일부 실패해도 렌더는 반드시)
+  // re-render — 각각 독립 try/catch (한 곳 에러가 다른 렌더 막지 않도록)
   try { renderStocks(); fetchAllPrices(); } catch(e){}
-  try { renderBudget(); refreshDashboard(); recalcBudget(); } catch(e){}
+  try { renderBudget(); } catch(e){}
+  try { refreshDashboard(); } catch(e){}
+  try { recalcBudget(); } catch(e){}
   try { renderJournal(); renderRealty(); } catch(e){}
   try { renderCalendar(); renderEventList(); renderYtLibrary(); } catch(e){}
   try { initPortfolio(); } catch(e){}
@@ -2026,7 +2029,8 @@ const S = {
 var _events = [];  // populated by syncFromSupabase; written directly to Supabase
 
 // ── PORTFOLIO HOLDINGS IN-MEMORY (single source of truth after sync) ──
-var _holdings = [];  // set by syncFromSupabase; prevents stale-localStorage issue
+var _holdings = [];       // set by syncFromSupabase; prevents stale-localStorage issue
+var _homeGoalPrice = 0;   // set by syncFromSupabase + saveHomeGoal
 
 // ── PORTFOLIO DB ROW HELPERS ──
 function _holdingToDbRow(h) {
@@ -4096,7 +4100,7 @@ function renderMarriageGrowth() {
 function renderHomeGoal() {
   var el = document.getElementById('home-goal-content');
   if (!el) return;
-  var goal = S.get('home_goal_price') || 0;
+  var goal = (_homeGoalPrice > 0) ? _homeGoalPrice : (S.get('home_goal_price') || 0);
   var btn = document.getElementById('home-goal-edit-btn');
 
   if (!goal) {
@@ -4106,7 +4110,7 @@ function renderHomeGoal() {
     return;
   }
 
-  var holdings = S.get('portfolio_holdings') || [];
+  var holdings = (_holdings && _holdings.length) ? _holdings : (S.get('portfolio_holdings') || []);
   var totVal = 0;
   holdings.forEach(function(h) {
     var v = portValueKRW(h);
@@ -4168,6 +4172,7 @@ function saveHomeGoal() {
   var val = parseInt((inp ? inp.value : '0') || '0');
   if (!val || val <= 0) { alert('올바른 금액을 입력해주세요.'); return; }
   S.set('home_goal_price', val);
+  _homeGoalPrice = val;
   dbUpsert('settings', {key:'home_goal_price', value: String(val)});
   var area = document.getElementById('home-goal-edit-area');
   if (area) area.style.display = 'none';
@@ -6356,10 +6361,6 @@ function savePortSnapshot(){
 
   // 토스트 알림 (alert 대신)
   _showSaveToast(date);
-
-  // 대시보드로 이동 + 결혼 이후 자산 성장 카드 업데이트
-  showPage('dashboard', null);
-  try { renderMarriageGrowth(); renderHomeGoal(); } catch(e){}
 }
 
 function _showSaveToast(date) {
