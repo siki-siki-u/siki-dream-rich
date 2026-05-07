@@ -1009,8 +1009,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div class="sec-title" style="margin:0">📊 자산 추이</div>
         <div style="display:flex;gap:.4rem">
           <button class="btn" style="font-size:.73rem;padding:.3rem .7rem;background:var(--surface2);border:1px solid var(--border);color:var(--muted)" onclick="showPortChanges()">🔍 변화 보기</button>
-          <button class="btn" id="port-cloud-sync-btn" style="font-size:.73rem;padding:.3rem .7rem;background:var(--surface2);border:1px solid var(--border);color:var(--muted)" onclick="forcePortCloudSync()">☁️ 클라우드 동기화</button>
-          <button class="btn btn-primary" style="font-size:.73rem;padding:.3rem .7rem" onclick="savePortSnapshot()">💾 오늘 저장</button>
+<button class="btn btn-primary" style="font-size:.73rem;padding:.3rem .7rem" onclick="savePortSnapshot()">💾 오늘 저장</button>
         </div>
       </div>
 
@@ -6022,6 +6021,7 @@ function addPortHolding(){
     var newDirect={id:Date.now(),ticker:ticker,name:name,type:_portType,owner:_portOwner,isDirect:true,currentKRW:curVal,investedKRW:inv2,addedAt:today()};
     holdings.push(newDirect);
     S.set('portfolio_holdings',holdings);
+    _holdings = holdings;
     dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
     _resetDirectName();
     document.getElementById('port-direct-value').value='';
@@ -6045,6 +6045,7 @@ function addPortHolding(){
       syncTarget=newH;
     }
     S.set('portfolio_holdings',holdings);
+    _holdings = holdings;
     dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
     _portSelTicker=null;
     document.getElementById('port-search').value='';
@@ -6059,6 +6060,7 @@ function deletePortHolding(id){
   if(!confirm('이 종목을 삭제할까요?')) return;
   var _afterDel=(S.get('portfolio_holdings')||[]).filter(function(h){return h.id!==id;});
   S.set('portfolio_holdings',_afterDel);
+  _holdings = _afterDel;
   dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(_afterDel)});
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
 }
@@ -6181,6 +6183,7 @@ function confirmPortBuy(id){
     h.investedKRW=(h.investedKRW||0)+inv2;
   }
   S.set('portfolio_holdings',holdings);
+  _holdings = holdings;
   dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
   delete _portBuyOpen[id];
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
@@ -6320,7 +6323,7 @@ async function forcePortCloudSync() {
 }
 
 function savePortSnapshot(){
-  var holdings=S.get('portfolio_holdings')||[];
+  var holdings=(_holdings&&_holdings.length)?_holdings:(S.get('portfolio_holdings')||[]);
   var totInv=0,totVal=0,vInv=0,vVal=0,lInv=0,lVal=0,fInv=0,fVal=0;
   var holdingsSnap=holdings.map(function(h){
     var v=portValueKRW(h);
