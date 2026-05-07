@@ -2032,8 +2032,9 @@ const S = {
 var _events = [];  // populated by syncFromSupabase; written directly to Supabase
 
 // ── PORTFOLIO HOLDINGS IN-MEMORY (single source of truth after sync) ──
-var _holdings = [];       // set by syncFromSupabase; prevents stale-localStorage issue
-var _homeGoalPrice = 0;   // set by syncFromSupabase + saveHomeGoal
+// 페이지 로드 즉시 localStorage 캐시로 초기화 → sync 완료 후 DB 값으로 덮어씀
+var _holdings      = S.get('portfolio_holdings') || [];
+var _homeGoalPrice = S.get('home_goal_price')    || 0;
 
 // ── PORTFOLIO DB ROW HELPERS ──
 function _holdingToDbRow(h) {
@@ -7173,6 +7174,18 @@ if ('serviceWorker' in navigator) {
           try { var ph = JSON.parse(row.value); if (ph) { S.set('portfolio_holdings', ph); _holdings = ph; try { renderPortHoldings(); renderPortSummary(); renderMarriageGrowth(); renderHomeGoal(); } catch(e) {} } } catch(e) {}
         } else if (row.key === 'portfolio_snapshots') {
           try { var ps = JSON.parse(row.value); if (ps) { S.set('portfolio_snapshots', ps); try { renderPortMonthlyChart(); } catch(e) {} } } catch(e) {}
+        } else if (row.key === 'home_goal_price') {
+          var hgp = parseFloat(row.value)||0;
+          if (hgp > 0) { _homeGoalPrice = hgp; S.set('home_goal_price', hgp); try { renderHomeGoal(); } catch(e) {} }
+        } else if (row.key === 'anniversary') {
+          S.set('anniversary', row.value); try { updateDday(); } catch(e) {}
+        } else if (row.key === 'myname') {
+          S.set('myname', row.value);
+          var np = document.querySelector('.sidebar-logo p'); if(np) np.textContent = row.value + '님의 대시보드';
+        } else if (row.key === 'goal_amount' || row.key === 'goal_year') {
+          S.set(row.key, parseFloat(row.value)||0); try { renderGoalWidget(); } catch(e) {}
+        } else if (row.key === 'fixed_costs') {
+          try { var fc = JSON.parse(row.value); if(fc) { S.set('fixed_costs', fc); try { renderFixedCosts(); recalcBudget(); refreshDashboard(); } catch(e) {} } } catch(e) {}
         }
       } catch(e) {}
     })
