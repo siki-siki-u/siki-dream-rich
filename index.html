@@ -1776,7 +1776,9 @@ try { if(window.supabase) supa = window.supabase.createClient(SUPABASE_URL, SUPA
 async function dbUpsert(table, row) {
   if(!supa) return;
   try {
-    const { error } = await supa.from(table).upsert(row);
+    // settings 테이블은 key 컬럼 기준 upsert (onConflict 필수)
+    var opts = (table === 'settings') ? {onConflict: 'key'} : {};
+    const { error } = await supa.from(table).upsert(row, opts);
     if(error) console.warn('[DB upsert]', table, error.message, JSON.stringify(row).slice(0,100));
   } catch(e) { console.warn('[DB upsert]', table, e.message); }
 }
@@ -1876,13 +1878,13 @@ async function syncFromSupabase() {
           if(_preLocalHoldings.length > _dbH.length) {
             S.set('portfolio_holdings', _preLocalHoldings);
             _holdings = _preLocalHoldings;
-            supa.from('settings').upsert({key:'portfolio_holdings', value:JSON.stringify(_preLocalHoldings)}).then(function(r){ if(r&&r.error) console.error('[sync holdings push]', r.error); });
+            supa.from('settings').upsert({key:'portfolio_holdings', value:JSON.stringify(_preLocalHoldings)},{onConflict:'key'}).then(function(r){ if(r&&r.error) console.error('[sync holdings push]', r.error); });
           }
         } else if(_preLocalHoldings.length > 0) {
           // DB 비어있고 로컬에 있으면 DB로 seed
           S.set('portfolio_holdings', _preLocalHoldings);
           _holdings = _preLocalHoldings;
-          supa.from('settings').upsert({key:'portfolio_holdings', value:JSON.stringify(_preLocalHoldings)}).then(function(r){ if(r&&r.error) console.error('[sync holdings seed]', r.error); });
+          supa.from('settings').upsert({key:'portfolio_holdings', value:JSON.stringify(_preLocalHoldings)},{onConflict:'key'}).then(function(r){ if(r&&r.error) console.error('[sync holdings seed]', r.error); });
         }
 
         // snapshots: 동일 패턴
@@ -1892,17 +1894,17 @@ async function syncFromSupabase() {
           S.set('portfolio_snapshots', _dbS);
           if(_preLocalSnapshots.length > _dbS.length) {
             S.set('portfolio_snapshots', _preLocalSnapshots);
-            supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(_preLocalSnapshots)}).then(function(r){ if(r&&r.error) console.error('[sync snapshots push]', r.error); });
+            supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(_preLocalSnapshots)},{onConflict:'key'}).then(function(r){ if(r&&r.error) console.error('[sync snapshots push]', r.error); });
           }
         } else if(_preLocalSnapshots.length > 0) {
           S.set('portfolio_snapshots', _preLocalSnapshots);
-          supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(_preLocalSnapshots)}).then(function(r){ if(r&&r.error) console.error('[sync snapshots seed]', r.error); });
+          supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(_preLocalSnapshots)},{onConflict:'key'}).then(function(r){ if(r&&r.error) console.error('[sync snapshots seed]', r.error); });
         }
 
         // home_goal_price: 로컬에만 있고 DB에 없으면 seed
         if(_preLocalHomeGoal > 0 && !_dbGoalRow) {
           _homeGoalPrice = _preLocalHomeGoal;
-          supa.from('settings').upsert({key:'home_goal_price', value:String(_preLocalHomeGoal)}).then(function(){});
+          supa.from('settings').upsert({key:'home_goal_price', value:String(_preLocalHomeGoal)},{onConflict:'key'}).then(function(){});
         }
       } catch(e) { console.warn('[portfolio sync]', e.message); }
     })();
@@ -2011,6 +2013,7 @@ async function syncFromSupabase() {
   try { renderBudget(); } catch(e){}
   try { refreshDashboard(); } catch(e){}
   try { recalcBudget(); } catch(e){}
+  try { updateDday(); renderGoalWidget(); } catch(e){}
   try { renderJournal(); renderRealty(); } catch(e){}
   try { renderCalendar(); renderEventList(); renderYtLibrary(); } catch(e){}
   try { initPortfolio(); } catch(e){}
@@ -2750,6 +2753,7 @@ function getFixedCosts() {
 }
 function saveFixedCosts(list) {
   S.set('fixed_costs', list);
+  dbUpsert('settings', {key: 'fixed_costs', value: JSON.stringify(list)});
 }
 function getFixedCostTotal() {
   return getFixedCosts().reduce(function(s,c){return s+(c.amount||0);},0);
@@ -2829,7 +2833,6 @@ function saveFixedCostPopup(id) {
   item.label  = labelEl.value.trim() || item.label;
   item.amount = parseFloat(amountEl.value)||0;
   saveFixedCosts(list);
-  dbUpsert('settings', {key: 'fixed_costs', value: JSON.stringify(list)});
   closeFixedCostPopup();
   renderFixedCosts();
   recalcBudget();
@@ -2848,7 +2851,6 @@ function deleteFixedCostRow(id) {
   closeFixedCostPopup();
   var list = getFixedCosts().filter(function(c){return c.id!==id;});
   saveFixedCosts(list);
-  dbUpsert('settings', {key: 'fixed_costs', value: JSON.stringify(list)});
   renderFixedCosts();
   recalcBudget();
 }
@@ -6316,8 +6318,8 @@ async function forcePortCloudSync() {
     var holdings = S.get('portfolio_holdings') || [];
     var snaps    = S.get('portfolio_snapshots') || [];
     await Promise.all([
-      supa.from('settings').upsert({key:'portfolio_holdings',  value:JSON.stringify(holdings)}),
-      supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(snaps)}),
+      supa.from('settings').upsert({key:'portfolio_holdings',  value:JSON.stringify(holdings)}, {onConflict:'key'}),
+      supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(snaps)},    {onConflict:'key'}),
     ]);
     if(btn) { btn.textContent = '✅ 완료'; btn.style.color='var(--success)'; }
     setTimeout(function(){ if(btn){btn.textContent='☁️ 클라우드 동기화';btn.style.color='';btn.disabled=false;} }, 2500);
@@ -6352,8 +6354,8 @@ function savePortSnapshot(){
 
   // Supabase에 holdings + snapshots 동시 push (다른 기기 동기화)
   if(supa) {
-    supa.from('settings').upsert({key:'portfolio_holdings',  value:JSON.stringify(holdings)}).then(function(r){ if(r&&r.error) console.error('[save holdings]', r.error); });
-    supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(snaps)}).then(function(r){ if(r&&r.error) console.error('[save snapshots]', r.error); });
+    supa.from('settings').upsert({key:'portfolio_holdings',  value:JSON.stringify(holdings)}, {onConflict:'key'}).then(function(r){ if(r&&r.error) console.error('[save holdings]', r.error); });
+    supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(snaps)},    {onConflict:'key'}).then(function(r){ if(r&&r.error) console.error('[save snapshots]', r.error); });
   }
 
   // 차트 업데이트
