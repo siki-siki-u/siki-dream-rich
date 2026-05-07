@@ -539,12 +539,34 @@ tr:hover td{background:rgba(108,138,255,.03)}
       </div>
       <div id="home-goal-content"></div>
       <div id="home-goal-edit-area" style="display:none">
-        <div class="home-goal-edit-form">
-          <input id="home-goal-input" type="number" placeholder="목표 금액 (원 단위, 예: 900000000)" min="0" step="10000000"/>
-          <button onclick="saveHomeGoal()">저장</button>
-          <button onclick="toggleHomeGoalEdit()" style="background:var(--surface2);color:var(--muted)">취소</button>
+        <div style="display:flex;flex-direction:column;gap:.55rem;margin-top:.5rem">
+          <div>
+            <div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">🏠 목표 집 금액</div>
+            <input id="home-goal-input" type="number" placeholder="900000000 (9억)" min="0" step="10000000"
+              style="width:100%;padding:.4rem .7rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.88rem;font-family:JetBrains Mono,monospace;box-sizing:border-box"/>
+          </div>
+          <div>
+            <div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">🏦 주담대 대출 예정 금액 <span style="opacity:.6">(없으면 0)</span></div>
+            <input id="home-loan-input" type="number" placeholder="300000000 (3억)" min="0" step="10000000"
+              style="width:100%;padding:.4rem .7rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.88rem;font-family:JetBrains Mono,monospace;box-sizing:border-box"/>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+            <div>
+              <div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">📈 연 금리 (%)</div>
+              <input id="home-loan-rate" type="number" placeholder="3.5" min="0" max="20" step="0.1"
+                style="width:100%;padding:.4rem .7rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.88rem;font-family:JetBrains Mono,monospace;box-sizing:border-box"/>
+            </div>
+            <div>
+              <div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">📅 대출 기간 (년)</div>
+              <input id="home-loan-years" type="number" placeholder="30" min="1" max="50" step="1"
+                style="width:100%;padding:.4rem .7rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.88rem;font-family:JetBrains Mono,monospace;box-sizing:border-box"/>
+            </div>
+          </div>
+          <div style="display:flex;gap:.5rem">
+            <button onclick="saveHomeGoal()" style="flex:1;padding:.45rem;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:.85rem;cursor:pointer">저장</button>
+            <button onclick="toggleHomeGoalEdit()" style="flex:1;padding:.45rem;border-radius:8px;border:none;background:var(--surface2);color:var(--muted);font-size:.85rem;cursor:pointer">취소</button>
+          </div>
         </div>
-        <div style="font-size:.7rem;color:var(--muted);margin-top:.35rem;padding-left:.1rem">9억이면 900000000 입력</div>
       </div>
     </div>
 
@@ -1853,7 +1875,10 @@ async function syncFromSupabase() {
       else if(s.key === 'cq_family')   S.set('cq_family',   parseInt(s.value)||0);
       else if(s.key === 'cq_account')  S.set('cq_account',  parseInt(s.value)||0);
       else if(s.key === 'yt_last_seen_id') S.set('yt_last_seen_id', s.value);
-      else if(s.key === 'home_goal_price') { var _hgp=parseFloat(s.value)||0; S.set('home_goal_price',_hgp); if(_hgp>0) _homeGoalPrice=_hgp; }
+      else if(s.key === 'home_goal_price')  { var _hgp=parseFloat(s.value)||0; S.set('home_goal_price',_hgp); if(_hgp>0) _homeGoalPrice=_hgp; }
+      else if(s.key === 'home_loan_amount') { var _hla=parseFloat(s.value)||0; S.set('home_loan_amount',_hla); _homeLoanAmount=_hla; }
+      else if(s.key === 'home_loan_rate')   { var _hlr=parseFloat(s.value)||3.5; S.set('home_loan_rate',_hlr); _homeLoanRate=_hlr; }
+      else if(s.key === 'home_loan_years')  { var _hly=parseInt(s.value)||30; S.set('home_loan_years',_hly); _homeLoanYears=_hly; }
       else if(s.key === 'portfolio_holdings') {
         try { var _ph=JSON.parse(s.value); if(_ph&&_ph.length>0) S.set('portfolio_holdings',_ph); } catch(e){}
       }
@@ -2035,6 +2060,9 @@ var _events = [];  // populated by syncFromSupabase; written directly to Supabas
 // 페이지 로드 즉시 localStorage 캐시로 초기화 → sync 완료 후 DB 값으로 덮어씀
 var _holdings      = S.get('portfolio_holdings') || [];
 var _homeGoalPrice = S.get('home_goal_price')    || 0;
+var _homeLoanAmount = S.get('home_loan_amount')  || 0;
+var _homeLoanRate   = S.get('home_loan_rate')    || 3.5;
+var _homeLoanYears  = S.get('home_loan_years')   || 30;
 
 // ── PORTFOLIO DB ROW HELPERS ──
 function _holdingToDbRow(h) {
@@ -4104,7 +4132,10 @@ function renderHomeGoal() {
   var el = document.getElementById('home-goal-content');
   if (!el) return;
   var goal = (_homeGoalPrice > 0) ? _homeGoalPrice : (S.get('home_goal_price') || 0);
-  var btn = document.getElementById('home-goal-edit-btn');
+  var loan = _homeLoanAmount || S.get('home_loan_amount') || 0;
+  var rate = _homeLoanRate   || S.get('home_loan_rate')   || 3.5;
+  var yrs  = _homeLoanYears  || S.get('home_loan_years')  || 30;
+  var btn  = document.getElementById('home-goal-edit-btn');
 
   if (!goal) {
     el.innerHTML = '<div style="text-align:center;padding:1.2rem 0;color:var(--muted);font-size:.82rem">' +
@@ -4112,49 +4143,96 @@ function renderHomeGoal() {
     if (btn) btn.textContent = '목표설정';
     return;
   }
-
-  var holdings = (_holdings && _holdings.length) ? _holdings : (S.get('portfolio_holdings') || []);
-  var totVal = 0;
-  holdings.forEach(function(h) {
-    var v = portValueKRW(h);
-    totVal += v != null ? v : (h.investedKRW || 0);
-  });
-  totVal = Math.round(totVal);
-
-  var pct = Math.min(totVal / goal * 100, 100);
-  var remain = Math.max(goal - totVal, 0);
-
-  function fmtW(n) {
-    if (n >= 100000000) return (n/100000000).toFixed(2).replace(/\.?0+$/,'')+'억';
-    if (n >= 10000)     return Math.round(n/10000).toLocaleString()+'만';
-    return n.toLocaleString()+'원';
-  }
-
   if (btn) btn.textContent = '수정';
 
+  var holdings = (_holdings && _holdings.length) ? _holdings : (S.get('portfolio_holdings') || []);
+  var myAsset = 0;
+  holdings.forEach(function(h) {
+    var v = portValueKRW(h);
+    myAsset += v != null ? v : (h.investedKRW || 0);
+  });
+  myAsset = Math.round(myAsset);
+
+  // 자산 + 대출로 달성 가능한 금액
+  var reachable = myAsset + loan;
+  var pct       = Math.min(reachable / goal * 100, 100);
+  var remain    = Math.max(goal - reachable, 0);
+
+  // 진행 바: 내 자산(파랑) + 대출(주황) 두 구간으로 분리
+  var myPct   = Math.min(myAsset / goal * 100, 100);
+  var loanPct = Math.min(loan / goal * 100, 100 - myPct);
+
+  function fmtW(n) {
+    var abs = Math.abs(n);
+    var s = abs >= 100000000 ? (abs/100000000).toFixed(2).replace(/\.?0+$/,'')+'억'
+          : abs >= 10000     ? Math.round(abs/10000).toLocaleString()+'만'
+          : abs.toLocaleString()+'원';
+    return (n < 0 ? '-' : '') + s;
+  }
+
+  // 월 원리금 계산 (원리금균등상환)
+  var monthlyPayment = 0, monthlyInterest = 0;
+  if (loan > 0 && rate > 0 && yrs > 0) {
+    var r = rate / 100 / 12;
+    var n = yrs * 12;
+    monthlyPayment  = Math.round(loan * r * Math.pow(1+r, n) / (Math.pow(1+r, n) - 1));
+    monthlyInterest = Math.round(loan * r);
+  }
+
+  var loanSection = '';
+  if (loan > 0) {
+    var loanRisk = loan / goal;
+    var loanClr  = loanRisk < 0.3 ? 'var(--success)' : loanRisk < 0.5 ? '#f59e0b' : 'var(--danger)';
+    loanSection =
+      '<div style="margin-top:.7rem;background:var(--surface2);border-radius:10px;padding:.6rem .75rem">' +
+        '<div style="font-size:.68rem;color:var(--muted);margin-bottom:.4rem">🏦 주담대 계획 (' + rate + '% · ' + yrs + '년)</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem">' +
+          '<div>' +
+            '<div style="font-size:.65rem;color:var(--muted)">대출 금액</div>' +
+            '<div style="font-size:.92rem;font-weight:700;font-family:JetBrains Mono,monospace;color:'+loanClr+'">₩'+fmtW(loan)+'</div>' +
+          '</div>' +
+          '<div>' +
+            '<div style="font-size:.65rem;color:var(--muted)">월 원리금</div>' +
+            '<div style="font-size:.92rem;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--text)">₩'+fmtW(monthlyPayment)+'</div>' +
+          '</div>' +
+          '<div style="grid-column:span 2;margin-top:.25rem;padding-top:.35rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">' +
+            '<span style="font-size:.68rem;color:var(--muted)">그 중 첫 달 이자만</span>' +
+            '<span style="font-size:.82rem;font-weight:600;font-family:JetBrains Mono,monospace;color:var(--danger)">₩'+fmtW(monthlyInterest)+'/월</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+  }
+
   el.innerHTML =
-    '<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:.15rem">' +
+    '<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:.25rem">' +
       '<div style="font-size:2rem;font-weight:900;font-family:JetBrains Mono,monospace;color:var(--accent);line-height:1">' +
         pct.toFixed(1)+'<span style="font-size:1rem;font-weight:600">%</span>' +
       '</div>' +
-      '<div style="font-size:.72rem;color:var(--muted);text-align:right;line-height:1.5">' +
+      '<div style="font-size:.7rem;color:var(--muted);text-align:right;line-height:1.6">' +
         '목표 <b style="color:var(--text)">₩'+fmtW(goal)+'</b><br>' +
-        '현재 <b style="color:var(--text)">₩'+fmtW(totVal)+'</b>' +
+        '내 자산 <b style="color:var(--accent)">₩'+fmtW(myAsset)+'</b>' +
+        (loan > 0 ? ' + 대출 <b style="color:#f59e0b">₩'+fmtW(loan)+'</b>' : '') +
       '</div>' +
     '</div>' +
-    '<div id="home-goal-bar-wrap"><div id="home-goal-bar" style="width:0%"></div></div>' +
-    '<div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted)">' +
+    // 투 컬러 프로그레스 바
+    '<div id="home-goal-bar-wrap" style="position:relative">' +
+      '<div id="home-goal-bar" style="width:0%;background:linear-gradient(90deg,#6c8aff,#a78bfa)"></div>' +
+      '<div id="home-loan-bar" style="position:absolute;top:0;left:'+myPct.toFixed(2)+'%;width:0%;height:100%;background:linear-gradient(90deg,#f59e0b,#fbbf24);border-radius:0 999px 999px 0"></div>' +
+    '</div>' +
+    '<div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-bottom:.1rem">' +
       '<span>₩0</span>' +
-      '<span style="color:'+(remain===0?'var(--success)':'var(--muted)')+'">'+
-        (remain===0 ? '🎉 목표 달성!' : '앞으로 <b style="color:var(--text)">₩'+fmtW(remain)+'</b> 더') +
+      '<span style="color:'+(remain===0?'var(--success)':'var(--text)')+'">'+
+        (remain===0 ? '🎉 목표 달성!' : '앞으로 <b>₩'+fmtW(remain)+'</b> 더 필요') +
       '</span>' +
       '<span>₩'+fmtW(goal)+'</span>' +
-    '</div>';
+    '</div>' +
+    loanSection;
 
-  // 애니메이션: requestAnimationFrame으로 bar 너비 설정
   requestAnimationFrame(function(){
-    var bar = document.getElementById('home-goal-bar');
-    if (bar) bar.style.width = pct.toFixed(2)+'%';
+    var bar  = document.getElementById('home-goal-bar');
+    var lbar = document.getElementById('home-loan-bar');
+    if (bar)  bar.style.width  = myPct.toFixed(2)+'%';
+    if (lbar) lbar.style.width = loanPct.toFixed(2)+'%';
   });
 }
 
@@ -4164,19 +4242,38 @@ function toggleHomeGoalEdit() {
   var isOpen = area.style.display !== 'none';
   area.style.display = isOpen ? 'none' : 'block';
   if (!isOpen) {
-    var inp = document.getElementById('home-goal-input');
-    var cur = S.get('home_goal_price') || 0;
-    if (inp) { inp.value = cur || ''; inp.focus(); }
+    var gi = document.getElementById('home-goal-input');
+    var li = document.getElementById('home-loan-input');
+    var lr = document.getElementById('home-loan-rate');
+    var ly = document.getElementById('home-loan-years');
+    if(gi) gi.value = _homeGoalPrice || '';
+    if(li) li.value = _homeLoanAmount || '';
+    if(lr) lr.value = _homeLoanRate || 3.5;
+    if(ly) ly.value = _homeLoanYears || 30;
+    if(gi) gi.focus();
   }
 }
 
 function saveHomeGoal() {
-  var inp = document.getElementById('home-goal-input');
-  var val = parseInt((inp ? inp.value : '0') || '0');
-  if (!val || val <= 0) { alert('올바른 금액을 입력해주세요.'); return; }
-  S.set('home_goal_price', val);
-  _homeGoalPrice = val;
-  dbUpsert('settings', {key:'home_goal_price', value: String(val)});
+  var val  = parseInt((document.getElementById('home-goal-input')  ? document.getElementById('home-goal-input').value  : '0')||'0');
+  var loan = parseInt((document.getElementById('home-loan-input')  ? document.getElementById('home-loan-input').value  : '0')||'0');
+  var rate = parseFloat((document.getElementById('home-loan-rate') ? document.getElementById('home-loan-rate').value  : '3.5')||'3.5');
+  var yrs  = parseInt((document.getElementById('home-loan-years')  ? document.getElementById('home-loan-years').value : '30')||'30');
+  if (!val || val <= 0) { alert('목표 금액을 입력해주세요.'); return; }
+  if (rate <= 0 || rate > 20) { alert('금리는 0~20% 사이로 입력해주세요.'); return; }
+  if (yrs  <= 0 || yrs  > 50) { alert('대출 기간은 1~50년 사이로 입력해주세요.'); return; }
+  _homeGoalPrice  = val;
+  _homeLoanAmount = loan;
+  _homeLoanRate   = rate;
+  _homeLoanYears  = yrs;
+  S.set('home_goal_price',  val);
+  S.set('home_loan_amount', loan);
+  S.set('home_loan_rate',   rate);
+  S.set('home_loan_years',  yrs);
+  dbUpsert('settings', {key:'home_goal_price',  value: String(val)});
+  dbUpsert('settings', {key:'home_loan_amount', value: String(loan)});
+  dbUpsert('settings', {key:'home_loan_rate',   value: String(rate)});
+  dbUpsert('settings', {key:'home_loan_years',  value: String(yrs)});
   var area = document.getElementById('home-goal-edit-area');
   if (area) area.style.display = 'none';
   renderHomeGoal();
@@ -7178,6 +7275,13 @@ if ('serviceWorker' in navigator) {
         } else if (row.key === 'home_goal_price') {
           var hgp = parseFloat(row.value)||0;
           if (hgp > 0) { _homeGoalPrice = hgp; S.set('home_goal_price', hgp); try { renderHomeGoal(); } catch(e) {} }
+        } else if (row.key === 'home_loan_amount') {
+          _homeLoanAmount = parseFloat(row.value)||0; S.set('home_loan_amount', _homeLoanAmount); try { renderHomeGoal(); } catch(e) {}
+        } else if (row.key === 'home_loan_rate') {
+          _homeLoanRate = parseFloat(row.value)||3.5; S.set('home_loan_rate', _homeLoanRate); try { renderHomeGoal(); } catch(e) {}
+        } else if (row.key === 'home_loan_years') {
+          _homeLoanYears = parseInt(row.value)||30; S.set('home_loan_years', _homeLoanYears); try { renderHomeGoal(); } catch(e) {}
+
         } else if (row.key === 'anniversary') {
           S.set('anniversary', row.value); try { updateDday(); } catch(e) {}
         } else if (row.key === 'myname') {
