@@ -2179,7 +2179,7 @@ function renderGoalWidget() {
     var totalIn = (inc.yoonsik||0)+(inc.yujin||0)+(inc.bonusY||0)+(inc.bonusU||0)+(inc.etc||0);
     var txs = S.get('txs_'+mk) || [];
     var totalExp = txs.reduce(function(s,t){return s+(t.amount>0?t.amount:0);},0);
-    if(totalIn > 0) { monthlySaving += (totalIn - FIXED_COST - totalExp) / 10000; sampleMonths++; }
+    if(totalIn > 0) { monthlySaving += (totalIn - getFixedCostTotal() - totalExp) / 10000; sampleMonths++; }
   });
   if(sampleMonths > 0) monthlySaving = monthlySaving / sampleMonths;
 
@@ -4192,6 +4192,7 @@ function _dashSkel(lines) {
 function refreshDashboard() {
   // 가계부: 현재 달 기준
   var key = budgetYear+'-'+String(budgetMonth).padStart(2,'0');
+  var fixedTotal = getFixedCostTotal();
   var income = S.get('income_'+key) || {};
   var totalIn = (income.yoonsik||0)+(income.yujin||0)+(income.bonusY||0)+(income.bonusU||0)+(income.etc||0);
   var txs = S.get('txs_'+key) || [];
@@ -4202,8 +4203,8 @@ function refreshDashboard() {
   var db = document.getElementById('dash-balance');
   var ds = document.getElementById('dash-stocks');
   if(di) di.textContent = fmtMoney(totalIn);
-  if(de) de.textContent = fmtMoney(totalExp+FIXED_COST);
-  if(db) db.textContent = fmtMoney(totalIn-FIXED_COST-totalExp);
+  if(de) de.textContent = fmtMoney(totalExp+fixedTotal);
+  if(db) db.textContent = fmtMoney(totalIn-fixedTotal-totalExp);
   if(ds) ds.textContent = (S.get('stocks')||[]).length+'개';
 
   // 최근 지출
