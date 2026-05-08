@@ -950,6 +950,13 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
         <div class="stat-label">수익률</div>
         <div class="stat-value" id="port-roi" style="color:var(--muted)">0.00%</div>
       </div>
+      <div class="stat-card" id="port-realized-card" style="grid-column:span 2;border-top:3px solid var(--muted);cursor:pointer" onclick="showRealizedHistory()">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <div class="stat-label">✅ 실현 손익 (누적)</div>
+          <span id="port-realized-count" style="font-size:.68rem;color:var(--muted)">기록 없음 · 탭해서 상세보기</span>
+        </div>
+        <div class="stat-value" id="port-realized" style="color:var(--muted)">₩0</div>
+      </div>
     </div>
 
     <!-- 종목 추가 -->
@@ -1891,6 +1898,21 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
   </div>
 </div>
 
+<!-- REALIZED PNL MODAL -->
+<div class="modal-overlay" id="realized-modal" onclick="if(event.target===this)closeRealizedModal()">
+  <div class="modal" style="max-width:500px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+      <h3 style="margin:0;font-size:1.05rem">✅ 실현 손익 내역</h3>
+      <button onclick="closeRealizedModal()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;line-height:1">×</button>
+    </div>
+    <div id="realized-summary" style="background:var(--surface2);border-radius:10px;padding:.75rem 1rem;margin-bottom:.9rem;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:.82rem;color:var(--muted)">총 실현 손익</span>
+      <span id="realized-modal-total" style="font-size:1.1rem;font-weight:700;font-family:JetBrains Mono,monospace">₩0</span>
+    </div>
+    <div id="realized-list" style="max-height:55vh;overflow-y:auto"></div>
+  </div>
+</div>
+
 <!-- FX CORRECT MODAL -->
 <div class="modal-overlay" id="fx-correct-modal" onclick="closeFxCorrectOut(event)">
   <div class="modal" style="max-width:520px">
@@ -2005,6 +2027,9 @@ async function syncFromSupabase() {
       }
       else if(s.key === 'portfolio_snapshots') {
         try { var _ps=JSON.parse(s.value); if(_ps&&_ps.length>0) S.set('portfolio_snapshots',_ps); } catch(e){}
+      }
+      else if(s.key === 'portfolio_realized') {
+        try { var _pr=JSON.parse(s.value); if(_pr) { S.set('portfolio_realized',_pr); _portRealized=_pr; } } catch(e){}
       }
     });
     // ── portfolio: DB 우선, DB 없으면 local → DB seed ──
@@ -6543,9 +6568,21 @@ function renderPortSummary(){
   if(eR){eR.textContent=(pos?'+':'')+roi.toFixed(2)+'%';eR.style.color=clr;}
   if(cP) cP.style.borderTop='3px solid '+clr;
   if(cR) cR.style.borderTop='3px solid '+clr;
+  // 실현 손익
+  var realized=S.get('portfolio_realized')||{total:0,count:0};
+  var rTotal=realized.total||0;
+  var rPos=rTotal>=0;
+  var rClr=rTotal===0?'var(--muted)':(rPos?'var(--success)':'var(--danger)');
+  var eRL=document.getElementById('port-realized');
+  var eRC=document.getElementById('port-realized-count');
+  var cRL=document.getElementById('port-realized-card');
+  if(eRL){eRL.textContent=(rPos&&rTotal>0?'+':'')+'₩'+Math.round(rTotal).toLocaleString();eRL.style.color=rClr;}
+  if(eRC) eRC.textContent=(realized.count||0)+'회 매도 · 탭해서 상세보기';
+  if(cRL) cRL.style.borderTop='3px solid '+rClr;
 }
 
 var _portBuyOpen={}, _portSellOpen={};
+var _portRealized=S.get('portfolio_realized')||{total:0,count:0,history:[]};
 var _portHoldingsSort='default', _portHoldingsOwner='all', _portHoldingsCat='all';
 
 function setPortHoldingsOwner(v){
@@ -6682,11 +6719,56 @@ function confirmPortSell(id){
     h.investedKRW=Math.round((h.investedKRW||0)*remain);
     alert('매도 완료 ✅\n실현 손익: '+profStr);
   }
+  // 실현 손익 누적
+  var realized=S.get('portfolio_realized')||{total:0,count:0,history:[]};
+  realized.total=(realized.total||0)+profit;
+  realized.count=(realized.count||0)+1;
+  if(!realized.history) realized.history=[];
+  realized.history.unshift({date:new Date().toISOString().slice(0,10),name:h.name,ticker:h.ticker,type:h.type||'',qty:sellQty,sellAmt:sellAmt,profit:profit});
+  if(realized.history.length>100) realized.history=realized.history.slice(0,100);
+  S.set('portfolio_realized',realized);
+  _portRealized=realized;
+  dbUpsert('settings',{key:'portfolio_realized',value:JSON.stringify(realized)});
   S.set('portfolio_holdings',holdings);
   _holdings=holdings;
   dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
   delete _portSellOpen[id];
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
+}
+
+function showRealizedHistory(){
+  var realized=S.get('portfolio_realized')||{total:0,count:0,history:[]};
+  var rTotal=realized.total||0;
+  var rPos=rTotal>=0;
+  var rClr=rPos&&rTotal>0?'var(--success)':(rTotal<0?'var(--danger)':'var(--muted)');
+  var tEl=document.getElementById('realized-modal-total');
+  if(tEl){tEl.textContent=(rPos&&rTotal>0?'+':'')+'₩'+Math.round(rTotal).toLocaleString();tEl.style.color=rClr;}
+  var hist=realized.history||[];
+  var lEl=document.getElementById('realized-list');
+  if(lEl){
+    if(!hist.length){
+      lEl.innerHTML='<div style="text-align:center;padding:2rem;color:var(--muted);font-size:.85rem">아직 매도 기록이 없어요</div>';
+    } else {
+      lEl.innerHTML=hist.map(function(r){
+        var pPos=r.profit>=0;
+        var pClr=pPos?'var(--success)':'var(--danger)';
+        var flag=r.type==='US'?'🇺🇸':r.type==='KR'?'🇰🇷':'';
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.55rem .2rem;border-bottom:1px solid var(--border)">'+
+          '<div>'+
+            '<div style="font-size:.83rem;font-weight:600">'+r.name+' <span style="font-size:.68rem;color:var(--muted)">'+flag+' '+r.ticker+'</span></div>'+
+            '<div style="font-size:.7rem;color:var(--muted)">'+r.date+' · '+r.qty+'주 매도 · 수령 ₩'+Math.round(r.sellAmt).toLocaleString()+'</div>'+
+          '</div>'+
+          '<div style="text-align:right">'+
+            '<div style="font-size:.88rem;font-weight:700;font-family:JetBrains Mono,monospace;color:'+pClr+'">'+(pPos?'+':'')+'₩'+Math.round(r.profit).toLocaleString()+'</div>'+
+          '</div>'+
+        '</div>';
+      }).join('');
+    }
+  }
+  document.getElementById('realized-modal').classList.add('open');
+}
+function closeRealizedModal(){
+  document.getElementById('realized-modal').classList.remove('open');
 }
 
 function openFxCorrect(){
