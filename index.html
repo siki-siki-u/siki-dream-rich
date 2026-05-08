@@ -48,7 +48,8 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-seri
 .nav-item:hover{color:var(--text);background:rgba(108,138,255,.06)}
 .nav-item.active{color:var(--accent);background:rgba(108,138,255,.1);border-left-color:var(--accent)}
 .nav-item .icon{width:18px;text-align:center;font-size:1rem}
-.sidebar-footer{margin-top:auto;padding:1rem 1.5rem;border-top:1px solid var(--border)}
+.sidebar-footer{margin-top:auto;padding:1rem 1.5rem;border-top:1px solid var(--border);padding-bottom:calc(1rem + env(safe-area-inset-bottom,0px))}
+@media(max-width:900px){.sidebar-footer{padding-bottom:5.5rem}}
 .settings-btn{width:100%;padding:.6rem;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'Noto Sans KR',sans-serif;font-size:.8rem;cursor:pointer;transition:all .2s}
 .settings-btn:hover{color:var(--text);border-color:var(--accent)}
 
