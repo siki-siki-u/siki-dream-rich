@@ -427,13 +427,18 @@ body.guest-mode .money-blur{filter:blur(7px);user-select:none;pointer-events:non
 body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
 
 /* JOURNAL LAYOUT */
-.jn-layout{display:grid;grid-template-columns:380px 1fr;gap:1.5rem;align-items:start}
+.jn-layout{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:1.5rem;align-items:start}
 .jn-row2{display:flex;gap:.5rem}
+.jn-tabs{display:none}
 @media(max-width:900px){
-  .jn-layout{display:flex;flex-direction:column;gap:1rem}
-  /* 모바일: 목록을 먼저, 작성/지표를 아래로 */
-  .jn-main{order:1}
-  .jn-side{order:2}
+  .jn-tabs{display:flex;gap:.4rem;margin-bottom:1rem}
+  .jn-tab-btn{flex:1;padding:.65rem .2rem;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:.8rem;cursor:pointer;transition:background .2s,color .2s}
+  .jn-tab-btn.active{background:var(--accent);color:#fff;border-color:transparent}
+  .jn-layout{display:block}
+  .jn-side,.jn-main{display:none}
+  .jn-side.jn-active,.jn-main.jn-active{display:block}
+  .jn-panel-write,.jn-panel-market{display:none}
+  .jn-panel-write.jn-active,.jn-panel-market.jn-active{display:block}
   .jn-row2{gap:.4rem}
 }
 
@@ -1460,75 +1465,89 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
       <p>그때의 생각을 기록하고, AI가 나중에 피드백과 조언을 달아줘요</p>
     </div>
 
-    <!-- PC: 좌(작성+지표) / 우(목록) | 모바일: 목록→작성→지표 순 단일컬럼 -->
+    <!-- 모바일 탭 -->
+    <div class="jn-tabs">
+      <button class="jn-tab-btn active" data-tab="list" onclick="showJnTab('list')">📚 목록</button>
+      <button class="jn-tab-btn" data-tab="write" onclick="showJnTab('write')">✍️ 작성</button>
+      <button class="jn-tab-btn" data-tab="market" onclick="showJnTab('market')">📊 시장지표</button>
+    </div>
+
+    <!-- PC: 좌(작성+지표) / 우(목록) | 모바일: 탭 방식 -->
     <div class="jn-layout">
 
-      <!-- 좌 패널: 새 일지 작성 + 시장 지표 -->
+      <!-- 좌 패널 -->
       <div class="jn-side">
 
-        <!-- 새 일지 작성 -->
-        <div class="card jn-write-card">
-          <div class="sec-title">✍️ 새 일지 작성</div>
-          <div style="display:flex;flex-direction:column;gap:.65rem">
-            <div class="jn-row2">
-              <input type="date" id="jn-date" style="flex:1;min-width:0"/>
-              <select id="jn-emotion" style="flex:1;min-width:0">
-                <option value="😨 극공포">😨 극공포</option>
-                <option value="😟 공포">😟 공포</option>
-                <option value="😐 중립" selected>😐 중립</option>
-                <option value="😊 탐욕">😊 탐욕</option>
-                <option value="🤑 극탐욕">🤑 극탐욕</option>
-              </select>
-            </div>
-            <input type="text" id="jn-title" placeholder="제목 (예: 중동 긴장감에 시장 급락)" style="width:100%"/>
-            <input type="text" id="jn-tickers" placeholder="관련 종목/ETF (예: QQQ, TSLA, 삼성전자)" style="width:100%"/>
-            <div class="jn-row2">
-              <div style="flex:1;display:flex;gap:.4rem;align-items:center;min-width:0">
-                <input type="number" id="jn-fear-greed" placeholder="탐욕지수 (0~100)" style="flex:1;min-width:0"/>
-                <button type="button" onclick="fetchFearGreed()" id="fg-fetch-btn" class="btn btn-ghost" style="padding:.42rem .6rem;font-size:.78rem;white-space:nowrap;flex-shrink:0">📡</button>
-              </div>
-              <select id="jn-action" style="flex:1;min-width:0">
-                <option value="관망">👀 관망 중</option>
-                <option value="매수 고민">🤔 매수 고민</option>
-                <option value="매도 고민">😬 매도 고민</option>
-                <option value="매수 완료">✅ 매수 완료</option>
-                <option value="매도 완료">✅ 매도 완료</option>
-              </select>
-            </div>
-            <textarea id="jn-content" rows="4" placeholder="지금 내 생각을 자유롭게 적어요&#10;&#10;예) 탐욕지수가 15로 극공포인데 QQQ를 사고 싶다." style="width:100%;line-height:1.7;resize:vertical"></textarea>
-            <button class="btn btn-primary owner-only" onclick="saveJournal()" style="width:100%">일지 저장 💾</button>
-          </div>
-        </div>
+        <!-- 작성 패널 (모바일: 작성 탭 / PC: 항상 표시) -->
+        <div class="jn-panel-write">
 
-        <!-- 시장 참고 지표 -->
-        <div class="card" style="margin-top:1rem">
-          <div class="sec-title">📊 시장 참고 지표</div>
-          <div style="display:flex;flex-direction:column;gap:.5rem;font-size:.85rem">
-            <div id="fg-realtime-card" style="background:var(--surface2);border-radius:10px;padding:.85rem;cursor:pointer" onclick="fetchFearGreed()">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.45rem">
-                <span style="color:var(--muted);font-size:.77rem">😱 CNN 공포·탐욕지수</span>
-                <span id="fg-realtime-time" style="font-size:.71rem;color:var(--muted)">탭하여 불러오기</span>
+          <!-- 새 일지 작성 -->
+          <div class="card jn-write-card">
+            <div class="sec-title">✍️ 새 일지 작성</div>
+            <div style="display:flex;flex-direction:column;gap:.65rem">
+              <div class="jn-row2">
+                <input type="date" id="jn-date" style="flex:1;min-width:0"/>
+                <select id="jn-emotion" style="flex:1;min-width:0">
+                  <option value="😨 극공포">😨 극공포</option>
+                  <option value="😟 공포">😟 공포</option>
+                  <option value="😐 중립" selected>😐 중립</option>
+                  <option value="😊 탐욕">😊 탐욕</option>
+                  <option value="🤑 극탐욕">🤑 극탐욕</option>
+                </select>
               </div>
-              <div id="fg-realtime-content" style="text-align:center;padding:.4rem 0">
-                <div style="color:var(--muted);font-size:.78rem">📡 탭하면 실시간 데이터를 불러와요</div>
+              <input type="text" id="jn-title" placeholder="제목 (예: 중동 긴장감에 시장 급락)" style="width:100%"/>
+              <input type="text" id="jn-tickers" placeholder="관련 종목/ETF (예: QQQ, TSLA, 삼성전자)" style="width:100%"/>
+              <div class="jn-row2">
+                <div style="flex:1;display:flex;gap:.4rem;align-items:center;min-width:0">
+                  <input type="number" id="jn-fear-greed" placeholder="탐욕지수 (0~100)" style="flex:1;min-width:0"/>
+                  <button type="button" onclick="fetchFearGreed()" id="fg-fetch-btn" class="btn btn-ghost" style="padding:.42rem .6rem;font-size:.78rem;white-space:nowrap;flex-shrink:0">📡</button>
+                </div>
+                <select id="jn-action" style="flex:1;min-width:0">
+                  <option value="관망">👀 관망 중</option>
+                  <option value="매수 고민">🤔 매수 고민</option>
+                  <option value="매도 고민">😬 매도 고민</option>
+                  <option value="매수 완료">✅ 매수 완료</option>
+                  <option value="매도 완료">✅ 매도 완료</option>
+                </select>
               </div>
-            </div>
-            <div style="background:var(--surface2);border-radius:8px;padding:.7rem;display:grid;grid-template-columns:1fr 1fr 1fr;gap:.3rem;text-align:center;font-size:.73rem;color:var(--muted)">
-              <div>😨 극공포<br><b style="color:var(--text)">0~25</b></div>
-              <div>😐 중립<br><b style="color:var(--text)">46~55</b></div>
-              <div>🤑 극탐욕<br><b style="color:var(--text)">76~100</b></div>
-            </div>
-            <div style="background:rgba(82,217,163,.08);border:1px solid rgba(82,217,163,.2);border-radius:8px;padding:.7rem;font-size:.78rem;color:var(--accent3);line-height:1.6">
-              💡 <b>버핏</b>: "남들이 탐욕스러울 때 두려워하고, 남들이 두려워할 때 탐욕스러워라"
+              <textarea id="jn-content" rows="4" placeholder="지금 내 생각을 자유롭게 적어요&#10;&#10;예) 탐욕지수가 15로 극공포인데 QQQ를 사고 싶다." style="width:100%;line-height:1.7;resize:vertical"></textarea>
+              <button class="btn btn-primary owner-only" onclick="saveJournal()" style="width:100%">일지 저장 💾</button>
             </div>
           </div>
-        </div>
 
-        <!-- 최근 일지 요약 -->
-        <div class="card" style="margin-top:1rem">
-          <div class="sec-title">📈 최근 일지 요약</div>
-          <div id="jn-recent" style="font-size:.83rem;color:var(--muted)">아직 일지가 없어요</div>
-        </div>
+          <!-- 최근 일지 요약 -->
+          <div class="card" style="margin-top:1rem">
+            <div class="sec-title">📈 최근 일지 요약</div>
+            <div id="jn-recent" style="font-size:.83rem;color:var(--muted)">아직 일지가 없어요</div>
+          </div>
+
+        </div><!-- /jn-panel-write -->
+
+        <!-- 시장지표 패널 (모바일: 시장지표 탭 / PC: 항상 표시) -->
+        <div class="jn-panel-market">
+          <div class="card">
+            <div class="sec-title">📊 시장 참고 지표</div>
+            <div style="display:flex;flex-direction:column;gap:.5rem;font-size:.85rem">
+              <div id="fg-realtime-card" style="background:var(--surface2);border-radius:10px;padding:.85rem;cursor:pointer" onclick="fetchFearGreed()">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.45rem">
+                  <span style="color:var(--muted);font-size:.77rem">😱 CNN 공포·탐욕지수</span>
+                  <span id="fg-realtime-time" style="font-size:.71rem;color:var(--muted)">탭하여 불러오기</span>
+                </div>
+                <div id="fg-realtime-content" style="text-align:center;padding:.4rem 0">
+                  <div style="color:var(--muted);font-size:.78rem">📡 탭하면 실시간 데이터를 불러와요</div>
+                </div>
+              </div>
+              <div style="background:var(--surface2);border-radius:8px;padding:.7rem;display:grid;grid-template-columns:1fr 1fr 1fr;gap:.3rem;text-align:center;font-size:.73rem;color:var(--muted)">
+                <div>😨 극공포<br><b style="color:var(--text)">0~25</b></div>
+                <div>😐 중립<br><b style="color:var(--text)">46~55</b></div>
+                <div>🤑 극탐욕<br><b style="color:var(--text)">76~100</b></div>
+              </div>
+              <div style="background:rgba(82,217,163,.08);border:1px solid rgba(82,217,163,.2);border-radius:8px;padding:.7rem;font-size:.78rem;color:var(--accent3);line-height:1.6">
+                💡 <b>버핏</b>: "남들이 탐욕스러울 때 두려워하고, 남들이 두려워할 때 탐욕스러워라"
+              </div>
+            </div>
+          </div>
+        </div><!-- /jn-panel-market -->
 
       </div><!-- /jn-side -->
 
@@ -2190,7 +2209,7 @@ function showPage(id, el) {
   if(id==='budget') { renderBudget(); }
   if(id==='assets') { initPortfolio(); }
   if(id==='youtube') { renderYtLibrary(); }
-  if(id==='journal') { renderJournal(); fetchFearGreed(); }
+  if(id==='journal') { renderJournal(); fetchFearGreed(); showJnTab('list'); }
   if(id==='realty')  { renderRealty(); initCheongak(); }
   if(id==='gifts')       { renderGiftList(); }
   if(id==='condolences') { renderCondolenceList(); }
@@ -6030,6 +6049,23 @@ function saveJournal() {
 }
 
 var _jnCollapsed={};
+function showJnTab(tab){
+  document.querySelectorAll('.jn-tab-btn').forEach(function(b){
+    b.classList.toggle('active', b.dataset.tab===tab);
+  });
+  var side=document.querySelector('.jn-side');
+  var main=document.querySelector('.jn-main');
+  var pw=document.querySelector('.jn-panel-write');
+  var pm=document.querySelector('.jn-panel-market');
+  if(!side||!main) return;
+  side.classList.remove('jn-active');
+  main.classList.remove('jn-active');
+  if(pw) pw.classList.remove('jn-active');
+  if(pm) pm.classList.remove('jn-active');
+  if(tab==='list'){ main.classList.add('jn-active'); }
+  else if(tab==='write'){ side.classList.add('jn-active'); if(pw) pw.classList.add('jn-active'); }
+  else if(tab==='market'){ side.classList.add('jn-active'); if(pm) pm.classList.add('jn-active'); }
+}
 function toggleJnFeedback(id){
   if(_jnCollapsed[id]) delete _jnCollapsed[id]; else _jnCollapsed[id]=true;
   renderJournal();
