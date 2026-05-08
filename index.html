@@ -6110,7 +6110,7 @@ async function getJournalFeedback(id, btn) {
         if(!pr.ok) return null;
         var pd=await pr.json();
         if(!pd||!pd.price) return null;
-        return t+': '+(pd.currency==='USD'?'$':'₩')+pd.price.toLocaleString(undefined,{maximumFractionDigits:2})+(pd.changeP!=null?' ('+(pd.changeP>=0?'+':'')+pd.changeP.toFixed(1)+'%)':'');
+        return t+': '+(pd.currency==='USD'?'$':'₩')+pd.price.toLocaleString(undefined,{maximumFractionDigits:2})+(pd.changeP!=null?' ('+fmtChangeP(pd.changeP)+')':'');
       }catch(e){return null;}
     }));
     priceInfo=pResults.filter(Boolean).join('\n');
@@ -6319,7 +6319,7 @@ async function selectPortTicker(ticker,name,type){
     if(pd&&pd.price){
       _portPrices[ticker]=pd;
       var ps=pd.currency==='USD'?'$'+pd.price.toLocaleString(undefined,{maximumFractionDigits:2}):'₩'+Math.round(pd.price).toLocaleString();
-      if(sp) sp.textContent=ps+(pd.changeP!=null?' ('+(pd.changeP>=0?'+':'')+pd.changeP.toFixed(1)+'%)':'');
+      if(sp) sp.textContent=ps+(pd.changeP!=null?' ('+fmtChangeP(pd.changeP)+')':'');
     }else{if(sp) sp.textContent='시세 없음';}
   }catch(e){if(sp) sp.textContent='오류';}
 }
@@ -6346,6 +6346,12 @@ async function fetchPortUsdKrw(){
       if(el) el.textContent=_portUsdKrw.toLocaleString();
     }
   }catch(e){}
+}
+
+function fmtChangeP(changeP){
+  var v=parseFloat(changeP.toFixed(1));
+  if(v===0) return '0.0%';
+  return (v>0?'+':'')+v.toFixed(1)+'%';
 }
 
 function portValueKRW(holding){
@@ -6645,7 +6651,7 @@ function renderPortHoldings(){
     var pos=profit==null||profit>=0;
     var pclr=pos?'var(--success)':'var(--danger)';
     var priceStr=pd?((pd.currency==='USD'?'$':'₩')+pd.price.toLocaleString(undefined,{maximumFractionDigits:pd.currency==='USD'?2:0})):'–';
-    var chStr=pd&&pd.changeP!=null?(pd.changeP>=0?'+':'')+pd.changeP.toFixed(1)+'%':'';
+    var chStr=pd&&pd.changeP!=null?fmtChangeP(pd.changeP):'';
     var valStr=vKRW!=null?'₩'+vKRW.toLocaleString():'–';
     var pStr=profit!=null?(profit>=0?'+':'')+'₩'+Math.round(profit).toLocaleString():'–';
     var rStr=roi!=null?(roi>=0?'+':'')+roi.toFixed(2)+'%':'–';
@@ -6709,7 +6715,7 @@ function renderPortHoldings(){
     var infoRow=h.isDirect?
       '<span style="color:var(--muted)">직접입력</span>'+
       '<span style="color:var(--muted)">원금 <b class="g-blur" style="font-family:JetBrains Mono,monospace;color:var(--text)">₩'+Math.round(h.investedKRW||0).toLocaleString()+'</b></span>':
-      '<span style="color:var(--muted)">현재가 <b style="font-family:JetBrains Mono,monospace;color:var(--text)">'+priceStr+'</b>'+(chStr?'<span style="color:'+(pd&&pd.changeP>=0?'var(--success)':'var(--danger)')+';font-size:.68rem"> '+chStr+'</span>':'')+'</span>'+
+      '<span style="color:var(--muted)">현재가 <b style="font-family:JetBrains Mono,monospace;color:var(--text)">'+priceStr+'</b>'+(chStr?'<span style="color:'+(pd&&pd.changeP>0.05?'var(--success)':pd&&pd.changeP<-0.05?'var(--danger)':'var(--muted)')+';font-size:.68rem"> '+chStr+'</span>':'')+'</span>'+
       '<span class="g-blur" style="color:var(--muted)">'+h.qty+'주 · ₩'+Math.round(h.investedKRW||0).toLocaleString()+'</span>';
     var borderClr=h.type==='HOUSING'?'var(--muted)':(pos?'var(--success)':'var(--danger)');
     return '<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid '+borderClr+';border-radius:9px;padding:.5rem .75rem;margin-bottom:.35rem">'+
