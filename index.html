@@ -421,17 +421,10 @@ body.guest-mode #gift-list,
 body.guest-mode #cond-list,
 body.guest-mode #gift-search-result,
 body.guest-mode #cond-search-result,
-body.guest-mode #tx-card-list,
-body.guest-mode .table-wrap,
 body.guest-mode #b-income-total-inline,
-body.guest-mode #fixed-cost-list,
 body.guest-mode #fixed-cost-total,
-body.guest-mode #port-holdings,
-body.guest-mode #port-monthly-chart,
-body.guest-mode #port-chart-volatile,
-body.guest-mode #port-chart-locked,
-body.guest-mode #port-chart-fixed,
 body.guest-mode .money-blur{filter:blur(7px);user-select:none;pointer-events:none}
+body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
 
 /* TOSS SCREENSHOT */
 .toss-drop{border:2px dashed var(--border);border-radius:16px;padding:2.5rem;text-align:center;cursor:pointer;transition:all .3s;position:relative}
@@ -6653,9 +6646,9 @@ function renderPortHoldings(){
     }
     var infoRow=h.isDirect?
       '<span style="color:var(--muted)">직접입력</span>'+
-      '<span style="color:var(--muted)">원금 <b style="font-family:JetBrains Mono,monospace;color:var(--text)">₩'+Math.round(h.investedKRW||0).toLocaleString()+'</b></span>':
+      '<span style="color:var(--muted)">원금 <b class="g-blur" style="font-family:JetBrains Mono,monospace;color:var(--text)">₩'+Math.round(h.investedKRW||0).toLocaleString()+'</b></span>':
       '<span style="color:var(--muted)">현재가 <b style="font-family:JetBrains Mono,monospace;color:var(--text)">'+priceStr+'</b>'+(chStr?'<span style="color:'+(pd&&pd.changeP>=0?'var(--success)':'var(--danger)')+';font-size:.68rem"> '+chStr+'</span>':'')+'</span>'+
-      '<span style="color:var(--muted)">'+h.qty+'주 · ₩'+Math.round(h.investedKRW||0).toLocaleString()+'</span>';
+      '<span class="g-blur" style="color:var(--muted)">'+h.qty+'주 · ₩'+Math.round(h.investedKRW||0).toLocaleString()+'</span>';
     var borderClr=h.type==='HOUSING'?'var(--muted)':(pos?'var(--success)':'var(--danger)');
     return '<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid '+borderClr+';border-radius:9px;padding:.5rem .75rem;margin-bottom:.35rem">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem">'+
@@ -6671,8 +6664,8 @@ function renderPortHoldings(){
       '</div>'+
       '<div style="display:flex;flex-wrap:wrap;gap:.4rem .8rem;margin-top:.25rem;font-size:.75rem;align-items:baseline">'+
         infoRow+
-        '<span style="font-family:JetBrains Mono,monospace;color:var(--accent4);font-weight:600">'+valStr+'</span>'+
-        (h.type!=='HOUSING'?'<span style="color:'+pclr+'">'+pStr+' ('+rStr+')</span>':'')+
+        '<span class="g-blur" style="font-family:JetBrains Mono,monospace;color:var(--accent4);font-weight:600">'+valStr+'</span>'+
+        (h.type!=='HOUSING'?'<span class="g-blur" style="color:'+pclr+'">'+pStr+' ('+rStr+')</span>':'')+
       '</div>'+
       buyForm+
     '</div>';
