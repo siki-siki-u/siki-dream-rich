@@ -147,6 +147,8 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-seri
 /* FORM ELEMENTS */
 .form-row{display:flex;gap:.8rem;margin-bottom:1rem;align-items:center;flex-wrap:wrap}
 input,select,textarea{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Noto Sans KR',sans-serif;font-size:.88rem;padding:.6rem .9rem;outline:none;transition:border-color .2s}
+/* iOS 자동 줌 방지: input font-size 16px 미만이면 Safari가 확대함 */
+@media(max-width:900px){input,select,textarea{font-size:16px}}
 input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 input::placeholder,textarea::placeholder{color:var(--muted)}
 select option{background:var(--surface2)}
@@ -421,6 +423,14 @@ body.guest-mode #gift-search-result,
 body.guest-mode #cond-search-result,
 body.guest-mode #tx-card-list,
 body.guest-mode .table-wrap,
+body.guest-mode #b-income-total-inline,
+body.guest-mode #fixed-cost-list,
+body.guest-mode #fixed-cost-total,
+body.guest-mode #port-holdings,
+body.guest-mode #port-monthly-chart,
+body.guest-mode #port-chart-volatile,
+body.guest-mode #port-chart-locked,
+body.guest-mode #port-chart-fixed,
 body.guest-mode .money-blur{filter:blur(7px);user-select:none;pointer-events:none}
 
 /* TOSS SCREENSHOT */
