@@ -6609,8 +6609,8 @@ function calcPortSellTotal(id, isUsd, avgCostKrw){
 }
 function confirmPortBuy(id){
   var qEl=document.getElementById('port-buy-qty-'+id);
+  if(!qEl) return;
   var iEl=document.getElementById('port-buy-inv-'+id);
-  if(!qEl||!iEl) return;
   var holdings=S.get('portfolio_holdings')||[];
   var h=holdings.find(function(x){return x.id===id;});
   if(!h) return;
