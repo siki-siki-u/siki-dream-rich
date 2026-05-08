@@ -1915,15 +1915,16 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
 
 <!-- FX CORRECT MODAL -->
 <div class="modal-overlay" id="fx-correct-modal" onclick="closeFxCorrectOut(event)">
-  <div class="modal" style="max-width:520px">
+  <div class="modal" style="max-width:400px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
-      <h3 style="margin:0;font-size:1.05rem">💱 원금 보정</h3>
+      <h3 style="margin:0;font-size:1.05rem">✏️ 자산 수정</h3>
       <button onclick="closeFxCorrect()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;line-height:1">×</button>
     </div>
-    <p style="font-size:.78rem;color:var(--muted);margin:0 0 1rem">환율 차이로 투자 원금이 맞지 않을 때 직접 수정하세요</p>
-    <div id="fx-correct-list"></div>
+    <p style="font-size:.78rem;color:var(--muted);margin:0 0 .9rem">종목 선택 후 원금 / 평가금액을 수정하세요</p>
+    <select id="fx-holding-select" onchange="renderFxFields()" style="width:100%;margin-bottom:1rem;padding:.48rem .5rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.88rem"></select>
+    <div id="fx-correct-fields"></div>
     <div style="display:flex;gap:.6rem;margin-top:1.2rem">
-      <button class="btn btn-ghost" onclick="closeFxCorrect()" style="flex:1">취소</button>
+      <button class="btn btn-ghost" onclick="closeFxCorrect()" style="flex:1">닫기</button>
       <button class="btn btn-primary" onclick="saveFxCorrect()" style="flex:2">저장 💾</button>
     </div>
   </div>
@@ -6793,49 +6794,56 @@ function closeRealizedModal(){
 
 function openFxCorrect(){
   var holdings=S.get('portfolio_holdings')||[];
-  var el=document.getElementById('fx-correct-list');
-  if(!el) return;
+  var sel=document.getElementById('fx-holding-select');
+  if(!sel) return;
   if(!holdings.length){
-    el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--muted);font-size:.85rem">보유 종목이 없어요</div>';
+    sel.innerHTML='<option value="">보유 종목 없음</option>';
+    document.getElementById('fx-correct-fields').innerHTML='';
   } else {
-    el.innerHTML=holdings.map(function(h){
+    sel.innerHTML=holdings.map(function(h){
       var flag=h.type==='US'?'🇺🇸':h.type==='KR'?'🇰🇷':'';
-      var avgCost=h.qty>0?Math.round((h.investedKRW||0)/h.qty):0;
-      var qtyInfo=h.isDirect?'직접입력':(h.qty+'주 · 평단 ₩'+avgCost.toLocaleString());
-      return '<div style="border:1px solid var(--border);border-radius:10px;padding:.65rem .8rem;margin-bottom:.5rem">'+
-        '<div style="display:flex;align-items:baseline;gap:.35rem;margin-bottom:.45rem">'+
-          '<span style="font-size:.85rem;font-weight:600">'+h.name+'</span>'+
-          '<span style="font-size:.7rem;color:var(--muted)">'+flag+' '+h.ticker+'</span>'+
-          '<span style="font-size:.68rem;color:var(--muted);margin-left:auto">'+qtyInfo+'</span>'+
-        '</div>'+
-        '<div style="display:grid;grid-template-columns:1fr'+(h.isDirect?' 1fr':'')+';gap:.4rem">'+
-          '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.15rem">투자 원금 (₩)</div>'+
-            '<input id="fx-inv-'+h.id+'" type="number" class="input" value="'+(h.investedKRW||0)+'" style="width:100%;box-sizing:border-box;font-size:.82rem;padding:.32rem .45rem"/></div>'+
-          (h.isDirect?
-            '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.15rem">현재 평가금액 (₩)</div>'+
-              '<input id="fx-cur-'+h.id+'" type="number" class="input" value="'+(h.currentKRW||0)+'" style="width:100%;box-sizing:border-box;font-size:.82rem;padding:.32rem .45rem"/></div>'
-            :'')+
-        '</div>'+
-      '</div>';
+      return '<option value="'+h.id+'">'+flag+' '+h.name+' ('+h.ticker+')</option>';
     }).join('');
+    renderFxFields();
   }
   document.getElementById('fx-correct-modal').classList.add('open');
 }
-function saveFxCorrect(){
+function renderFxFields(){
   var holdings=S.get('portfolio_holdings')||[];
-  holdings.forEach(function(h){
-    var invEl=document.getElementById('fx-inv-'+h.id);
-    if(invEl){ var v=parseFloat(invEl.value); if(!isNaN(v)&&v>=0) h.investedKRW=v; }
-    if(h.isDirect){
-      var curEl=document.getElementById('fx-cur-'+h.id);
-      if(curEl){ var c=parseFloat(curEl.value); if(!isNaN(c)&&c>=0) h.currentKRW=c; }
-    }
-  });
+  var sel=document.getElementById('fx-holding-select');
+  var fieldsEl=document.getElementById('fx-correct-fields');
+  if(!sel||!fieldsEl) return;
+  var id=parseInt(sel.value);
+  var h=holdings.find(function(x){return x.id===id;});
+  if(!h){fieldsEl.innerHTML='';return;}
+  var avgCost=h.qty>0?Math.round((h.investedKRW||0)/h.qty):0;
+  var info=h.isDirect?'직접입력 종목':(h.qty+'주 보유 · 평단가 ₩'+avgCost.toLocaleString());
+  fieldsEl.innerHTML=
+    '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.75rem;padding:.3rem .5rem;background:var(--surface2);border-radius:6px">'+info+'</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">'+
+      '<div><div style="font-size:.68rem;color:var(--muted);margin-bottom:.15rem">투자 원금 (₩)</div>'+
+        '<input id="fx-inv" type="number" class="input" value="'+(h.investedKRW||0)+'" style="width:100%;box-sizing:border-box;font-size:.84rem;padding:.38rem .45rem"/></div>'+
+      '<div><div style="font-size:.68rem;color:var(--muted);margin-bottom:.15rem">현재 평가금액 (₩)</div>'+
+        '<input id="fx-cur" type="number" class="input" value="'+(h.currentKRW||0)+'" placeholder="시세 자동계산" style="width:100%;box-sizing:border-box;font-size:.84rem;padding:.38rem .45rem"/></div>'+
+    '</div>';
+}
+async function saveFxCorrect(){
+  var holdings=S.get('portfolio_holdings')||[];
+  var sel=document.getElementById('fx-holding-select');
+  if(!sel) return;
+  var id=parseInt(sel.value);
+  var h=holdings.find(function(x){return x.id===id;});
+  if(!h) return;
+  var invEl=document.getElementById('fx-inv');
+  var curEl=document.getElementById('fx-cur');
+  if(invEl){ var v=parseFloat(invEl.value); if(!isNaN(v)&&v>=0) h.investedKRW=v; }
+  if(curEl&&curEl.value!==''){ var c=parseFloat(curEl.value); if(!isNaN(c)&&c>=0) h.currentKRW=c; }
   S.set('portfolio_holdings',holdings);
   _holdings=holdings;
-  dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
-  closeFxCorrect();
+  await dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
+  showToast('✅ 저장됐어요!','success');
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
+  renderFxFields();
 }
 function closeFxCorrect(){
   document.getElementById('fx-correct-modal').classList.remove('open');
