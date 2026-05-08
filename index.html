@@ -1070,7 +1070,10 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
     <div class="card" style="margin-bottom:1.5rem">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
         <div class="sec-title" style="margin:0">📋 보유 종목</div>
-        <button class="btn btn-ghost" id="port-refresh-btn" style="font-size:.72rem;padding:.25rem .6rem" onclick="refreshPortPrices()">🔄 시세 갱신</button>
+        <div style="display:flex;gap:.3rem">
+          <button class="btn btn-ghost owner-only" style="font-size:.72rem;padding:.25rem .6rem" onclick="openFxCorrect()">💱 원금 보정</button>
+          <button class="btn btn-ghost" id="port-refresh-btn" style="font-size:.72rem;padding:.25rem .6rem" onclick="refreshPortPrices()">🔄 시세 갱신</button>
+        </div>
       </div>
       <!-- 필터/정렬 -->
       <div style="display:flex;flex-direction:column;gap:.3rem;margin-bottom:.55rem">
@@ -1884,6 +1887,22 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
     <div class="modal-btns">
       <button class="btn btn-ghost" onclick="closeSettings()">취소</button>
       <button class="btn btn-primary owner-only" onclick="saveSettings()">저장하기 💾</button>
+    </div>
+  </div>
+</div>
+
+<!-- FX CORRECT MODAL -->
+<div class="modal-overlay" id="fx-correct-modal" onclick="closeFxCorrectOut(event)">
+  <div class="modal" style="max-width:520px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+      <h3 style="margin:0;font-size:1.05rem">💱 원금 보정</h3>
+      <button onclick="closeFxCorrect()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;line-height:1">×</button>
+    </div>
+    <p style="font-size:.78rem;color:var(--muted);margin:0 0 1rem">환율 차이로 투자 원금이 맞지 않을 때 직접 수정하세요</p>
+    <div id="fx-correct-list"></div>
+    <div style="display:flex;gap:.6rem;margin-top:1.2rem">
+      <button class="btn btn-ghost" onclick="closeFxCorrect()" style="flex:1">취소</button>
+      <button class="btn btn-primary" onclick="saveFxCorrect()" style="flex:2">저장 💾</button>
     </div>
   </div>
 </div>
@@ -6668,6 +6687,59 @@ function confirmPortSell(id){
   dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
   delete _portSellOpen[id];
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
+}
+
+function openFxCorrect(){
+  var holdings=S.get('portfolio_holdings')||[];
+  var el=document.getElementById('fx-correct-list');
+  if(!el) return;
+  if(!holdings.length){
+    el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--muted);font-size:.85rem">보유 종목이 없어요</div>';
+  } else {
+    el.innerHTML=holdings.map(function(h){
+      var flag=h.type==='US'?'🇺🇸':h.type==='KR'?'🇰🇷':'';
+      var avgCost=h.qty>0?Math.round((h.investedKRW||0)/h.qty):0;
+      var qtyInfo=h.isDirect?'직접입력':(h.qty+'주 · 평단 ₩'+avgCost.toLocaleString());
+      return '<div style="border:1px solid var(--border);border-radius:10px;padding:.65rem .8rem;margin-bottom:.5rem">'+
+        '<div style="display:flex;align-items:baseline;gap:.35rem;margin-bottom:.45rem">'+
+          '<span style="font-size:.85rem;font-weight:600">'+h.name+'</span>'+
+          '<span style="font-size:.7rem;color:var(--muted)">'+flag+' '+h.ticker+'</span>'+
+          '<span style="font-size:.68rem;color:var(--muted);margin-left:auto">'+qtyInfo+'</span>'+
+        '</div>'+
+        '<div style="display:grid;grid-template-columns:1fr'+(h.isDirect?' 1fr':'')+';gap:.4rem">'+
+          '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.15rem">투자 원금 (₩)</div>'+
+            '<input id="fx-inv-'+h.id+'" type="number" class="input" value="'+(h.investedKRW||0)+'" style="width:100%;box-sizing:border-box;font-size:.82rem;padding:.32rem .45rem"/></div>'+
+          (h.isDirect?
+            '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.15rem">현재 평가금액 (₩)</div>'+
+              '<input id="fx-cur-'+h.id+'" type="number" class="input" value="'+(h.currentKRW||0)+'" style="width:100%;box-sizing:border-box;font-size:.82rem;padding:.32rem .45rem"/></div>'
+            :'')+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }
+  document.getElementById('fx-correct-modal').classList.add('open');
+}
+function saveFxCorrect(){
+  var holdings=S.get('portfolio_holdings')||[];
+  holdings.forEach(function(h){
+    var invEl=document.getElementById('fx-inv-'+h.id);
+    if(invEl){ var v=parseFloat(invEl.value); if(!isNaN(v)&&v>=0) h.investedKRW=v; }
+    if(h.isDirect){
+      var curEl=document.getElementById('fx-cur-'+h.id);
+      if(curEl){ var c=parseFloat(curEl.value); if(!isNaN(c)&&c>=0) h.currentKRW=c; }
+    }
+  });
+  S.set('portfolio_holdings',holdings);
+  _holdings=holdings;
+  dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
+  closeFxCorrect();
+  renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
+}
+function closeFxCorrect(){
+  document.getElementById('fx-correct-modal').classList.remove('open');
+}
+function closeFxCorrectOut(e){
+  if(e.target===document.getElementById('fx-correct-modal')) closeFxCorrect();
 }
 
 function renderPortHoldings(){
