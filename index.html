@@ -5908,7 +5908,7 @@ function deleteJournal(id){
 }
 
 // ── 포트폴리오 관리 ──
-var _portType='US', _portOwner='윤식', _portSelTicker=null, _portPrices={}, _portUsdKrw=1380, _portSearchTimer=null;
+var _portType='US', _portOwner='윤식', _portSelTicker=null, _portPrices=S.get('port_prices_cache')||{}, _portUsdKrw=1380, _portSearchTimer=null;
 var _portDirectTypes={'GOLD':true,'PENSION':true,'FUND':true,'ETC':true};
 var _VOLATILE_TYPES=['US','KR','CRYPTO','GOLD','FUND'];
 var _LOCKED_TYPES=['PENSION','HOUSING']; // HOUSING: 레거시 호환
@@ -6732,6 +6732,7 @@ async function initPortfolio(){
       var pd=await fetchPortPrice(h.ticker,h.type);
       if(pd) _portPrices[h.ticker]=pd;
     }));
+    S.set('port_prices_cache', _portPrices);
     renderPortHoldings();
     renderPortSummary();
     renderPortMonthlyChart();
