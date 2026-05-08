@@ -4065,10 +4065,29 @@ function renderMarriageGrowth() {
     return;
   }
 
+  // 가격 로드 전 fallback: 최신 스냅샷의 ticker별 valueKRW 사용
+  var snapCache = {};
+  var snaps = S.get('portfolio_snapshots') || [];
+  if (snaps.length) {
+    var latestSnap = snaps[snaps.length - 1];
+    if (latestSnap && latestSnap.holdings) {
+      latestSnap.holdings.forEach(function(h) {
+        if (h.ticker) snapCache[h.ticker] = h.valueKRW || 0;
+      });
+    }
+  }
+
   var totInv = 0, totVal = 0;
   holdings.forEach(function(h) {
     var v = portValueKRW(h);
-    var vkrw = v != null ? v : (h.investedKRW || 0);
+    var vkrw;
+    if (v != null) {
+      vkrw = v;
+    } else if (!h.isDirect && h.ticker && snapCache[h.ticker]) {
+      vkrw = snapCache[h.ticker];
+    } else {
+      vkrw = h.investedKRW || 0;
+    }
     totInv += h.investedKRW || 0;
     totVal += vkrw;
   });
@@ -6716,6 +6735,7 @@ async function initPortfolio(){
     renderPortHoldings();
     renderPortSummary();
     renderPortMonthlyChart();
+    try { renderMarriageGrowth(); } catch(e) {}
   }
 }
 // ── 부동산 관리 ──
