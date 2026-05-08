@@ -377,14 +377,50 @@ tr:hover td{background:rgba(108,138,255,.03)}
 .dday-text span{color:var(--accent)}
 .dday-sub{font-size:.8rem;color:var(--muted)}
 
-/* LOCK SCREEN */
-.lock-screen{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem}
-.lock-screen h1{font-family:'DM Serif Display',serif;font-size:2rem;color:var(--text)}
-.lock-screen p{color:var(--muted);font-size:.9rem;margin-top:-.8rem}
-.lock-input-wrap{display:flex;gap:.7rem;align-items:center}
-.lock-input{font-size:1.2rem;letter-spacing:.3em;text-align:center;width:160px;padding:.8rem 1rem;border-radius:12px}
-.lock-error{color:var(--danger);font-size:.85rem;height:1.2rem;text-align:center}
-.lock-icon{font-size:3.5rem;margin-bottom:.5rem}
+/* LOGIN SCREEN */
+.login-screen{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem}
+.login-screen h1{font-family:'DM Serif Display',serif;font-size:2rem;color:var(--text)}
+.login-screen p{color:var(--muted);font-size:.9rem;margin-top:-.6rem}
+.login-form{display:flex;flex-direction:column;gap:.75rem;width:280px}
+.login-field label{font-size:.75rem;color:var(--muted);letter-spacing:.05em;display:block;margin-bottom:.3rem}
+.login-input{width:100%;font-size:.95rem;padding:.72rem 1rem;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:inherit;outline:none;transition:border-color .2s}
+.login-input:focus{border-color:var(--accent)}
+.login-error{color:var(--danger);font-size:.83rem;min-height:1.2rem;text-align:center}
+.login-icon{font-size:3.5rem;margin-bottom:.2rem}
+.login-biometric-btn{width:100%;padding:.65rem;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:.85rem;font-family:inherit;cursor:pointer;display:none;transition:all .2s}
+.login-biometric-btn:hover{border-color:var(--accent);color:var(--text)}
+/* WEBAUTHN OFFER */
+.webauthn-offer{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998;align-items:center;justify-content:center}
+.webauthn-offer.show{display:flex}
+.webauthn-offer-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:1.8rem 1.5rem;max-width:300px;width:90%;text-align:center;display:flex;flex-direction:column;gap:.9rem}
+/* GUEST BANNER */
+.guest-banner{display:none;background:rgba(255,200,0,.07);border-bottom:1px solid rgba(255,200,0,.18);padding:.5rem 1.5rem;font-size:.8rem;color:var(--accent4);text-align:center;position:sticky;top:0;z-index:90;letter-spacing:.03em}
+/* GUEST MODE – 쓰기 버튼 숨김 */
+body.guest-mode .owner-only{display:none!important}
+/* CSS attribute selector로 동적 생성 버튼도 커버 */
+body.guest-mode button[onclick^="add"],
+body.guest-mode button[onclick^="save"],
+body.guest-mode button[onclick^="delete"],
+body.guest-mode button[onclick^="confirm"],
+body.guest-mode button[onclick^="addPort"],
+body.guest-mode button[onclick^="deletePort"],
+body.guest-mode button[onclick^="saveJournal"],
+body.guest-mode button[onclick^="deleteJournal"],
+body.guest-mode button[onclick^="deleteTx"],
+body.guest-mode button[onclick^="deleteApt"],
+body.guest-mode button[onclick^="deleteYt"],
+body.guest-mode button[onclick^="deleteToss"]{display:none!important}
+/* GUEST MODE – 금액 블러 */
+body.guest-mode .stat-value{filter:blur(7px);user-select:none;pointer-events:none}
+body.guest-mode #marriage-growth-content,
+body.guest-mode #home-goal-content,
+body.guest-mode #gift-list,
+body.guest-mode #cond-list,
+body.guest-mode #gift-search-result,
+body.guest-mode #cond-search-result,
+body.guest-mode #tx-card-list,
+body.guest-mode .table-wrap,
+body.guest-mode .money-blur{filter:blur(7px);user-select:none;pointer-events:none}
 
 /* TOSS SCREENSHOT */
 .toss-drop{border:2px dashed var(--border);border-radius:16px;padding:2.5rem;text-align:center;cursor:pointer;transition:all .3s;position:relative}
@@ -428,17 +464,43 @@ tr:hover td{background:rgba(108,138,255,.03)}
   <div class="bn-item" id="bn-more" onclick="toggleSidebar()"><span>☰</span><span>더보기</span></div>
 </nav>
 
-<!-- LOCK SCREEN -->
-<div class="lock-screen" id="lock-screen">
-  <div class="lock-icon">🔐</div>
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="login-screen">
+  <div class="login-icon">🔐</div>
   <h1>식식징구월드 🏠</h1>
-  <p>입장 코드를 입력해 주세요</p>
-  <div class="lock-input-wrap">
-    <input class="lock-input" type="password" id="lock-input" maxlength="10" placeholder="• • • • • •" onkeydown="if(event.key==='Enter')checkLock()"/>
-    <button class="btn btn-primary" onclick="checkLock()">입장</button>
+  <p>로그인해 주세요</p>
+  <div class="login-form">
+    <div class="login-field">
+      <label>아이디</label>
+      <input class="login-input" type="text" id="login-id" placeholder="아이디" autocomplete="username"
+        onkeydown="if(event.key==='Enter')document.getElementById('login-pw').focus()"/>
+    </div>
+    <div class="login-field">
+      <label>비밀번호</label>
+      <input class="login-input" type="password" id="login-pw" placeholder="비밀번호" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter')doLogin()"/>
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()" style="width:100%;padding:.75rem;font-size:.95rem">입장하기</button>
+    <button class="login-biometric-btn" id="login-biometric-btn" onclick="doWebAuthnLogin()">👆 지문으로 로그인</button>
   </div>
-  <div class="lock-error" id="lock-error"></div>
+  <div class="login-error" id="login-error"></div>
 </div>
+
+<!-- WEBAUTHN OFFER MODAL -->
+<div class="webauthn-offer" id="webauthn-offer">
+  <div class="webauthn-offer-box">
+    <div style="font-size:2.2rem">👆</div>
+    <div style="font-weight:700;font-size:.95rem">이 기기에 지문/Face ID 등록</div>
+    <div style="font-size:.8rem;color:var(--muted);line-height:1.5">다음부터 비밀번호 없이 지문으로 바로 로그인할 수 있어요</div>
+    <div style="display:flex;gap:.7rem;margin-top:.3rem">
+      <button onclick="registerWebAuthn()" class="btn btn-primary" style="flex:1">등록하기</button>
+      <button onclick="dismissWebAuthn()" class="btn" style="flex:1;background:var(--surface2);border:1px solid var(--border)">나중에</button>
+    </div>
+  </div>
+</div>
+
+<!-- GUEST BANNER -->
+<div class="guest-banner" id="guest-banner">👀 게스트 관람 모드 · 읽기 전용으로 접속 중이에요</div>
 
 <div class="hamburger" onclick="toggleSidebar()">☰</div>
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
@@ -476,7 +538,12 @@ tr:hover td{background:rgba(108,138,255,.03)}
   </div>
 
   <div class="sidebar-footer">
+    <div id="sidebar-user" style="display:none;font-size:.75rem;color:var(--muted);margin-bottom:.6rem;padding:.4rem .7rem;background:var(--surface2);border-radius:8px;display:flex;align-items:center;justify-content:space-between">
+      <span id="sidebar-username" style="font-weight:600;color:var(--text)"></span>
+      <span id="sidebar-role-badge" style="font-size:.67rem;padding:.1rem .4rem;border-radius:10px;background:rgba(108,138,255,.15);color:var(--accent)"></span>
+    </div>
     <button class="settings-btn" onclick="openSettings()">⚙️ 설정</button>
+    <button class="settings-btn" onclick="doLogout()" style="margin-top:.5rem;color:rgba(255,107,107,.8);border-color:rgba(255,107,107,.2)">🚪 로그아웃</button>
   </div>
 </nav>
 
@@ -563,7 +630,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
             </div>
           </div>
           <div style="display:flex;gap:.5rem">
-            <button onclick="saveHomeGoal()" style="flex:1;padding:.45rem;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:.85rem;cursor:pointer">저장</button>
+            <button onclick="saveHomeGoal()" class="owner-only" style="flex:1;padding:.45rem;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:.85rem;cursor:pointer">저장</button>
             <button onclick="toggleHomeGoalEdit()" style="flex:1;padding:.45rem;border-radius:8px;border:none;background:var(--surface2);color:var(--muted);font-size:.85rem;cursor:pointer">취소</button>
           </div>
         </div>
@@ -621,7 +688,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
               <option value="pink">🩷 핑크</option>
               <option value="green">🟢 초록</option>
             </select>
-            <button class="btn btn-primary" onclick="addEvent()">일정 추가 ＋</button>
+            <button class="btn btn-primary owner-only" onclick="addEvent()">일정 추가 ＋</button>
           </div>
         </div>
         <div class="card">
@@ -710,7 +777,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem">
           <div class="sec-title" style="margin:0">🔒 고정비</div>
-          <button onclick="addFixedCostRow()" style="background:rgba(108,138,255,.13);border:1px solid rgba(108,138,255,.25);border-radius:6px;color:var(--accent);font-size:.75rem;padding:.25rem .6rem;cursor:pointer">+ 추가</button>
+          <button onclick="addFixedCostRow()" class="owner-only" style="background:rgba(108,138,255,.13);border:1px solid rgba(108,138,255,.25);border-radius:6px;color:var(--accent);font-size:.75rem;padding:.25rem .6rem;cursor:pointer">+ 추가</button>
         </div>
         <div id="fixed-cost-list" style="font-size:.82rem;display:flex;flex-direction:column;gap:.35rem"></div>
         <div style="border-top:1px solid var(--border);margin:.4rem 0;padding-top:.45rem;display:flex;justify-content:space-between;font-weight:700">
@@ -739,7 +806,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
         </div>
         <input type="text" id="tx-amount" inputmode="numeric" placeholder="금액" style="width:140px;min-width:0;flex:1 1 110px" oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')"/>
         <input type="text" id="tx-desc" placeholder="세부내용 (선택)" style="flex:1;min-width:150px"/>
-        <button class="btn btn-primary btn-add-preview" onclick="addToPreview()">미리보기 추가 ＋</button>
+        <button class="btn btn-primary btn-add-preview owner-only" onclick="addToPreview()">미리보기 추가 ＋</button>
       </div>
     </div>
 
@@ -976,7 +1043,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div style="margin-bottom:.3rem"></div>
       </div>
 
-      <button class="btn btn-primary" style="width:100%;font-size:.9rem" onclick="addPortHolding()">추가하기</button>
+      <button class="btn btn-primary owner-only" style="width:100%;font-size:.9rem" onclick="addPortHolding()">추가하기</button>
     </div>
 
     <!-- 보유 종목 -->
@@ -1031,7 +1098,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
         <div class="sec-title" style="margin:0">📊 자산 추이</div>
         <div style="display:flex;gap:.4rem">
           <button class="btn" style="font-size:.73rem;padding:.3rem .7rem;background:var(--surface2);border:1px solid var(--border);color:var(--muted)" onclick="showPortChanges()">🔍 변화 보기</button>
-<button class="btn btn-primary" style="font-size:.73rem;padding:.3rem .7rem" onclick="savePortSnapshot()">💾 오늘 저장</button>
+<button class="btn btn-primary owner-only" style="font-size:.73rem;padding:.3rem .7rem" onclick="savePortSnapshot()">💾 오늘 저장</button>
         </div>
       </div>
 
@@ -1409,7 +1476,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
             </select>
           </div>
           <textarea id="jn-content" rows="5" placeholder="지금 내 생각을 자유롭게 적어요&#10;&#10;예) 탐욕지수가 15로 극공포인데 QQQ를 사고 싶다. 근데 더 떨어질까봐 무섭다. 분할매수를 해야하나?" style="width:100%;line-height:1.8"></textarea>
-          <button class="btn btn-primary" onclick="saveJournal()">일지 저장 💾</button>
+          <button class="btn btn-primary owner-only" onclick="saveJournal()">일지 저장 💾</button>
         </div>
       </div>
 
@@ -1589,7 +1656,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
             <input type="number" id="apt-target-price" placeholder="목표 매수가 (만원)" style="flex:1"/>
           </div>
           <textarea id="apt-memo" placeholder="메모 (관심 이유, 장단점 등)" rows="3" style="width:100%"></textarea>
-          <button class="btn btn-primary" onclick="addApt()">관심 아파트 추가 ➕</button>
+          <button class="btn btn-primary owner-only" onclick="addApt()">관심 아파트 추가 ➕</button>
         </div>
       </div>
 
@@ -1651,7 +1718,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
           <input type="date" id="gift-date" style="flex:1"/>
           <input type="text" id="gift-memo" placeholder="메모 (선택)" style="flex:1;min-width:120px"/>
         </div>
-        <button class="btn btn-primary" onclick="addGift()">추가하기 ＋</button>
+        <button class="btn btn-primary owner-only" onclick="addGift()">추가하기 ＋</button>
       </div>
     </div>
 
@@ -1713,7 +1780,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
           <input type="date" id="cond-date" style="flex:1"/>
           <input type="text" id="cond-memo" placeholder="메모 (선택)" style="flex:1;min-width:120px"/>
         </div>
-        <button class="btn btn-primary" onclick="addCondolence()">추가하기 ＋</button>
+        <button class="btn btn-primary owner-only" onclick="addCondolence()">추가하기 ＋</button>
       </div>
     </div>
 
@@ -1783,7 +1850,7 @@ tr:hover td{background:rgba(108,138,255,.03)}
     </div>
     <div class="modal-btns">
       <button class="btn btn-ghost" onclick="closeSettings()">취소</button>
-      <button class="btn btn-primary" onclick="saveSettings()">저장하기 💾</button>
+      <button class="btn btn-primary owner-only" onclick="saveSettings()">저장하기 💾</button>
     </div>
   </div>
 </div>
@@ -1797,6 +1864,7 @@ try { if(window.supabase) supa = window.supabase.createClient(SUPABASE_URL, SUPA
 
 async function dbUpsert(table, row) {
   if(!supa) return;
+  if(isGuest()) return;  // 게스트 쓰기 차단
   try {
     // settings 테이블은 key 컬럼 기준 upsert (onConflict 필수)
     var opts = (table === 'settings') ? {onConflict: 'key'} : {};
@@ -1806,6 +1874,7 @@ async function dbUpsert(table, row) {
 }
 async function dbDelete(table, id) {
   if(!supa) return;
+  if(isGuest()) return;  // 게스트 쓰기 차단
   try { await supa.from(table).delete().eq('id', id); } catch(e) { console.warn('[DB delete]', table, e.message); }
 }
 function showSyncBadge(msg, color) {
@@ -4604,28 +4673,199 @@ function deleteYtSummary(videoId) {
 }
 
 
-const LOCK_CODE = '926518';
-(function(){
-  const unlocked = sessionStorage.getItem('unlocked');
-  if(unlocked === '1') {
-    document.getElementById('lock-screen').style.display = 'none';
-  }
+// ── SUPABASE AUTH ──
+var AUTH_MAP = {
+  '식식이': 'siksik@siki.app',
+  '유진':   'yujin@siki.app',
+  'guest':  'guest@siki.app'
+};
+var _currentUser = null;
+var _userRole = null;
+var _loginUsername = '';
+var _loginPw = '';
+
+function isOwner() { return _userRole === 'owner'; }
+function isGuest() { return _userRole === 'guest'; }
+
+(function initAuth() {
+  if (!supa) return;
+  supa.auth.getSession().then(function(r) {
+    var session = r.data && r.data.session;
+    if (session && session.user) {
+      onAuthSuccess(session.user, false);
+    } else {
+      checkWebAuthnAutoLogin();
+    }
+  });
+  supa.auth.onAuthStateChange(function(event, session) {
+    if (event === 'SIGNED_IN' && session && session.user) {
+      onAuthSuccess(session.user, false);
+    } else if (event === 'SIGNED_OUT') {
+      onAuthSignOut();
+    }
+  });
 })();
 
-function checkLock() {
-  const val = document.getElementById('lock-input').value;
-  if(val === LOCK_CODE) {
-    sessionStorage.setItem('unlocked','1');
-    const ls = document.getElementById('lock-screen');
-    ls.style.opacity = '0';
-    ls.style.transition = 'opacity .4s';
-    setTimeout(function(){ ls.style.display = 'none'; }, 400);
-  } else {
-    const err = document.getElementById('lock-error');
-    err.textContent = '❌ 코드가 틀렸어요!';
-    document.getElementById('lock-input').value = '';
-    setTimeout(function(){ err.textContent = ''; }, 2000);
+function onAuthSuccess(user, fromLogin) {
+  _currentUser = user;
+  _userRole = (user.user_metadata && user.user_metadata.role) || 'guest';
+  var displayName = (user.user_metadata && user.user_metadata.display_name) || user.email.split('@')[0];
+  var usernameEl = document.getElementById('sidebar-username');
+  var roleEl     = document.getElementById('sidebar-role-badge');
+  var userEl     = document.getElementById('sidebar-user');
+  if (usernameEl) usernameEl.textContent = displayName;
+  if (roleEl) roleEl.textContent = _userRole === 'owner' ? '오너' : '게스트';
+  if (userEl) userEl.style.display = 'flex';
+  hideLockScreen();
+  enforceGuestMode();
+  if (_userRole === 'owner' && _loginUsername) {
+    var u = _loginUsername;
+    setTimeout(function() { maybeOfferWebAuthn(u); }, 600);
   }
+}
+
+function onAuthSignOut() {
+  _currentUser = null; _userRole = null;
+  _loginUsername = ''; _loginPw = '';
+  var userEl = document.getElementById('sidebar-user');
+  if (userEl) userEl.style.display = 'none';
+  document.body.classList.remove('guest-mode');
+  var banner = document.getElementById('guest-banner');
+  if (banner) banner.style.display = 'none';
+  showLoginScreen();
+}
+
+function hideLockScreen() {
+  var ls = document.getElementById('login-screen');
+  if (!ls || ls.style.display === 'none') return;
+  ls.style.opacity = '0'; ls.style.transition = 'opacity .4s';
+  setTimeout(function(){ ls.style.display = 'none'; }, 400);
+}
+
+function showLoginScreen() {
+  var ls = document.getElementById('login-screen');
+  if (!ls) return;
+  ls.style.display = 'flex'; ls.style.opacity = '1';
+  var errEl = document.getElementById('login-error');
+  if (errEl) errEl.textContent = '';
+}
+
+function enforceGuestMode() {
+  var banner = document.getElementById('guest-banner');
+  if (_userRole === 'guest') {
+    document.body.classList.add('guest-mode');
+    if (banner) banner.style.display = 'block';
+  } else {
+    document.body.classList.remove('guest-mode');
+    if (banner) banner.style.display = 'none';
+  }
+}
+
+async function doLogin() {
+  var idEl  = document.getElementById('login-id');
+  var pwEl  = document.getElementById('login-pw');
+  var errEl = document.getElementById('login-error');
+  var id = (idEl ? idEl.value : '').trim();
+  var pw = pwEl ? pwEl.value : '';
+  if (!id || !pw) { if (errEl) errEl.textContent = '아이디와 비밀번호를 입력해 주세요'; return; }
+  var email = AUTH_MAP[id];
+  if (!email) { if (errEl) errEl.textContent = '❌ 아이디를 확인해 주세요'; return; }
+  if (errEl) errEl.textContent = '로그인 중...';
+  _loginUsername = id; _loginPw = pw;
+  var result = await supa.auth.signInWithPassword({ email: email, password: pw });
+  if (result.error) {
+    if (errEl) errEl.textContent = '❌ 비밀번호가 틀렸어요';
+    if (pwEl) pwEl.value = '';
+    _loginPw = '';
+  }
+  // 성공 시 onAuthStateChange → SIGNED_IN → onAuthSuccess
+}
+
+async function doLogout() {
+  if (!confirm('로그아웃 할까요?')) return;
+  if (supa) await supa.auth.signOut();
+}
+
+// ── WebAuthn (지문 / Face ID) ──
+var _webauthnUsername = '';
+var _webauthnPw = '';
+
+function checkWebAuthnAutoLogin() {
+  if (!window.PublicKeyCredential) return;
+  for (var uname in AUTH_MAP) {
+    if (localStorage.getItem('wa_cred_' + uname)) {
+      var btn = document.getElementById('login-biometric-btn');
+      if (btn) { btn.style.display = 'block'; btn.dataset.username = uname; }
+      break;
+    }
+  }
+}
+
+async function doWebAuthnLogin() {
+  var btn = document.getElementById('login-biometric-btn');
+  var username = btn ? btn.dataset.username : '';
+  var errEl = document.getElementById('login-error');
+  var storedStr = username ? localStorage.getItem('wa_cred_' + username) : null;
+  if (!storedStr) { if (errEl) errEl.textContent = '등록된 지문이 없어요'; return; }
+  try {
+    var stored = JSON.parse(storedStr);
+    var credId = Uint8Array.from(atob(stored.cid), function(c){ return c.charCodeAt(0); });
+    var challenge = crypto.getRandomValues(new Uint8Array(32));
+    if (errEl) errEl.textContent = '지문을 인식해 주세요...';
+    await navigator.credentials.get({
+      publicKey: {
+        challenge: challenge, rpId: location.hostname,
+        allowCredentials: [{ id: credId, type: 'public-key' }],
+        userVerification: 'required', timeout: 60000
+      }
+    });
+    if (errEl) errEl.textContent = '로그인 중...';
+    var r = await supa.auth.signInWithPassword({ email: AUTH_MAP[username], password: atob(stored.pw) });
+    if (r.error) { if (errEl) errEl.textContent = '❌ 자동 로그인 실패. 비밀번호로 로그인해 주세요.'; }
+  } catch(e) {
+    if (errEl) errEl.textContent = e.name === 'NotAllowedError' ? '지문 인식이 취소됐어요' : '지문 인식 실패. 비밀번호로 로그인해 주세요.';
+  }
+}
+
+async function maybeOfferWebAuthn(username) {
+  if (!window.PublicKeyCredential) return;
+  if (localStorage.getItem('wa_cred_' + username)) return;
+  try {
+    var supported = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    if (!supported) return;
+  } catch(e) { return; }
+  _webauthnUsername = username; _webauthnPw = _loginPw;
+  var offer = document.getElementById('webauthn-offer');
+  if (offer) offer.classList.add('show');
+}
+
+async function registerWebAuthn() {
+  try {
+    var challenge = crypto.getRandomValues(new Uint8Array(32));
+    var cred = await navigator.credentials.create({
+      publicKey: {
+        challenge: challenge,
+        rp: { name: '식식징구월드', id: location.hostname },
+        user: { id: new TextEncoder().encode(_webauthnUsername), name: _webauthnUsername, displayName: _webauthnUsername },
+        pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+        authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
+        timeout: 60000
+      }
+    });
+    var credB64 = btoa(String.fromCharCode.apply(null, new Uint8Array(cred.rawId)));
+    localStorage.setItem('wa_cred_' + _webauthnUsername, JSON.stringify({ cid: credB64, pw: btoa(_webauthnPw) }));
+    dismissWebAuthn();
+    alert('지문 등록 완료! 다음 접속부터 지문으로 바로 로그인할 수 있어요 🎉');
+  } catch(e) {
+    dismissWebAuthn();
+    if (e.name !== 'NotAllowedError') alert('지문 등록 실패: ' + e.message);
+  }
+}
+
+function dismissWebAuthn() {
+  var offer = document.getElementById('webauthn-offer');
+  if (offer) offer.classList.remove('show');
+  _webauthnPw = '';
 }
 
 
