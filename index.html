@@ -6484,7 +6484,7 @@ function renderPortSummary(){
   if(cR) cR.style.borderTop='3px solid '+clr;
 }
 
-var _portBuyOpen={};
+var _portBuyOpen={}, _portSellOpen={};
 var _portHoldingsSort='default', _portHoldingsOwner='all', _portHoldingsCat='all';
 
 function setPortHoldingsOwner(v){
@@ -6537,6 +6537,12 @@ function setPortHoldingsSort(v){
 }
 function togglePortBuy(id){
   _portBuyOpen[id]=!_portBuyOpen[id];
+  delete _portSellOpen[id];
+  renderPortHoldings();
+}
+function togglePortSell(id){
+  _portSellOpen[id]=!_portSellOpen[id];
+  delete _portBuyOpen[id];
   renderPortHoldings();
 }
 function confirmPortBuy(id){
@@ -6565,6 +6571,37 @@ function confirmPortBuy(id){
   _holdings = holdings;
   dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
   delete _portBuyOpen[id];
+  renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
+}
+
+function confirmPortSell(id){
+  var qEl=document.getElementById('port-sell-qty-'+id);
+  var aEl=document.getElementById('port-sell-amt-'+id);
+  if(!qEl||!aEl) return;
+  var holdings=S.get('portfolio_holdings')||[];
+  var h=holdings.find(function(x){return x.id===id;});
+  if(!h) return;
+  var sellQty=parseFloat(qEl.value);
+  var sellAmt=parseInt((aEl.value||'').replace(/,/g,''));
+  if(!sellQty||sellQty<=0){alert('매도 수량을 입력해주세요.');return;}
+  if(sellQty>h.qty){alert('보유 수량('+h.qty+'주)을 초과할 수 없어요.');return;}
+  if(!sellAmt||sellAmt<=0){alert('매도 금액(₩)을 입력해주세요.');return;}
+  var avgCost=h.qty>0?(h.investedKRW||0)/h.qty:0;
+  var profit=sellAmt-Math.round(avgCost*sellQty);
+  var profStr=(profit>=0?'+':'')+'₩'+Math.round(profit).toLocaleString();
+  if(sellQty>=h.qty){
+    if(!confirm('전량 매도 — 보유 종목에서 삭제됩니다.\n실현 손익: '+profStr+'\n\n계속할까요?')) return;
+    holdings=holdings.filter(function(x){return x.id!==id;});
+  } else {
+    var remain=(h.qty-sellQty)/h.qty;
+    h.qty=parseFloat((h.qty-sellQty).toFixed(8));
+    h.investedKRW=Math.round((h.investedKRW||0)*remain);
+    alert('매도 완료 ✅\n실현 손익: '+profStr);
+  }
+  S.set('portfolio_holdings',holdings);
+  _holdings=holdings;
+  dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
+  delete _portSellOpen[id];
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
 }
 
@@ -6625,11 +6662,12 @@ function renderPortHoldings(){
     var ownerTag=h.owner==='유진'?'<span style="font-size:.63rem;background:rgba(244,114,182,.18);color:#f472b6;border-radius:3px;padding:.05rem .3rem;margin-left:.25rem">👩유진계좌</span>':
                  '<span style="font-size:.63rem;background:rgba(108,138,255,.18);color:var(--accent);border-radius:3px;padding:.05rem .3rem;margin-left:.25rem">👨윤식계좌</span>';
     var buyOpen=!!_portBuyOpen[h.id];
-    var buyBtnLabel=h.isDirect?'✏️수정':(buyOpen?'✕':'＋추가매수');
-    var buyForm='';
+    var sellOpen=!!_portSellOpen[h.id];
+    var avgCost=h.qty>0?Math.round((h.investedKRW||0)/h.qty):0;
+    var actionForm='';
     if(buyOpen){
       if(h.isDirect){
-        buyForm='<div style="margin-top:.45rem;padding:.5rem .6rem;background:var(--surface2);border-radius:7px;display:grid;grid-template-columns:1fr 1fr auto;gap:.35rem;align-items:end">'+
+        actionForm='<div style="margin-top:.45rem;padding:.5rem .6rem;background:rgba(108,138,255,.08);border:1px solid rgba(108,138,255,.2);border-radius:7px;display:grid;grid-template-columns:1fr 1fr auto;gap:.35rem;align-items:end">'+
           '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">현재 평가금액(₩)</div>'+
             '<input id="port-buy-qty-'+h.id+'" type="text" class="input" placeholder="0" '+
             'value="'+Math.round(h.currentKRW||0).toLocaleString()+'" '+
@@ -6643,7 +6681,9 @@ function renderPortHoldings(){
           '<button class="btn btn-primary" onclick="confirmPortBuy('+h.id+')" style="font-size:.75rem;padding:.28rem .55rem">저장</button>'+
         '</div>';
       } else {
-        buyForm='<div style="margin-top:.45rem;padding:.5rem .6rem;background:var(--surface2);border-radius:7px;display:grid;grid-template-columns:1fr 1fr auto;gap:.35rem;align-items:end">'+
+        actionForm='<div style="margin-top:.45rem;padding:.5rem .6rem;background:rgba(108,138,255,.08);border:1px solid rgba(108,138,255,.2);border-radius:7px">'+
+          '<div style="font-size:.67rem;color:var(--accent);margin-bottom:.35rem;font-weight:600">📈 추가매수</div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.35rem;align-items:end">'+
           '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">추가 수량</div>'+
             '<input id="port-buy-qty-'+h.id+'" type="number" class="input" placeholder="0" min="0" step="any" style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
           '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">추가 원금(₩)</div>'+
@@ -6651,8 +6691,20 @@ function renderPortHoldings(){
             'oninput="this.value=this.value.replace(/[^0-9]/g,\'\').replace(/\\B(?=(\\d{3})+(?!\\d))/g,\',\')" '+
             'style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
           '<button class="btn btn-primary" onclick="confirmPortBuy('+h.id+')" style="font-size:.75rem;padding:.28rem .55rem">확인</button>'+
-        '</div>';
+          '</div></div>';
       }
+    } else if(sellOpen && !h.isDirect){
+      actionForm='<div style="margin-top:.45rem;padding:.5rem .6rem;background:rgba(255,107,107,.07);border:1px solid rgba(255,107,107,.2);border-radius:7px">'+
+        '<div style="font-size:.67rem;color:var(--danger);margin-bottom:.35rem;font-weight:600">📉 매도 — 보유 '+h.qty+'주 · 평단 ₩'+avgCost.toLocaleString()+'</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.35rem;align-items:end">'+
+        '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">매도 수량</div>'+
+          '<input id="port-sell-qty-'+h.id+'" type="number" class="input" placeholder="0" min="0.00000001" max="'+h.qty+'" step="any" style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
+        '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">매도 금액(₩)</div>'+
+          '<input id="port-sell-amt-'+h.id+'" type="text" class="input" placeholder="0" '+
+          'oninput="this.value=this.value.replace(/[^0-9]/g,\'\').replace(/\\B(?=(\\d{3})+(?!\\d))/g,\',\')" '+
+          'style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
+        '<button onclick="confirmPortSell('+h.id+')" style="padding:.28rem .55rem;border-radius:6px;border:none;background:var(--danger);color:#fff;font-size:.75rem;cursor:pointer;font-weight:600">확인</button>'+
+        '</div></div>';
     }
     var infoRow=h.isDirect?
       '<span style="color:var(--muted)">직접입력</span>'+
@@ -6668,7 +6720,13 @@ function renderPortHoldings(){
           ownerTag+catTag+
         '</div>'+
         '<div style="display:flex;gap:.25rem;align-items:center;flex-shrink:0">'+
-          '<button onclick="togglePortBuy('+h.id+')" style="background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--accent);font-size:.67rem;padding:.1rem .38rem;line-height:1.4">'+(buyOpen?'✕':buyBtnLabel)+'</button>'+
+          (h.isDirect
+            ? '<button onclick="togglePortBuy('+h.id+')" style="background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--accent);font-size:.67rem;padding:.1rem .38rem;line-height:1.4">'+(buyOpen?'✕':'✏️수정')+'</button>'
+            : (buyOpen||sellOpen)
+              ? '<button onclick="'+(buyOpen?'togglePortBuy':'togglePortSell')+'('+h.id+')" style="background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--muted);font-size:.67rem;padding:.1rem .38rem;line-height:1.4">✕ 닫기</button>'
+              : '<button onclick="togglePortBuy('+h.id+')" style="background:none;border:1px solid rgba(108,138,255,.4);border-radius:4px;cursor:pointer;color:var(--accent);font-size:.67rem;padding:.1rem .38rem;line-height:1.4">＋매수</button>'+
+                '<button onclick="togglePortSell('+h.id+')" style="background:none;border:1px solid rgba(255,107,107,.4);border-radius:4px;cursor:pointer;color:var(--danger);font-size:.67rem;padding:.1rem .38rem;line-height:1.4">−매도</button>'
+          )+
           '<button onclick="deletePortHolding('+h.id+')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:.82rem;padding:0;line-height:1">✕</button>'+
         '</div>'+
       '</div>'+
@@ -6677,7 +6735,7 @@ function renderPortHoldings(){
         '<span class="g-blur" style="font-family:JetBrains Mono,monospace;color:var(--accent4);font-weight:600">'+valStr+'</span>'+
         (h.type!=='HOUSING'?'<span class="g-blur" style="color:'+pclr+'">'+pStr+' ('+rStr+')</span>':'')+
       '</div>'+
-      buyForm+
+      actionForm+
     '</div>';
   }).join('');
 }
