@@ -2043,13 +2043,17 @@ async function syncFromSupabase() {
         var _dbH = [];
         try { if(_dbHRow) _dbH = JSON.parse(_dbHRow.value)||[]; } catch(e){}
         if(_dbH.length > 0) {
-          S.set('portfolio_holdings', _dbH);
-          _holdings = _dbH;
-          // 로컬이 DB보다 더 많은 항목이면 DB에 업로드 (데이터 손실 방지)
-          if(_preLocalHoldings.length > _dbH.length) {
+          // 로컬 총 (investedKRW+qty 합산) vs DB 비교 → 더 큰 쪽이 추가매수 반영된 최신
+          var _localInv=_preLocalHoldings.reduce(function(s,h){return s+(h.investedKRW||0)+(h.qty||0);},0);
+          var _dbInv=_dbH.reduce(function(s,h){return s+(h.investedKRW||0)+(h.qty||0);},0);
+          if(_preLocalHoldings.length > _dbH.length || (_preLocalHoldings.length===_dbH.length && _localInv>_dbInv)) {
+            // 로컬이 더 최신 → DB에 push
             S.set('portfolio_holdings', _preLocalHoldings);
             _holdings = _preLocalHoldings;
             supa.from('settings').upsert({key:'portfolio_holdings', value:JSON.stringify(_preLocalHoldings)},{onConflict:'key'}).then(function(r){ if(r&&r.error) console.error('[sync holdings push]', r.error); });
+          } else {
+            S.set('portfolio_holdings', _dbH);
+            _holdings = _dbH;
           }
         } else if(_preLocalHoldings.length > 0) {
           // DB 비어있고 로컬에 있으면 DB로 seed
@@ -6663,7 +6667,7 @@ function calcPortSellTotal(id, avgCostKrw){
   var clr=profit>=0?'var(--success)':'var(--danger)';
   el.innerHTML='₩'+amt.toLocaleString()+' &nbsp;<span style="color:'+clr+'">'+pStr+'</span>';
 }
-function confirmPortBuy(id){
+async function confirmPortBuy(id){
   var qEl=document.getElementById('port-buy-qty-'+id);
   if(!qEl) return;
   var iEl=document.getElementById('port-buy-inv-'+id);
@@ -6687,14 +6691,16 @@ function confirmPortBuy(id){
     h.qty=parseFloat((h.qty+qty).toFixed(8));
     h.investedKRW=(h.investedKRW||0)+inv2;
   }
+  var btn=document.querySelector('button[onclick="confirmPortBuy('+id+')"]');
+  if(btn){btn.disabled=true;btn.textContent='저장 중...';}
   S.set('portfolio_holdings',holdings);
-  _holdings = holdings;
-  dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
+  _holdings=holdings;
+  await dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
   delete _portBuyOpen[id];
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
 }
 
-function confirmPortSell(id){
+async function confirmPortSell(id){
   var qEl=document.getElementById('port-sell-qty-'+id);
   if(!qEl) return;
   var holdings=S.get('portfolio_holdings')||[];
@@ -6717,8 +6723,9 @@ function confirmPortSell(id){
     var remain=(h.qty-sellQty)/h.qty;
     h.qty=parseFloat((h.qty-sellQty).toFixed(8));
     h.investedKRW=Math.round((h.investedKRW||0)*remain);
-    alert('매도 완료 ✅\n실현 손익: '+profStr);
   }
+  var btn=document.querySelector('button[onclick="confirmPortSell('+id+')"]');
+  if(btn){btn.disabled=true;btn.textContent='저장 중...';}
   // 실현 손익 누적
   var realized=S.get('portfolio_realized')||{total:0,count:0,history:[]};
   realized.total=(realized.total||0)+profit;
@@ -6728,12 +6735,15 @@ function confirmPortSell(id){
   if(realized.history.length>100) realized.history=realized.history.slice(0,100);
   S.set('portfolio_realized',realized);
   _portRealized=realized;
-  dbUpsert('settings',{key:'portfolio_realized',value:JSON.stringify(realized)});
   S.set('portfolio_holdings',holdings);
   _holdings=holdings;
-  dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
+  await Promise.all([
+    dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)}),
+    dbUpsert('settings',{key:'portfolio_realized',value:JSON.stringify(realized)})
+  ]);
   delete _portSellOpen[id];
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
+  alert('매도 완료 ✅\n실현 손익: '+profStr);
 }
 
 function showRealizedHistory(){
