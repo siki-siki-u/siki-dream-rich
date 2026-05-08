@@ -1951,6 +1951,16 @@ async function dbDelete(table, id) {
   if(isGuest()) return;  // 게스트 쓰기 차단
   try { await supa.from(table).delete().eq('id', id); } catch(e) { console.warn('[DB delete]', table, e.message); }
 }
+function showToast(msg, type) {
+  document.querySelectorAll('.app-toast').forEach(function(e){ e.remove(); });
+  var t = document.createElement('div');
+  t.className = 'app-toast';
+  t.textContent = msg;
+  var bg = type==='error' ? 'var(--danger)' : type==='success' ? 'var(--success)' : 'rgba(30,30,50,.93)';
+  t.style.cssText = 'position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 5.5rem);left:50%;transform:translateX(-50%);background:'+bg+';color:#fff;padding:.6rem 1.3rem;border-radius:20px;font-size:.84rem;z-index:99999;white-space:nowrap;max-width:88vw;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.35);pointer-events:none;transition:opacity .35s';
+  document.body.appendChild(t);
+  setTimeout(function(){ t.style.opacity='0'; setTimeout(function(){ t.remove(); },380); }, 2400);
+}
 function showSyncBadge(msg, color) {
   var b = document.getElementById('sync-badge');
   if(!b) return;
@@ -2627,11 +2637,11 @@ async function addGift() {
   const type   = document.getElementById('gift-type').value;
   const date   = document.getElementById('gift-date').value || null;
   const memo   = document.getElementById('gift-memo').value.trim();
-  if(!name || !amount) { alert('이름과 금액을 입력해주세요.'); return; }
+  if(!name || !amount) { showToast('이름과 금액을 입력해주세요.','error'); return; }
   const row = { person, name, amount, event_type: type, event_date: date, memo: memo || null };
   if(supa) {
     const { data, error } = await supa.from('gifts').insert(row).select().single();
-    if(error) { alert('저장 실패: ' + error.message); return; }
+    if(error) { showToast('저장 실패: ' + error.message); return; }
     giftsCache.unshift(data);
   } else {
     giftsCache.unshift({ ...row, id: Date.now() });
@@ -2641,7 +2651,7 @@ async function addGift() {
   document.getElementById('gift-memo').value = '';
   document.getElementById('gift-date').value = '';
   renderGiftList();
-  alert('✅ 추가됐어요!');
+  showToast('✅ 추가됐어요!','success');
 }
 
 
@@ -2733,11 +2743,11 @@ async function addCondolence() {
   const type   = document.getElementById('cond-type').value;
   const date   = document.getElementById('cond-date').value || null;
   const memo   = document.getElementById('cond-memo').value.trim();
-  if(!name || !amount) { alert('이름과 금액을 입력해주세요.'); return; }
+  if(!name || !amount) { showToast('이름과 금액을 입력해주세요.','error'); return; }
   const row = { person, name, amount, event_type: type, event_date: date, memo: memo || null };
   if(supa) {
     const { data, error } = await supa.from('condolences').insert(row).select().single();
-    if(error) { alert('저장 실패: ' + error.message); return; }
+    if(error) { showToast('저장 실패: ' + error.message); return; }
     condolencesCache.unshift(data);
   } else {
     condolencesCache.unshift({ ...row, id: Date.now() });
@@ -2747,7 +2757,7 @@ async function addCondolence() {
   document.getElementById('cond-memo').value = '';
   document.getElementById('cond-date').value = '';
   renderCondolenceList();
-  alert('✅ 추가됐어요!');
+  showToast('✅ 추가됐어요!','success');
 }
 
 function searchCondolences() {
@@ -3188,7 +3198,7 @@ function addToPreview() {
   var amount = _txType === 'in' ? -Math.abs(raw) : Math.abs(raw);
   var desc   = document.getElementById('tx-desc').value.trim() || source;
   var cat    = '기타';
-  if(!amount || isNaN(amount)) { alert('금액을 입력해 주세요.'); return; }
+  if(!amount || isNaN(amount)) { showToast('금액을 입력해 주세요.','error'); return; }
   // 엑셀 미리보기 대상월을 현재 가계부 월로 맞추기
   var excelSel = document.getElementById('excel-target-month');
   if(excelSel) excelSel.value = budgetKey();
@@ -4055,7 +4065,7 @@ function renderInvestBreakdown(data, total) {
 async function getPortfolioAI(btn) {
   var snapData = getLatestSnapshotData();
   var allItems = snapData.allItems || [];
-  if(!allItems.length) { alert('먼저 캡처를 업로드해 주세요!'); return; }
+  if(!allItems.length) { showToast('먼저 캡처를 업로드해 주세요!'); return; }
 
   var card = document.getElementById('portfolio-ai-card');
   var resultEl = document.getElementById('portfolio-ai-result');
@@ -4428,9 +4438,9 @@ function saveHomeGoal() {
   var loan = parseInt((document.getElementById('home-loan-input')  ? document.getElementById('home-loan-input').value  : '0')||'0');
   var rate = parseFloat((document.getElementById('home-loan-rate') ? document.getElementById('home-loan-rate').value  : '3.5')||'3.5');
   var yrs  = parseInt((document.getElementById('home-loan-years')  ? document.getElementById('home-loan-years').value : '30')||'30');
-  if (!val || val <= 0) { alert('목표 금액을 입력해주세요.'); return; }
-  if (rate <= 0 || rate > 20) { alert('금리는 0~20% 사이로 입력해주세요.'); return; }
-  if (yrs  <= 0 || yrs  > 50) { alert('대출 기간은 1~50년 사이로 입력해주세요.'); return; }
+  if (!val || val <= 0) { showToast('목표 금액을 입력해주세요.','error'); return; }
+  if (rate <= 0 || rate > 20) { showToast('금리는 0~20% 사이로 입력해주세요.','error'); return; }
+  if (yrs  <= 0 || yrs  > 50) { showToast('대출 기간은 1~50년 사이로 입력해주세요.','error'); return; }
   _homeGoalPrice  = val;
   _homeLoanAmount = loan;
   _homeLoanRate   = rate;
@@ -4936,10 +4946,10 @@ async function registerWebAuthn() {
     var credB64 = btoa(String.fromCharCode.apply(null, new Uint8Array(cred.rawId)));
     localStorage.setItem('wa_cred_' + _webauthnUsername, JSON.stringify({ cid: credB64, pw: btoa(_webauthnPw) }));
     dismissWebAuthn();
-    alert('지문 등록 완료! 다음 접속부터 지문으로 바로 로그인할 수 있어요 🎉');
+    showToast('지문 등록 완료! 다음 접속부터 지문으로 바로 로그인할 수 있어요 🎉');
   } catch(e) {
     dismissWebAuthn();
-    if (e.name !== 'NotAllowedError') alert('지문 등록 실패: ' + e.message);
+    if (e.name !== 'NotAllowedError') showToast('지문 등록 실패: ' + e.message);
   }
 }
 
@@ -5478,7 +5488,7 @@ function addManualAssetItem() {
   var cat  = document.getElementById('ma-cat').value;
   var val  = parseAmt('ma-value');
   var prin = parseAmt('ma-principal');
-  if(!name || !val) { alert('종목명과 금액을 입력해주세요'); return; }
+  if(!name || !val) { showToast('종목명과 금액을 입력해주세요','error'); return; }
   manualAssetItems.push({ name, category:cat, value:val, principal:prin });
   document.getElementById('ma-name').value = '';
   document.getElementById('ma-value').value = '';
@@ -5513,7 +5523,7 @@ function saveManualAsset() {
 
   var allNewItems = manualAssetItems.map(function(i){ return {name:i.name, category:i.category, value:i.value}; })
     .concat(reserveItems);
-  if(!allNewItems.length) { alert('항목을 추가하거나 CMA/퇴직연금을 입력해주세요'); return; }
+  if(!allNewItems.length) { showToast('항목을 추가하거나 CMA/퇴직연금을 입력해주세요','error'); return; }
 
   var snapId   = Date.now();
   var todayStr = today();
@@ -6047,7 +6057,7 @@ function removePreviewRow(i) {
 }
 
 function importExcelToBudget() {
-  if(!parsedExcelRows.length) { alert('먼저 엑셀 파일을 업로드해 주세요!'); return; }
+  if(!parsedExcelRows.length) { showToast('먼저 엑셀 파일을 업로드해 주세요!'); return; }
   var targetKey = document.getElementById('excel-target-month').value;
   var sourceAccount = (document.getElementById('excel-source-account')||{}).value || '';
   var existing  = S.get('txs_'+targetKey) || [];
@@ -6082,7 +6092,7 @@ function saveJournal() {
   var fearGreed=document.getElementById('jn-fear-greed').value;
   var action=document.getElementById('jn-action').value;
   var content=document.getElementById('jn-content').value.trim();
-  if(!title||!content){alert('제목과 내용을 입력해 주세요!');return;}
+  if(!title||!content){showToast('제목과 내용을 입력해 주세요!','error');return;}
   var journals=S.get('journals')||[];
   var newJournal={id:Date.now(),date,emotion,title,tickers,fearGreed,action,content,feedback:null,advice:null,savedAt:today()};
   journals.unshift(newJournal);
@@ -6093,7 +6103,7 @@ function saveJournal() {
   document.getElementById('jn-fear-greed').value='';
   document.getElementById('jn-content').value='';
   renderJournal();
-  alert('✅ 일지가 저장됐어요!');
+  showToast('✅ 일지가 저장됐어요!','success');
 }
 
 var _jnCollapsed={};
@@ -6483,9 +6493,9 @@ function addPortHolding(){
     var name=_getDirectName();
     var curVal=parseInt((document.getElementById('port-direct-value').value||'').replace(/,/g,''));
     var inv2=parseInt((document.getElementById('port-direct-invested').value||'').replace(/,/g,''));
-    if(!name){alert('자산명을 입력해주세요.');return;}
-    if(!curVal||curVal<=0){alert('현재 평가금액을 입력해주세요.');return;}
-    if(!inv2||inv2<=0){alert('투자 원금을 입력해주세요.');return;}
+    if(!name){showToast('자산명을 입력해주세요.','error');return;}
+    if(!curVal||curVal<=0){showToast('현재 평가금액을 입력해주세요.','error');return;}
+    if(!inv2||inv2<=0){showToast('투자 원금을 입력해주세요.','error');return;}
     var ticker='DIRECT_'+_portType+'_'+_portOwner+'_'+Date.now();
     var newDirect={id:Date.now(),ticker:ticker,name:name,type:_portType,owner:_portOwner,isDirect:true,currentKRW:curVal,investedKRW:inv2,addedAt:today()};
     holdings.push(newDirect);
@@ -6496,11 +6506,11 @@ function addPortHolding(){
     document.getElementById('port-direct-value').value='';
     document.getElementById('port-direct-invested').value='';
   } else {
-    if(!_portSelTicker){alert('종목을 검색하여 선택해주세요.');return;}
+    if(!_portSelTicker){showToast('종목을 검색하여 선택해주세요.');return;}
     var qty=parseFloat(document.getElementById('port-qty').value);
     var inv=parseInt((document.getElementById('port-invested-input').value||'').replace(/,/g,''));
-    if(!qty||qty<=0){alert('보유 수량을 입력해주세요.');return;}
-    if(!inv||inv<=0){alert('투자 원금(₩)을 입력해주세요.');return;}
+    if(!qty||qty<=0){showToast('보유 수량을 입력해주세요.','error');return;}
+    if(!inv||inv<=0){showToast('투자 원금(₩)을 입력해주세요.','error');return;}
     var ex=holdings.find(function(h){return h.ticker===_portSelTicker.ticker&&h.owner===_portOwner;});
     var syncTarget;
     if(ex){
@@ -6677,17 +6687,17 @@ async function confirmPortBuy(id){
   if(h.isDirect){
     var curVal=parseInt((qEl.value||'').replace(/,/g,''));
     var inv=parseInt((iEl.value||'').replace(/,/g,''));
-    if(!curVal||curVal<=0){alert('평가금액을 입력해주세요.');return;}
-    if(!inv||inv<=0){alert('원금을 입력해주세요.');return;}
+    if(!curVal||curVal<=0){showToast('평가금액을 입력해주세요.','error');return;}
+    if(!inv||inv<=0){showToast('원금을 입력해주세요.','error');return;}
     h.currentKRW=curVal;
     h.investedKRW=inv;
   } else {
     var qty=parseFloat(qEl.value);
-    if(!qty||qty<=0){alert('수량을 입력해주세요.');return;}
+    if(!qty||qty<=0){showToast('수량을 입력해주세요.','error');return;}
     var priceEl=document.getElementById('port-buy-price-'+id);
     var price=priceEl?parseFloat(priceEl.value)||0:0;
     var inv2=price>0?Math.round(qty*price):parseInt((iEl?iEl.value||'0':'0').replace(/,/g,''));
-    if(!inv2||inv2<=0){alert('단가 또는 원금을 입력해주세요.');return;}
+    if(!inv2||inv2<=0){showToast('단가 또는 원금을 입력해주세요.','error');return;}
     h.qty=parseFloat((h.qty+qty).toFixed(8));
     h.investedKRW=(h.investedKRW||0)+inv2;
   }
@@ -6707,12 +6717,12 @@ async function confirmPortSell(id){
   var h=holdings.find(function(x){return x.id===id;});
   if(!h) return;
   var sellQty=parseFloat(qEl.value);
-  if(!sellQty||sellQty<=0){alert('매도 수량을 입력해주세요.');return;}
-  if(sellQty>h.qty){alert('보유 수량('+h.qty+'주)을 초과할 수 없어요.');return;}
+  if(!sellQty||sellQty<=0){showToast('매도 수량을 입력해주세요.','error');return;}
+  if(sellQty>h.qty){showToast('보유 수량('+h.qty+'주)을 초과할 수 없어요.','error');return;}
   var priceEl=document.getElementById('port-sell-price-'+id);
   var price=priceEl?parseFloat(priceEl.value)||0:0;
   var sellAmt=price>0?Math.round(sellQty*price):0;
-  if(!sellAmt||sellAmt<=0){alert('매도 단가를 입력해주세요.');return;}
+  if(!sellAmt||sellAmt<=0){showToast('매도 단가를 입력해주세요.','error');return;}
   var avgCost=h.qty>0?(h.investedKRW||0)/h.qty:0;
   var profit=sellAmt-Math.round(avgCost*sellQty);
   var profStr=(profit>=0?'+':'')+'₩'+Math.round(profit).toLocaleString();
@@ -6743,7 +6753,7 @@ async function confirmPortSell(id){
   ]);
   delete _portSellOpen[id];
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
-  alert('매도 완료 ✅\n실현 손익: '+profStr);
+  showToast('매도 완료 ✅\n실현 손익: '+profStr);
 }
 
 function showRealizedHistory(){
@@ -6980,7 +6990,7 @@ function renderPortHoldings(){
 
 async function forcePortCloudSync() {
   var btn = document.getElementById('port-cloud-sync-btn');
-  if(!supa) { alert('Supabase 연결 없음'); return; }
+  if(!supa) { showToast('Supabase 연결 없음','error'); return; }
   if(btn) { btn.textContent = '⏳ 업로드 중...'; btn.disabled = true; }
   try {
     var holdings = S.get('portfolio_holdings') || [];
@@ -6992,7 +7002,7 @@ async function forcePortCloudSync() {
     if(btn) { btn.textContent = '✅ 완료'; btn.style.color='var(--success)'; }
     setTimeout(function(){ if(btn){btn.textContent='☁️ 클라우드 동기화';btn.style.color='';btn.disabled=false;} }, 2500);
   } catch(e) {
-    alert('동기화 실패: ' + e.message);
+    showToast('동기화 실패: ' + e.message);
     if(btn) { btn.textContent = '☁️ 클라우드 동기화'; btn.disabled = false; }
   }
 }
@@ -7316,7 +7326,7 @@ function addApt() {
   var size       = document.getElementById('apt-size').value;
   var targetPrice= document.getElementById('apt-target-price').value;
   var memo       = document.getElementById('apt-memo').value.trim();
-  if(!name || !lawdCd) { alert('아파트명을 입력하고 주소 검색을 해주세요!'); return; }
+  if(!name || !lawdCd) { showToast('아파트명을 입력하고 주소 검색을 해주세요!','error'); return; }
 
   var apts = S.get('apts') || [];
   var newApt={ id:Date.now(), name, sigungu, dong, lawdCd, size, targetPrice, memo, trades:[], lastFetch:null, aiAnalysis:null };
@@ -7334,7 +7344,7 @@ function addApt() {
   document.getElementById('apt-memo').value = '';
 
   renderRealty();
-  alert('✅ 관심 아파트가 추가됐어요!');
+  showToast('✅ 관심 아파트가 추가됐어요!','success');
 }
 
 function renderRealty() {
@@ -7560,14 +7570,14 @@ async function fetchTrades(id, btn) {
   btn.textContent = '📊 실거래가 조회';
   btn.disabled = false;
 
-  if(!allTrades.length) alert('거래 내역을 찾지 못했어요.\n\n확인사항:\n① 주소 검색으로 법정동코드 자동입력 됐나요?\n② 해당 지역/기간에 실제 거래가 있었나요?');
+  if(!allTrades.length) showToast('거래 내역을 찾지 못했어요.\n\n확인사항:\n① 주소 검색으로 법정동코드 자동입력 됐나요?\n② 해당 지역/기간에 실제 거래가 있었나요?');
 }
 
 async function getAptAI(id, btn) {
   var apts = S.get('apts') || [];
   var apt = apts.find(function(a){return a.id===id;});
   if(!apt) return;
-  if(!apt.trades || !apt.trades.length) { alert('먼저 실거래가를 조회해 주세요!'); return; }
+  if(!apt.trades || !apt.trades.length) { showToast('먼저 실거래가를 조회해 주세요!'); return; }
 
   btn.textContent = '⏳ AI 분석 중...'; btn.disabled = true;
 
@@ -7613,7 +7623,7 @@ async function getAptAI(id, btn) {
     S.set('apts', apts);
     renderRealty();
   } catch(err) {
-    alert('AI 분석 실패: '+err.message);
+    showToast('AI 분석 실패: '+err.message);
   }
   btn.textContent = '🤖 AI 분석'; btn.disabled = false;
 }
