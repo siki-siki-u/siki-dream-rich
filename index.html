@@ -2978,7 +2978,13 @@ function renderFixedCosts() {
     return '<div onclick="openFixedCostPopup('+c.id+')" style="display:flex;justify-content:space-between;align-items:center;padding:.35rem .5rem;border-radius:7px;cursor:pointer;transition:background .15s" '+
       'onmouseover="this.style.background=\'rgba(255,255,255,.05)\'" onmouseout="this.style.background=\'\'">'+
       '<span style="color:'+lblClr+'">'+(isBudget?'💳 ':'')+c.label+'</span>'+
-      '<span style="font-family:JetBrains Mono,monospace;color:var(--text)">'+fmtMoney(c.amount)+'</span>'+
+      '<div style="display:flex;align-items:center;gap:.5rem">'+
+        '<span style="font-family:JetBrains Mono,monospace;color:var(--text)">'+fmtMoney(c.amount)+'</span>'+
+        '<button onclick="event.stopPropagation();deleteFixedCostRow('+c.id+')" title="완료 삭제" '+
+          'style="background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:.7rem;padding:.1rem .35rem;border-radius:5px;line-height:1;transition:all .15s" '+
+          'onmouseover="this.style.color=\'var(--success)\';this.style.borderColor=\'var(--success)\'" '+
+          'onmouseout="this.style.color=\'var(--muted)\';this.style.borderColor=\'var(--border)\'">완료</button>'+
+      '</div>'+
     '</div>';
   }).join('');
   var total = getFixedCostTotal();
