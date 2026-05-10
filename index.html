@@ -7644,38 +7644,60 @@ async function fetchTrades(id, btn) {
 
   var allTrades = [];
 
+  // API 키 취득 (브라우저 → 한국 IP로 직접 호출)
+  var molitKey = '';
+  try {
+    var cfgRes = await fetch('/api/config');
+    var cfg = await cfgRes.json();
+    molitKey = cfg.molitKey || '';
+  } catch(e) {}
+
+  if (!molitKey) {
+    showToast('API 키 설정 오류. Vercel에 MOLIT_API_KEY 환경변수를 확인하세요.', 'error');
+    btn.textContent = '📊 실거래가 조회'; btn.disabled = false;
+    return;
+  }
+
   function parseMonth(ym) {
-    var apiUrl = '/api/apt-trades?lawdCd='+encodeURIComponent(apt.lawdCd)
-      +'&ym='+encodeURIComponent(ym);
+    var apiUrl = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev'
+      + '?serviceKey=' + encodeURIComponent(molitKey)
+      + '&LAWD_CD=' + encodeURIComponent(apt.lawdCd)
+      + '&DEAL_YMD=' + encodeURIComponent(ym)
+      + '&numOfRows=100&pageNo=1';
     return fetchWithTimeout(apiUrl, 12000).then(function(res) {
       if(!res || !res.ok) return [];
-      return res.json().then(function(data) {
-        if(data.error) { console.error('[apt-trades]', data.error, data.raw||''); return []; }
-        if(!data.items) return [];
-        var all = data.items.map(function(item) {
-          return {
-            name:  item.aptNm,
-            date:  item.year+'-'+String(item.month).padStart(2,'0')+'-'+String(item.day).padStart(2,'0'),
-            price: item.price,
-            floor: item.floor,
-            area:  item.area,
+      return res.text().then(function(text) {
+        var items = [];
+        var re = /<item>([\s\S]*?)<\/item>/g, m;
+        while ((m = re.exec(text)) !== null) {
+          var e = m[1];
+          var gv = function(tag) {
+            var match = e.match(new RegExp('<' + tag + '>[\\s\\S]*?<\\/' + tag + '>'));
+            return match ? match[0].replace(/<[^>]*>/g, '').trim() : '';
           };
-        });
-        // 아파트명 필터 (공백 제거 후 포함 여부 비교)
-        if(!apt.name) return all;
+          var price = gv('dealAmount').replace(/,/g, '');
+          if (!price || isNaN(Number(price))) continue;
+          var yr = gv('dealYear'), mo = gv('dealMonth').padStart(2,'0'), dy = gv('dealDay').padStart(2,'0');
+          items.push({
+            name:  gv('aptNm'),
+            date:  yr+'-'+mo+'-'+dy,
+            price: Number(price),
+            floor: gv('floor'),
+            area:  gv('excluUseAr'),
+          });
+        }
+        // 아파트명 필터
+        if(!apt.name) return items;
         var aptNameNorm = apt.name.replace(/\s/g,'');
-        return all.filter(function(t) {
+        return items.filter(function(t) {
           if(!t.name) return false;
           var itemNorm = t.name.replace(/\s/g,'');
-          // 정방향: API 아이템명이 저장된 아파트명을 포함
           if(itemNorm.includes(aptNameNorm)) return true;
-          // 역방향: 저장된 아파트명이 API 아이템명을 포함 (API가 짧은 이름 반환 시)
-          // itemNorm이 4자 미만이면 짧은 접두어 오매칭 방지를 위해 skip
           if(itemNorm.length >= 4 && aptNameNorm.includes(itemNorm)) return true;
           return false;
         });
       });
-    }).catch(function(){ return []; });
+    }).catch(function(e){ console.error('[fetchTrades]', e.message); return []; });
   }
 
   // 6개월씩 병렬 배치로 조회
