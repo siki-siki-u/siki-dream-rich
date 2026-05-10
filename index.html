@@ -7670,6 +7670,10 @@ async function fetchTrades(id, btn) {
           if(itemNorm.length >= 2 && aptNameNorm.includes(itemNorm)) return true;
           return false;
         });
+        if(!filtered.length && all.length) {
+          var names = [...new Set(all.map(function(t){return t.name;}))].slice(0,20);
+          console.warn('[apt-proxy] 이름 불일치. 저장명:', apt.name, '| API 반환 이름 샘플:', names);
+        }
         return filtered;
       });
     }).catch(function(e){ console.error('[apt-proxy]', e.message); return []; });
