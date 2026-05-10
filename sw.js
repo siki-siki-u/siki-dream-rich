@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sikijingu-v5';
+const CACHE_NAME = 'sikijingu-v6';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
