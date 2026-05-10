@@ -7644,52 +7644,25 @@ async function fetchTrades(id, btn) {
 
   var allTrades = [];
 
-  // API 키 취득 (브라우저 → 한국 IP로 직접 호출)
-  var molitKey = '';
-  try {
-    var cfgRes = await fetch('/api/config');
-    var cfg = await cfgRes.json();
-    molitKey = cfg.molitKey || '';
-  } catch(e) {}
-
-  if (!molitKey) {
-    showToast('API 키 설정 오류. Vercel에 MOLIT_API_KEY 환경변수를 확인하세요.', 'error');
-    btn.textContent = '📊 실거래가 조회'; btn.disabled = false;
-    return;
-  }
-
   function parseMonth(ym) {
-    var apiUrl = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev'
-      + '?serviceKey=' + encodeURIComponent(molitKey)
-      + '&LAWD_CD=' + encodeURIComponent(apt.lawdCd)
-      + '&DEAL_YMD=' + encodeURIComponent(ym)
-      + '&numOfRows=100&pageNo=1';
+    var apiUrl = '/api/apt-proxy?lawdCd=' + encodeURIComponent(apt.lawdCd) + '&ym=' + encodeURIComponent(ym);
     return fetchWithTimeout(apiUrl, 12000).then(function(res) {
       if(!res || !res.ok) return [];
-      return res.text().then(function(text) {
-        var items = [];
-        var re = /<item>([\s\S]*?)<\/item>/g, m;
-        while ((m = re.exec(text)) !== null) {
-          var e = m[1];
-          var gv = function(tag) {
-            var match = e.match(new RegExp('<' + tag + '>[\\s\\S]*?<\\/' + tag + '>'));
-            return match ? match[0].replace(/<[^>]*>/g, '').trim() : '';
+      return res.json().then(function(data) {
+        if(data.error) { console.error('[apt-proxy]', data.error, data.raw||''); return []; }
+        if(!data.items) return [];
+        var all = data.items.map(function(item) {
+          return {
+            name:  item.aptNm,
+            date:  item.date,
+            price: item.price,
+            floor: item.floor,
+            area:  item.area,
           };
-          var price = gv('dealAmount').replace(/,/g, '');
-          if (!price || isNaN(Number(price))) continue;
-          var yr = gv('dealYear'), mo = gv('dealMonth').padStart(2,'0'), dy = gv('dealDay').padStart(2,'0');
-          items.push({
-            name:  gv('aptNm'),
-            date:  yr+'-'+mo+'-'+dy,
-            price: Number(price),
-            floor: gv('floor'),
-            area:  gv('excluUseAr'),
-          });
-        }
-        // 아파트명 필터
-        if(!apt.name) return items;
+        });
+        if(!apt.name) return all;
         var aptNameNorm = apt.name.replace(/\s/g,'');
-        return items.filter(function(t) {
+        return all.filter(function(t) {
           if(!t.name) return false;
           var itemNorm = t.name.replace(/\s/g,'');
           if(itemNorm.includes(aptNameNorm)) return true;
@@ -7697,7 +7670,7 @@ async function fetchTrades(id, btn) {
           return false;
         });
       });
-    }).catch(function(e){ console.error('[fetchTrades]', e.message); return []; });
+    }).catch(function(e){ console.error('[apt-proxy]', e.message); return []; });
   }
 
   // 6개월씩 병렬 배치로 조회
