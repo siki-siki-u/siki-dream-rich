@@ -4753,27 +4753,40 @@ async function analyzeYtVideo(videoId, title, published, thumb, btn) {
   }
 }
 
-function renderYtLibrary() {
+function renderYtLibrary(selectVideoId) {
   var summaries = S.get('yt_summaries') || [];
   var el = document.getElementById('yt-lib-grid');
   if(!el) return;
   if(!summaries.length) {
-    el.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:4rem;color:var(--muted)"><div style="font-size:3rem;margin-bottom:1rem">📁</div>AI 분석 후 저장하면 여기에 쌓여요!</div>';
+    el.innerHTML='<div style="text-align:center;padding:4rem;color:var(--muted)"><div style="font-size:3rem;margin-bottom:1rem">📁</div>AI 분석 후 저장하면 여기에 쌓여요!</div>';
     return;
   }
-  el.innerHTML = summaries.map(function(s){
-    return '<div class="yt-card">'+
-      '<a href="https://www.youtube.com/watch?v='+s.videoId+'" target="_blank">'+
-        '<img class="yt-thumb" src="'+s.thumb+'" onerror="this.parentNode.innerHTML=\'<div class=yt-thumb-placeholder>▶️</div>\'" loading="lazy"/>'+
+  var current = selectVideoId || summaries[0].videoId;
+  var s = summaries.find(function(x){return x.videoId===current;}) || summaries[0];
+
+  el.innerHTML =
+    // 드롭다운
+    '<div style="margin-bottom:1rem">'+
+      '<select id="yt-lib-select" onchange="renderYtLibrary(this.value)" style="width:100%;padding:.6rem .9rem;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.85rem;font-family:\'Noto Sans KR\',sans-serif;cursor:pointer">'+
+        summaries.map(function(x){
+          return '<option value="'+x.videoId+'"'+(x.videoId===current?' selected':'')+'>'+
+            x.published+' · '+x.title+
+          '</option>';
+        }).join('')+
+      '</select>'+
+    '</div>'+
+    // 선택된 영상 분석
+    '<div style="background:var(--surface2);border-radius:14px;overflow:hidden">'+
+      '<a href="https://www.youtube.com/watch?v='+s.videoId+'" target="_blank" style="display:block">'+
+        '<img src="'+s.thumb+'" style="width:100%;aspect-ratio:16/9;object-fit:cover;display:block" onerror="this.style.display=\'none\'"/>'+
       '</a>'+
-      '<div class="yt-info">'+
-        '<div class="yt-title">'+s.title+'</div>'+
-        '<div class="yt-date">'+s.published+' · 분석: '+s.savedAt+'</div>'+
-        '<div class="yt-summary-box">'+s.summary+'</div>'+
-        '<button onclick="deleteYtSummary(\''+s.videoId+'\')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;margin-top:.5rem">🗑️ 삭제</button>'+
+      '<div style="padding:1rem">'+
+        '<div style="font-weight:700;font-size:.95rem;color:var(--text);margin-bottom:.25rem;line-height:1.5">'+s.title+'</div>'+
+        '<div style="font-size:.75rem;color:var(--muted);margin-bottom:.9rem">'+s.published+' · 분석: '+s.savedAt+'</div>'+
+        '<div style="font-size:.85rem;line-height:1.9;color:var(--text);white-space:pre-wrap">'+s.summary+'</div>'+
+        '<button onclick="deleteYtSummary(\''+s.videoId+'\')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;margin-top:1rem">🗑️ 이 분석 삭제</button>'+
       '</div>'+
     '</div>';
-  }).join('');
 }
 
 function deleteYtSummary(videoId) {
