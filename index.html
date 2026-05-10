@@ -3240,7 +3240,7 @@ function showCatPopup(catName) {
   var txs = S.get('txs_'+key) || [];
   var srcFilter = currentCatFilter || '';
   var items = txs.filter(function(t){
-    return t.cat === catName && t.amount > 0 && (!srcFilter || t.source === srcFilter);
+    return t.cat === catName && (!srcFilter || t.source === srcFilter);
   }).sort(function(a,b){ return b.date.localeCompare(a.date); });
   var total = items.reduce(function(s,t){ return s + Math.abs(t.amount); }, 0);
   var catColors = {
@@ -3375,12 +3375,12 @@ function renderTransactions() {
   // 필터 적용 (카테고리 차트·집계는 필터 적용, 테이블도 필터 적용)
   const txs = currentCatFilter ? allTxs.filter(function(t){return t.source===currentCatFilter;}) : allTxs;
 
-  // 카테고리 집계 — 양수(실지출)만. 음수(입금/예산이체)는 거래목록에서 확인
+  // 카테고리 집계
   const catMap = {};
   txs.forEach(function(t){
-    if(t.amount > 0) catMap[t.cat] = (catMap[t.cat]||0)+t.amount;
+    catMap[t.cat] = (catMap[t.cat]||0)+t.amount;
   });
-  const total = txs.reduce(function(s,t){return s+(t.amount>0?t.amount:0);},0);
+  const total = txs.reduce(function(s,t){return s+t.amount;},0);
   const catColors = {
     '식료품':'var(--accent)','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
     '교통/자동차':'var(--accent4)','편의점':'#a78bfa','의료':'#f87171',
