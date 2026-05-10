@@ -2978,13 +2978,7 @@ function renderFixedCosts() {
     return '<div onclick="openFixedCostPopup('+c.id+')" style="display:flex;justify-content:space-between;align-items:center;padding:.35rem .5rem;border-radius:7px;cursor:pointer;transition:background .15s" '+
       'onmouseover="this.style.background=\'rgba(255,255,255,.05)\'" onmouseout="this.style.background=\'\'">'+
       '<span style="color:'+lblClr+'">'+(isBudget?'💳 ':'')+c.label+'</span>'+
-      '<div style="display:flex;align-items:center;gap:.5rem">'+
-        '<span style="font-family:JetBrains Mono,monospace;color:var(--text)">'+fmtMoney(c.amount)+'</span>'+
-        '<button onclick="event.stopPropagation();deleteFixedCostRow('+c.id+')" title="완료 삭제" '+
-          'style="background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:.7rem;padding:.1rem .35rem;border-radius:5px;line-height:1;transition:all .15s" '+
-          'onmouseover="this.style.color=\'var(--success)\';this.style.borderColor=\'var(--success)\'" '+
-          'onmouseout="this.style.color=\'var(--muted)\';this.style.borderColor=\'var(--border)\'">완료</button>'+
-      '</div>'+
+      '<span style="font-family:JetBrains Mono,monospace;color:var(--text)">'+fmtMoney(c.amount)+'</span>'+
     '</div>';
   }).join('');
   var total = getFixedCostTotal();
@@ -3245,7 +3239,8 @@ function showCatPopup(catName) {
   var txs = S.get('txs_'+key) || [];
   var srcFilter = currentCatFilter || '';
   var items = txs.filter(function(t){
-    return t.cat === catName && (!srcFilter || t.source === srcFilter);
+    if(catName === '입금/환급') return t.amount < 0;
+    return t.cat === catName && t.amount > 0 && (!srcFilter || t.source === srcFilter);
   }).sort(function(a,b){ return b.date.localeCompare(a.date); });
   var total = items.reduce(function(s,t){ return s + Math.abs(t.amount); }, 0);
   var catColors = {
@@ -3380,12 +3375,16 @@ function renderTransactions() {
   // 필터 적용 (카테고리 차트·집계는 필터 적용, 테이블도 필터 적용)
   const txs = currentCatFilter ? allTxs.filter(function(t){return t.source===currentCatFilter;}) : allTxs;
 
-  // 카테고리 집계
+  // 카테고리 집계 — 음수(입금/환급)는 무조건 입금/환급으로 분류
   const catMap = {};
   txs.forEach(function(t){
-    catMap[t.cat] = (catMap[t.cat]||0)+t.amount;
+    if(t.amount < 0) {
+      catMap['입금/환급'] = (catMap['입금/환급']||0)+t.amount;
+    } else {
+      catMap[t.cat] = (catMap[t.cat]||0)+t.amount;
+    }
   });
-  const total = txs.reduce(function(s,t){return s+t.amount;},0);
+  const total = txs.reduce(function(s,t){return s+(t.amount>0?t.amount:0);},0);
   const catColors = {
     '식료품':'var(--accent)','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
     '교통/자동차':'var(--accent4)','편의점':'#a78bfa','의료':'#f87171',
@@ -3399,18 +3398,24 @@ function renderTransactions() {
     if(!Object.keys(catMap).length) {
       chartEl.innerHTML = '<div style="color:var(--muted);text-align:center;padding:2rem;font-size:.85rem">지출 내역이 없어요</div>';
     } else {
-      chartEl.innerHTML = Object.entries(catMap).sort(function(a,b){return b[1]-a[1];}).map(function(e){
-        var pct = total>0 ? Math.round(e[1]/total*100) : 0;
+      chartEl.innerHTML = Object.entries(catMap).sort(function(a,b){
+        var ai=a[1]<0, bi=b[1]<0;
+        if(ai&&!bi) return 1; if(!ai&&bi) return -1;
+        return b[1]-a[1];
+      }).map(function(e){
+        var isIncome = e[1] < 0;
+        var pct = (!isIncome && total>0) ? Math.round(e[1]/total*100) : 0;
         var barW = Math.min(pct, 100);
         var clr = catColors[e[0]]||'var(--muted)';
+        var dispAmt = isIncome ? '+'+Number(Math.abs(e[1])).toLocaleString() : Number(e[1]).toLocaleString();
         return '<div style="margin-bottom:.7rem;cursor:pointer" onclick="showCatPopup(\''+e[0]+'\')">'+
           '<div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:.25rem">'+
             '<span style="color:var(--text)">'+e[0]+'</span>'+
-            '<span style="font-family:JetBrains Mono,monospace;color:'+clr+'">'+Number(e[1]).toLocaleString()+' ('+pct+'%)</span>'+
+            '<span style="font-family:JetBrains Mono,monospace;color:'+clr+'">'+dispAmt+(isIncome?'':' ('+pct+'%)')+'</span>'+
           '</div>'+
-          '<div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden">'+
+          (!isIncome ? '<div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden">'+
             '<div style="background:'+clr+';width:'+barW+'%;height:100%;border-radius:4px;transition:width .5s"></div>'+
-          '</div>'+
+          '</div>' : '')+
         '</div>';
       }).join('')+
       (function(){
