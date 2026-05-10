@@ -83,8 +83,23 @@ async function fetchFromSeoul(sigunguCd, lawdCd, startDt, endDt) {
   return { ok: false };
 }
 
-// data.go.kr 단일 월 조회
+// data.go.kr 단일 월 조회 (Cloudflare Worker 경유 또는 직접)
 function fetchMonthDataGo(lawdCd, ym, key) {
+  var workerUrl = process.env.APT_WORKER_URL;
+
+  // Cloudflare Worker 경유 (한국 IP 우회)
+  if (workerUrl) {
+    var wUrl = workerUrl.replace(/\/$/, '') + '?lawdCd=' + lawdCd + '&ym=' + ym;
+    return httpGet(wUrl).then(function(result) {
+      if (result.status !== 200) return [];
+      try {
+        var parsed = JSON.parse(result.body);
+        return Array.isArray(parsed.items) ? parsed.items : [];
+      } catch(e) { return []; }
+    }).catch(function() { return []; });
+  }
+
+  // 직접 조회 (한국 IP 환경에서만 동작)
   var apiUrl = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev'
     + '?serviceKey=' + key
     + '&LAWD_CD=' + lawdCd
