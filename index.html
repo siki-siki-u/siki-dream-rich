@@ -1728,12 +1728,6 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
       </div>
     </div>
 
-    <!-- 단지 비교 차트 -->
-    <div class="card" id="apt-compare-card" style="margin-bottom:1.5rem;display:none">
-      <div class="sec-title" style="margin-bottom:.8rem">📈 단지별 실거래가 비교</div>
-      <div id="apt-compare-legend" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.8rem"></div>
-      <div id="apt-compare-chart" style="overflow-x:auto"></div>
-    </div>
 
     <!-- 관심 아파트 목록 -->
     <div id="apt-list"></div>
@@ -7381,7 +7375,6 @@ function addApt() {
 }
 
 function renderRealty() {
-  renderCompareChart();
   var apts = S.get('apts') || [];
   var cntEl = document.getElementById('apt-count');
   var txEl  = document.getElementById('apt-tx-count');
@@ -7501,98 +7494,6 @@ function renderRealty() {
   }).join('');
 }
 
-function renderCompareChart() {
-  var apts = S.get('apts') || [];
-  var withData = apts.filter(function(a){ return a.trades && a.trades.length >= 2; });
-  var card = document.getElementById('apt-compare-card');
-  if(!card) return;
-  if(!withData.length){ card.style.display='none'; return; }
-  card.style.display='';
-
-  var COLORS = ['#6c8aff','#52d9a3','#ffbe5c','#ff6b6b','#22d3ee','#a78bfa','#fb923c','#34d399'];
-
-  // 각 아파트 월별 평균
-  var allYms = new Set();
-  var aptMonthly = withData.map(function(apt, i){
-    var monthly = {};
-    (apt.trades||[]).forEach(function(t){
-      var ym = t.date.substring(0,7);
-      if(!monthly[ym]) monthly[ym]={sum:0,cnt:0};
-      monthly[ym].sum += t.price;
-      monthly[ym].cnt++;
-      allYms.add(ym);
-    });
-    return { id: apt.id, name: apt.name, color: COLORS[i % COLORS.length], monthly: monthly };
-  });
-
-  var ymList = Array.from(allYms).sort().slice(-24);
-  if(ymList.length < 2){ card.style.display='none'; return; }
-
-  // legend
-  var legEl = document.getElementById('apt-compare-legend');
-  if(legEl) legEl.innerHTML = aptMonthly.map(function(a){
-    return '<span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem;color:var(--muted)">'+
-      '<span style="width:12px;height:3px;border-radius:2px;background:'+a.color+';display:inline-block"></span>'+a.name+'</span>';
-  }).join('');
-
-  // SVG 차트
-  var W = Math.max(420, ymList.length * 28), H = 180, padL = 52, padB = 32, padT = 12, padR = 12;
-  var allVals = [];
-  aptMonthly.forEach(function(a){
-    ymList.forEach(function(ym){ if(a.monthly[ym]) allVals.push(a.monthly[ym].sum/a.monthly[ym].cnt); });
-  });
-  if(!allVals.length){ card.style.display='none'; return; }
-  var minV = Math.min.apply(null,allVals), maxV = Math.max.apply(null,allVals);
-  var rangeV = maxV - minV || 1;
-  var chartW = W - padL - padR, chartH = H - padT - padB;
-
-  function xPos(i){ return padL + i * chartW / (ymList.length - 1); }
-  function yPos(v){ return padT + chartH - ((v - minV) / rangeV) * chartH; }
-
-  // Y축 눈금 (4개)
-  var yTicks = [0,1,2,3].map(function(i){ return minV + rangeV * i / 3; });
-  var yTicksSvg = yTicks.map(function(v){
-    var y = yPos(v);
-    var lbl = (v/10000).toFixed(1)+'억';
-    return '<line x1="'+padL+'" x2="'+(W-padR)+'" y1="'+y.toFixed(1)+'" y2="'+y.toFixed(1)+'" stroke="var(--border)" stroke-width="0.5"/>'+
-           '<text x="'+(padL-6)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end" font-size="9" fill="var(--muted)">'+lbl+'</text>';
-  }).join('');
-
-  // X축 레이블 (최대 12개)
-  var step = Math.ceil(ymList.length / 12);
-  var xLabels = ymList.map(function(ym, i){
-    if(i % step !== 0 && i !== ymList.length-1) return '';
-    return '<text x="'+xPos(i).toFixed(1)+'" y="'+(H-padB+14)+'" text-anchor="middle" font-size="9" fill="var(--muted)">'+ym.slice(2)+'</text>';
-  }).join('');
-
-  // 각 아파트 라인
-  var lines = aptMonthly.map(function(a){
-    var pts = ymList.map(function(ym, i){
-      var m = a.monthly[ym];
-      return m ? {x: xPos(i), y: yPos(m.sum/m.cnt)} : null;
-    });
-    // 연속 구간별 path
-    var segments = [], cur = [];
-    pts.forEach(function(p){
-      if(p){ cur.push(p); }
-      else if(cur.length){ segments.push(cur); cur=[]; }
-    });
-    if(cur.length) segments.push(cur);
-    var paths = segments.map(function(seg){
-      return '<path d="'+seg.map(function(p,i){ return (i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1); }).join(' ')+'" fill="none" stroke="'+a.color+'" stroke-width="2" stroke-linejoin="round"/>';
-    }).join('');
-    var dots = pts.filter(Boolean).map(function(p){
-      return '<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="3" fill="'+a.color+'"/>';
-    }).join('');
-    return paths + dots;
-  }).join('');
-
-  var svg = '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;min-width:'+W+'px;height:'+H+'px" xmlns="http://www.w3.org/2000/svg">'+
-    yTicksSvg + xLabels + lines + '</svg>';
-
-  var chartEl = document.getElementById('apt-compare-chart');
-  if(chartEl) chartEl.innerHTML = svg;
-}
 
 function renderMiniChart(trades) {
   if(!trades || trades.length < 2) return '';
