@@ -7661,14 +7661,16 @@ async function fetchTrades(id, btn) {
           };
         });
         if(!apt.name) return all;
-        var aptNameNorm = apt.name.replace(/\s/g,'');
-        return all.filter(function(t) {
+        var norm = function(s){ return (s||'').replace(/[^가-힣0-9a-zA-Z]/g,''); };
+        var aptNameNorm = norm(apt.name);
+        var filtered = all.filter(function(t) {
           if(!t.name) return false;
-          var itemNorm = t.name.replace(/\s/g,'');
+          var itemNorm = norm(t.name);
           if(itemNorm.includes(aptNameNorm)) return true;
           if(itemNorm.length >= 4 && aptNameNorm.includes(itemNorm)) return true;
           return false;
         });
+        return filtered;
       });
     }).catch(function(e){ console.error('[apt-proxy]', e.message); return []; });
   }
