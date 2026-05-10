@@ -126,7 +126,7 @@ module.exports = async function(req, res) {
   var startDt   = q.startDt   || b.startDt   || '';
   var endDt     = q.endDt     || b.endDt     || '';
   var ym        = q.ym        || b.ym        || ''; // 레거시
-  var key       = process.env.seoul_apt;
+  var key       = process.env.MOLIT_API_KEY || process.env.seoul_apt;
 
   if (!lawdCd) return res.status(400).json({ error: '파라미터 누락 (lawdCd)' });
 
