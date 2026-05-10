@@ -883,8 +883,8 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
     <div class="grid2" style="align-items:start">
       <!-- 카테고리별 지출 -->
       <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.4rem">
-          <div class="sec-title" style="margin:0">📊 카테고리별 지출</div>
+        <div style="margin-bottom:.7rem">
+          <div class="sec-title" style="margin:0 0 .5rem">📊 카테고리별 지출</div>
           <div style="display:flex;gap:.3rem;flex-wrap:wrap">
             <button onclick="setCatFilter('')"  id="cf-btn-all"  class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">전체</button>
             <button onclick="setCatFilter('공용생활비')" id="cf-btn-공용생활비" class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem">💳 공용생활비</button>
@@ -3271,8 +3271,8 @@ function showCatPopup(catName) {
             '<button onclick="closeCatPopup()" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;line-height:1">✕</button>'+
           '</div>'+
         '</div>'+
-        '<div style="overflow-y:auto;flex:1">'+
-          (rows ? '<table style="width:100%;border-collapse:collapse">'+rows+'</table>'
+        '<div style="overflow-y:auto;overflow-x:auto;flex:1">'+
+          (rows ? '<table style="width:100%;min-width:0;border-collapse:collapse">'+rows+'</table>'
                 : '<div style="padding:2rem;text-align:center;color:var(--muted);font-size:.85rem">내역이 없어요</div>')+
         '</div>'+
       '</div>'+
@@ -3298,7 +3298,7 @@ function _budgetPopup(titleHtml, bodyHtml, id) {
           titleHtml+
           '<button onclick="document.getElementById(\''+id+'\').remove()" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer">✕</button>'+
         '</div>'+
-        '<div style="overflow-y:auto;flex:1;padding:.8rem 1rem">'+bodyHtml+'</div>'+
+        '<div style="overflow-y:auto;overflow-x:auto;flex:1;padding:.8rem 1rem">'+bodyHtml+'</div>'+
       '</div>'+
     '</div>';
   document.body.appendChild(div);
