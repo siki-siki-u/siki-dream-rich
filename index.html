@@ -3239,7 +3239,6 @@ function showCatPopup(catName) {
   var txs = S.get('txs_'+key) || [];
   var srcFilter = currentCatFilter || '';
   var items = txs.filter(function(t){
-    if(catName === '입금/환급') return t.amount < 0 && (!srcFilter || t.source === srcFilter);
     return t.cat === catName && t.amount > 0 && (!srcFilter || t.source === srcFilter);
   }).sort(function(a,b){ return b.date.localeCompare(a.date); });
   var total = items.reduce(function(s,t){ return s + Math.abs(t.amount); }, 0);
@@ -3375,14 +3374,10 @@ function renderTransactions() {
   // 필터 적용 (카테고리 차트·집계는 필터 적용, 테이블도 필터 적용)
   const txs = currentCatFilter ? allTxs.filter(function(t){return t.source===currentCatFilter;}) : allTxs;
 
-  // 카테고리 집계 — 음수(입금/환급)는 무조건 입금/환급으로 분류
+  // 카테고리 집계 — 양수(실지출)만. 음수(입금/예산이체)는 거래목록에서 확인
   const catMap = {};
   txs.forEach(function(t){
-    if(t.amount < 0) {
-      catMap['입금/환급'] = (catMap['입금/환급']||0)+t.amount;
-    } else {
-      catMap[t.cat] = (catMap[t.cat]||0)+t.amount;
-    }
+    if(t.amount > 0) catMap[t.cat] = (catMap[t.cat]||0)+t.amount;
   });
   const total = txs.reduce(function(s,t){return s+(t.amount>0?t.amount:0);},0);
   const catColors = {
@@ -3398,24 +3393,18 @@ function renderTransactions() {
     if(!Object.keys(catMap).length) {
       chartEl.innerHTML = '<div style="color:var(--muted);text-align:center;padding:2rem;font-size:.85rem">지출 내역이 없어요</div>';
     } else {
-      chartEl.innerHTML = Object.entries(catMap).sort(function(a,b){
-        var ai=a[1]<0, bi=b[1]<0;
-        if(ai&&!bi) return 1; if(!ai&&bi) return -1;
-        return b[1]-a[1];
-      }).map(function(e){
-        var isIncome = e[1] < 0;
-        var pct = (!isIncome && total>0) ? Math.round(e[1]/total*100) : 0;
+      chartEl.innerHTML = Object.entries(catMap).sort(function(a,b){return b[1]-a[1];}).map(function(e){
+        var pct = total>0 ? Math.round(e[1]/total*100) : 0;
         var barW = Math.min(pct, 100);
         var clr = catColors[e[0]]||'var(--muted)';
-        var dispAmt = isIncome ? '+'+Number(Math.abs(e[1])).toLocaleString() : Number(e[1]).toLocaleString();
         return '<div style="margin-bottom:.8rem;cursor:pointer" onclick="showCatPopup(\''+e[0]+'\')">'+
           '<div style="font-size:.82rem;color:var(--text);margin-bottom:.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+e[0]+'</div>'+
           '<div style="display:flex;align-items:center;gap:.5rem">'+
-            (!isIncome ? '<div style="flex:1;background:var(--border);border-radius:4px;height:6px;overflow:hidden;min-width:0">'+
+            '<div style="flex:1;background:var(--border);border-radius:4px;height:6px;overflow:hidden;min-width:0">'+
               '<div style="background:'+clr+';width:'+barW+'%;height:100%;border-radius:4px;transition:width .5s"></div>'+
-            '</div>' : '<div style="flex:1;min-width:0"></div>')+
+            '</div>'+
             '<span style="font-size:.78rem;font-family:JetBrains Mono,monospace;color:'+clr+';white-space:nowrap;flex-shrink:0">'+
-              dispAmt+(isIncome?'':' '+pct+'%')+
+              Number(e[1]).toLocaleString()+' '+pct+'%'+
             '</span>'+
           '</div>'+
         '</div>';
