@@ -1741,27 +1741,32 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
 
     <!-- 추가 -->
     <div class="card" style="margin-bottom:1.5rem">
-      <div class="sec-title">➕ 내역 추가</div>
-      <div style="display:flex;flex-direction:column;gap:.6rem">
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-          <select id="gift-person" style="min-width:80px">
-            <option value="윤식">윤식</option>
-            <option value="유진">유진</option>
-          </select>
-          <input type="text" id="gift-name" placeholder="이름" style="flex:1;min-width:120px"/>
-          <input type="number" id="gift-amount" placeholder="금액 (만원)" style="width:130px"/>
+      <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none" onclick="toggleAddForm('gift')">
+        <div class="sec-title" style="margin:0">➕ 내역 추가</div>
+        <span id="gift-add-arrow" style="font-size:.78rem;color:var(--muted);transition:transform .2s;display:inline-block">▼</span>
+      </div>
+      <div id="gift-add-form" style="display:none;margin-top:.8rem">
+        <div style="display:flex;flex-direction:column;gap:.6rem">
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <select id="gift-person" style="min-width:80px">
+              <option value="윤식">윤식</option>
+              <option value="유진">유진</option>
+            </select>
+            <input type="text" id="gift-name" placeholder="이름" style="flex:1;min-width:120px"/>
+            <input type="number" id="gift-amount" placeholder="금액 (만원)" style="width:130px"/>
+          </div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <select id="gift-type" style="min-width:100px">
+              <option value="결혼">결혼</option>
+              <option value="돌잔치">돌잔치</option>
+              <option value="생일">생일</option>
+              <option value="기타">기타</option>
+            </select>
+            <input type="date" id="gift-date" style="flex:1"/>
+            <input type="text" id="gift-memo" placeholder="메모 (선택)" style="flex:1;min-width:120px"/>
+          </div>
+          <button class="btn btn-primary owner-only" onclick="addGift()">추가하기 ＋</button>
         </div>
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-          <select id="gift-type" style="min-width:100px">
-            <option value="결혼">결혼</option>
-            <option value="돌잔치">돌잔치</option>
-            <option value="생일">생일</option>
-            <option value="기타">기타</option>
-          </select>
-          <input type="date" id="gift-date" style="flex:1"/>
-          <input type="text" id="gift-memo" placeholder="메모 (선택)" style="flex:1;min-width:120px"/>
-        </div>
-        <button class="btn btn-primary owner-only" onclick="addGift()">추가하기 ＋</button>
       </div>
     </div>
 
@@ -1805,25 +1810,30 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
 
     <!-- 추가 -->
     <div class="card" style="margin-bottom:1.5rem">
-      <div class="sec-title">➕ 내역 추가</div>
-      <div style="display:flex;flex-direction:column;gap:.6rem">
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-          <select id="cond-person" style="min-width:80px">
-            <option value="윤식">윤식</option>
-            <option value="유진">유진</option>
-          </select>
-          <input type="text" id="cond-name" placeholder="이름" style="flex:1;min-width:120px"/>
-          <input type="number" id="cond-amount" placeholder="금액 (만원)" style="width:130px"/>
+      <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none" onclick="toggleAddForm('cond')">
+        <div class="sec-title" style="margin:0">➕ 내역 추가</div>
+        <span id="cond-add-arrow" style="font-size:.78rem;color:var(--muted);transition:transform .2s;display:inline-block">▼</span>
+      </div>
+      <div id="cond-add-form" style="display:none;margin-top:.8rem">
+        <div style="display:flex;flex-direction:column;gap:.6rem">
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <select id="cond-person" style="min-width:80px">
+              <option value="윤식">윤식</option>
+              <option value="유진">유진</option>
+            </select>
+            <input type="text" id="cond-name" placeholder="이름" style="flex:1;min-width:120px"/>
+            <input type="number" id="cond-amount" placeholder="금액 (만원)" style="width:130px"/>
+          </div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <select id="cond-type" style="min-width:100px">
+              <option value="부의">부의</option>
+              <option value="기타">기타</option>
+            </select>
+            <input type="date" id="cond-date" style="flex:1"/>
+            <input type="text" id="cond-memo" placeholder="메모 (선택)" style="flex:1;min-width:120px"/>
+          </div>
+          <button class="btn btn-primary owner-only" onclick="addCondolence()">추가하기 ＋</button>
         </div>
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-          <select id="cond-type" style="min-width:100px">
-            <option value="부의">부의</option>
-            <option value="기타">기타</option>
-          </select>
-          <input type="date" id="cond-date" style="flex:1"/>
-          <input type="text" id="cond-memo" placeholder="메모 (선택)" style="flex:1;min-width:120px"/>
-        </div>
-        <button class="btn btn-primary owner-only" onclick="addCondolence()">추가하기 ＋</button>
       </div>
     </div>
 
@@ -2622,6 +2632,14 @@ function initCheongak() {
   calcCheongak();
 }
 
+function toggleAddForm(type){
+  var form=document.getElementById(type+'-add-form');
+  var arrow=document.getElementById(type+'-add-arrow');
+  if(!form) return;
+  var open=form.style.display==='none';
+  form.style.display=open?'block':'none';
+  if(arrow) arrow.style.transform=open?'rotate(180deg)':'';
+}
 // ── GIFTS (축의금 장부) ──
 var giftsCache = [];
 
