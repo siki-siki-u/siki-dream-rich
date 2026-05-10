@@ -7396,10 +7396,31 @@ function renderRealty() {
     return;
   }
 
+  window.__aptNameMap = {};
   el.innerHTML = apts.map(function(apt) {
     var hasData = apt.trades && apt.trades.length > 0;
-    var latestTrade = hasData ? apt.trades[0] : null;
-    var chartHtml = hasData ? renderMiniChart(apt.trades) : '';
+    var allTradeNames = hasData ? apt.trades.reduce(function(acc,t){
+      if(t.name && acc.indexOf(t.name)<0) acc.push(t.name); return acc;
+    },[]) : [];
+    window.__aptNameMap[apt.id] = allTradeNames;
+    var displayTrades = hasData
+      ? (apt.apiName ? apt.trades.filter(function(t){return t.name===apt.apiName;}) : apt.trades)
+      : [];
+    var latestTrade = displayTrades.length ? displayTrades[0] : null;
+    var chartHtml = displayTrades.length ? renderMiniChart(displayTrades) : '';
+    var nameChipsHtml = (allTradeNames.length > 1)
+      ? '<div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.8rem;align-items:center">'+
+          '<span style="font-size:.72rem;color:var(--muted)">단지 선택:</span>'+
+          (!apt.apiName
+            ? '<span style="font-size:.72rem;padding:.25rem .65rem;border-radius:20px;background:var(--accent);color:#fff">전체</span>'
+            : '<span style="font-size:.72rem;padding:.25rem .65rem;border-radius:20px;background:var(--surface2);color:var(--muted);cursor:pointer;border:1px solid var(--border)" onclick="selectAptName('+apt.id+',-1)">전체</span>'
+          )+
+          allTradeNames.map(function(n,ni){
+            var active = apt.apiName === n;
+            return '<span style="font-size:.72rem;padding:.25rem .65rem;border-radius:20px;cursor:pointer;border:1px solid '+(active?'transparent':'var(--border)')+';background:'+(active?'var(--accent)':'var(--surface2)')+';color:'+(active?'#fff':'var(--muted)')+'" onclick="selectAptName('+apt.id+','+ni+')">'+n+'</span>';
+          }).join('')+
+        '</div>'
+      : '';
 
     return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:1.5rem;margin-bottom:1.2rem">'+
       // 헤더
@@ -7419,6 +7440,8 @@ function renderRealty() {
           '<button class="btn btn-danger" style="font-size:.78rem;padding:.4rem .8rem" onclick="deleteApt('+apt.id+')">🗑️</button>'+
         '</div>'+
       '</div>'+
+
+      nameChipsHtml+
 
       // 최근 실거래
       (latestTrade ?
@@ -7458,11 +7481,11 @@ function renderRealty() {
       (apt.memo ? '<div style="font-size:.82rem;color:var(--muted);border-top:1px solid var(--border);padding-top:.7rem;line-height:1.7">📝 '+apt.memo+'</div>' : '')+
 
       // 거래 내역 테이블
-      (hasData ?
-        '<details style="margin-top:.7rem"><summary style="cursor:pointer;font-size:.82rem;color:var(--muted)">📋 전체 거래내역 ('+apt.trades.length+'건) 보기</summary>'+
+      (displayTrades.length ?
+        '<details style="margin-top:.7rem"><summary style="cursor:pointer;font-size:.82rem;color:var(--muted)">📋 전체 거래내역 ('+displayTrades.length+'건) 보기</summary>'+
         '<div class="table-wrap" style="max-height:250px;overflow-y:auto;margin-top:.7rem">'+
         '<table><thead><tr><th>거래일</th><th>아파트명</th><th>층</th><th>면적(㎡)</th><th>금액(만원)</th></tr></thead><tbody>'+
-        apt.trades.slice(0,30).map(function(t){
+        displayTrades.slice(0,30).map(function(t){
           return '<tr>'+
             '<td style="font-family:JetBrains Mono,monospace;font-size:.78rem">'+t.date+'</td>'+
             '<td style="font-size:.82rem">'+t.name+'</td>'+
@@ -7719,6 +7742,20 @@ async function fetchTrades(id, btn) {
   btn.disabled = false;
 
   if(!allTrades.length) showToast('거래 내역을 찾지 못했어요.\n\n확인사항:\n① 주소 검색으로 법정동코드 자동입력 됐나요?\n② 해당 지역/기간에 실제 거래가 있었나요?');
+}
+
+async function selectAptName(id, nameIdx) {
+  var apts = S.get('apts') || [];
+  var apt = apts.find(function(a){return a.id===id;});
+  if(!apt) return;
+  var names = (window.__aptNameMap || {})[id] || [];
+  var selected = nameIdx === -1 ? null : names[nameIdx];
+  apts = apts.map(function(a){
+    return a.id===id ? Object.assign({},a,{apiName: selected||null}) : a;
+  });
+  S.set('apts', apts);
+  await dbUpsert('realty', {id:id, name:apt.name, sigungu:apt.sigungu, data: apts.find(function(a){return a.id===id;})});
+  renderRealty();
 }
 
 async function getAptAI(id, btn) {
