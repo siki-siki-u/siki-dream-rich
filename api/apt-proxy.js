@@ -60,6 +60,7 @@ export default async function handler(req) {
         date:  yr + '-' + mo + '-' + dy,
         floor: gv('floor'),
         area:  gv('excluUseAr'),
+        umdNm: gv('umdNm'),
       });
     }
 
