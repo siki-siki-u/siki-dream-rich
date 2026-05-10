@@ -7667,7 +7667,7 @@ async function fetchTrades(id, btn) {
           if(!t.name) return false;
           var itemNorm = norm(t.name);
           if(itemNorm.includes(aptNameNorm)) return true;
-          if(itemNorm.length >= 4 && aptNameNorm.includes(itemNorm)) return true;
+          if(itemNorm.length >= 2 && aptNameNorm.includes(itemNorm)) return true;
           return false;
         });
         return filtered;
