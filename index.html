@@ -257,47 +257,52 @@ tr:hover td{background:rgba(108,138,255,.03)}
 .thinking span:nth-child(2){animation-delay:.2s}
 .thinking span:nth-child(3){animation-delay:.4s}
 
+/* MOBILE TOPBAR */
+.mob-topbar{display:none;position:fixed;top:0;left:0;right:0;height:50px;background:var(--surface);border-bottom:1px solid var(--border);z-index:150;align-items:center;padding:0 56px 0 1rem;gap:.5rem}
+.mob-topbar-title{font-family:'Gugi',cursive;font-size:.95rem;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 /* HAMBURGER */
-.hamburger{display:none;position:fixed;top:.9rem;left:.9rem;z-index:200;background:var(--surface2);border:1px solid var(--border);border-radius:10px;width:40px;height:40px;align-items:center;justify-content:center;cursor:pointer;font-size:1.2rem}
+.hamburger{display:none;position:fixed;top:.55rem;right:.75rem;left:auto;z-index:200;background:var(--surface2);border:1px solid var(--border);border-radius:10px;width:38px;height:38px;align-items:center;justify-content:center;cursor:pointer;font-size:1.1rem;transition:background .2s}
+.hamburger:active{background:var(--border)}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99}
+
+/* BTN 공통 - 줄바꿈 방지 */
+.btn{white-space:nowrap}
 
 /* RESPONSIVE */
 @media(max-width:900px){
+  .mob-topbar{display:flex}
   .hamburger{display:flex}
   .sidebar{transform:translateX(-100%)}
   .sidebar.open{transform:translateX(0)}
   .sidebar-overlay.open{display:block}
-  .main{margin-left:0;padding:1rem;padding-top:3.8rem}
+  .main{margin-left:0;padding:1rem;padding-top:4rem}
   .stats-row{grid-template-columns:1fr 1fr}
   .grid2{grid-template-columns:1fr}
   .grid3{grid-template-columns:1fr 1fr}
-  .page-header h2{font-size:1.2rem}
-  .btn{padding:.55rem .9rem;font-size:.82rem}
+  .page-header{margin-bottom:1rem}
+  .page-header h2{font-size:1.15rem}
+  .page-header p{font-size:.8rem}
+  .btn{padding:.5rem .85rem;font-size:.82rem}
   .card{padding:1rem}
   .dday-banner{flex-direction:column;gap:.4rem;text-align:center}
   .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
   table{min-width:480px}
-  /* 인라인 flex 줄바꿈 */
   .form-row{flex-wrap:wrap}
+  /* 카드 내 버튼 그룹 */
+  .card-btn-row{display:flex;flex-wrap:nowrap;gap:.4rem;overflow-x:auto;-webkit-overflow-scrolling:touch}
 }
 @media(max-width:640px){
-  /* 마켓 탭 위젯 높이 모바일 축소 */
   #page-market .tradingview-widget-container[style*="500px"]{height:400px!important}
   #page-market .tradingview-widget-container[style*="520px"]{height:420px!important}
   #page-market .tradingview-widget-container[style*="400px"]{height:320px!important}
   #page-market .tradingview-widget-container[style*="450px"]{height:360px!important}
   .grid3{grid-template-columns:1fr}
-  /* 주식 종목 추가 폼 */
-  /* 부동산 */
   #page-realty .grid2{gap:1rem}
-  /* 가계부 지출 입력 줄바꿈 */
   #tx-date,#tx-cat,#tx-amount,#tx-desc{width:100%!important;min-width:0!important}
-  /* 자산 현황 라벨 */
   .asset-row label{min-width:100px!important}
-  /* 캘린더 */
   .cal-grid{font-size:.75rem}
   .cal-day{min-height:52px;padding:.25rem}
-  /* 설정 모달 */
   .modal-box{width:95vw;padding:1.2rem}
 }
 @media(max-width:480px){
@@ -306,13 +311,13 @@ tr:hover td{background:rgba(108,138,255,.03)}
   .stat-card{padding:.75rem}
   .stat-label{font-size:.68rem}
   .stat-sub{font-size:.65rem}
-  .main{padding:.6rem;padding-top:3.5rem;padding-bottom:5.5rem}
-  .page-header{margin-bottom:.8rem}
+  .main{padding:.55rem;padding-top:3.8rem;padding-bottom:5.5rem}
+  .page-header{margin-bottom:.7rem}
   .page-header h2{font-size:1rem}
-  .page-header p{font-size:.75rem}
+  .page-header p{font-size:.74rem;line-height:1.5}
   .card{padding:.85rem;border-radius:12px}
   .sec-title{font-size:.8rem}
-  .grid2{gap:.8rem}
+  .grid2{gap:.7rem}
   .toss-drop{padding:1.5rem}
   #apt-address-display{font-size:.78rem}
   .stock-card{padding:.9rem}
@@ -320,20 +325,13 @@ tr:hover td{background:rgba(108,138,255,.03)}
   .cal-nav{padding:.3rem .6rem;font-size:.8rem}
   table{font-size:.78rem;min-width:360px}
   th,td{padding:.35rem .4rem}
-  .sec-title{font-size:.78rem}
   input,select,textarea{font-size:.85rem;padding:.5rem .75rem}
   #st-search-results{font-size:.82rem}
-  /* stats-row 인라인으로 4칸 고정된 경우도 강제 2칸 */
   .stats-row[style*="repeat(4"]{grid-template-columns:1fr 1fr!important}
   .stats-row[style*="repeat(3"]{grid-template-columns:1fr 1fr!important}
-  /* 주식탭 상단 flex */
-  /* 부동산 주소 row */
   #page-realty .card div[style*="display:flex"][style*="gap:.5rem"]{flex-wrap:wrap}
-  /* 자산 탭 라벨 너비 축소 */
   #page-assets label[style*="min-width:130px"]{min-width:90px!important;font-size:.78rem}
-  /* 가계부 요약 4칸 */
   #page-budget .stats-row{grid-template-columns:1fr 1fr}
-  /* 투자일지 flex row */
   .journal-header{flex-direction:column;gap:.5rem}
 
   /* ── 가계부 모바일 전용 ── */
@@ -522,6 +520,7 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
 <!-- GUEST BANNER -->
 <div class="guest-banner" id="guest-banner">👀 게스트 관람 모드 · 읽기 전용으로 접속 중이에요</div>
 
+<div class="mob-topbar"><span class="mob-topbar-title">🏠 식식징구월드</span></div>
 <div class="hamburger" onclick="toggleSidebar()">☰</div>
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 
