@@ -3408,14 +3408,16 @@ function renderTransactions() {
         var barW = Math.min(pct, 100);
         var clr = catColors[e[0]]||'var(--muted)';
         var dispAmt = isIncome ? '+'+Number(Math.abs(e[1])).toLocaleString() : Number(e[1]).toLocaleString();
-        return '<div style="margin-bottom:.7rem;cursor:pointer" onclick="showCatPopup(\''+e[0]+'\')">'+
-          '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.82rem;margin-bottom:.25rem;min-width:0">'+
-            '<span style="color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:.4rem">'+e[0]+'</span>'+
-            '<span style="font-family:JetBrains Mono,monospace;color:'+clr+';white-space:nowrap;flex-shrink:0">'+dispAmt+(isIncome?'':' ('+pct+'%)')+'</span>'+
+        return '<div style="margin-bottom:.8rem;cursor:pointer" onclick="showCatPopup(\''+e[0]+'\')">'+
+          '<div style="font-size:.82rem;color:var(--text);margin-bottom:.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+e[0]+'</div>'+
+          '<div style="display:flex;align-items:center;gap:.5rem">'+
+            (!isIncome ? '<div style="flex:1;background:var(--border);border-radius:4px;height:6px;overflow:hidden;min-width:0">'+
+              '<div style="background:'+clr+';width:'+barW+'%;height:100%;border-radius:4px;transition:width .5s"></div>'+
+            '</div>' : '<div style="flex:1;min-width:0"></div>')+
+            '<span style="font-size:.78rem;font-family:JetBrains Mono,monospace;color:'+clr+';white-space:nowrap;flex-shrink:0">'+
+              dispAmt+(isIncome?'':' '+pct+'%')+
+            '</span>'+
           '</div>'+
-          (!isIncome ? '<div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden">'+
-            '<div style="background:'+clr+';width:'+barW+'%;height:100%;border-radius:4px;transition:width .5s"></div>'+
-          '</div>' : '')+
         '</div>';
       }).join('')+
       (function(){
@@ -3434,9 +3436,12 @@ function renderTransactions() {
             }
           }
         }
-        return '<div style="border-top:1px solid var(--border);margin-top:.5rem;padding-top:.6rem;display:flex;justify-content:space-between;align-items:center;font-size:.83rem;font-weight:700;min-width:0">'+
-          '<span style="color:var(--muted);flex-shrink:0">전체 합계</span>'+
-          '<span style="display:flex;align-items:center;font-family:JetBrains Mono,monospace;color:var(--accent2);white-space:nowrap;flex-shrink:0">'+fmtMoney(total)+overUnderHtml+'</span>'+
+        return '<div style="border-top:1px solid var(--border);margin-top:.5rem;padding-top:.6rem;font-size:.83rem;font-weight:700">'+
+          '<div style="color:var(--muted);margin-bottom:.15rem">전체 합계</div>'+
+          '<div style="display:flex;align-items:center;gap:.4rem">'+
+            '<span style="font-family:JetBrains Mono,monospace;color:var(--accent2);white-space:nowrap">'+fmtMoney(total)+'</span>'+
+            (overUnderHtml ? '<span>'+overUnderHtml+'</span>' : '')+
+          '</div>'+
         '</div>';
       })();
     }
