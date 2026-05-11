@@ -4055,7 +4055,7 @@ async function fetchPeRatio() {
     var res = await fetchWithTimeout('/api/pe-ratio?ticker=' + encodeURIComponent(ticker), 12000);
     var d = await res.json();
     loading.style.display = 'none';
-    if (d.error) { errEl.textContent = '⚠ ' + d.error; errEl.style.display = 'block'; return; }
+    if (d.error) { errEl.textContent = '⚠ ' + d.error + (d.detail ? ' (' + d.detail + ')' : ''); errEl.style.display = 'block'; return; }
     ttmEl.textContent = d.ttm != null ? d.ttm : 'N/A';
     fwdEl.textContent = d.fwd != null ? d.fwd : 'N/A';
     srcEl.textContent = d.source === 'seekingalpha' ? '출처: Seeking Alpha' : '출처: Yahoo Finance (analyst consensus 기준)';
