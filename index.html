@@ -1402,16 +1402,27 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
 
     <!-- P/E Non-GAAP 조회 -->
     <div class="card" style="margin-bottom:1.5rem">
-      <div class="sec-title" style="margin-bottom:.9rem">📐 P/E Non-GAAP 조회</div>
-      <div style="display:flex;gap:.5rem;margin-bottom:.8rem">
-        <input id="pe-ticker-input" type="text" class="input" placeholder="티커 입력 (예: AAPL, MSFT, NVDA)"
-          style="flex:1;box-sizing:border-box;text-transform:uppercase"
-          oninput="this.value=this.value.toUpperCase()"
-          onkeydown="if(event.key==='Enter')fetchPeRatio()"/>
-        <button class="btn btn-primary" onclick="fetchPeRatio()" style="white-space:nowrap">조회</button>
+      <div class="sec-title" style="margin-bottom:.8rem">📐 P/E Non-GAAP 조회</div>
+      <!-- 자산 유형 -->
+      <div style="display:flex;gap:.4rem;margin-bottom:.65rem">
+        <button class="btn btn-primary" id="pe-type-US" onclick="setPeType('US')" style="flex:1;font-size:.75rem;padding:.32rem .3rem">🇺🇸 미국</button>
+        <button class="btn btn-ghost"   id="pe-type-KR" onclick="setPeType('KR')" style="flex:1;font-size:.75rem;padding:.32rem .3rem">🇰🇷 국내</button>
       </div>
+      <!-- 종목 검색 드롭다운 -->
+      <div style="position:relative;margin-bottom:.65rem">
+        <input id="pe-search-input" type="text" class="input" placeholder="티커 또는 종목명 검색 (예: AAPL, Apple)"
+          oninput="onPeSearch(this.value)" onkeydown="if(event.key==='Enter')onPeSearch(this.value,true)"
+          style="width:100%;box-sizing:border-box"/>
+        <div id="pe-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:200;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.3)"></div>
+      </div>
+      <!-- 선택된 종목 -->
+      <div id="pe-selected" style="display:none;background:var(--surface);border:1px solid rgba(108,138,255,.35);border-radius:8px;padding:.45rem .75rem;margin-bottom:.65rem;justify-content:space-between;align-items:center">
+        <span id="pe-sel-name" style="font-weight:600;font-size:.87rem;color:var(--text)"></span>
+        <span id="pe-sel-ticker" style="color:var(--muted);font-family:JetBrains Mono,monospace;font-size:.74rem"></span>
+      </div>
+      <!-- 결과 -->
       <div id="pe-result" style="display:none">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:.6rem">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:.5rem">
           <div style="background:var(--surface2);border-radius:10px;padding:.85rem 1rem;border:1px solid var(--border)">
             <div style="font-size:.68rem;color:var(--muted);margin-bottom:.35rem;letter-spacing:.04em">P/E Non-GAAP (TTM)</div>
             <div id="pe-ttm-val" style="font-size:1.5rem;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--accent)">–</div>
@@ -1423,10 +1434,10 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
             <div style="font-size:.65rem;color:var(--muted);margin-top:.2rem">향후 12개월 예상 기준</div>
           </div>
         </div>
-        <div id="pe-source-note" style="font-size:.7rem;color:var(--muted);text-align:right"></div>
+        <div id="pe-source-note" style="font-size:.68rem;color:var(--muted);text-align:right"></div>
       </div>
       <div id="pe-loading" style="display:none;color:var(--muted);font-size:.82rem;text-align:center;padding:.8rem">조회 중...</div>
-      <div id="pe-error" style="display:none;color:var(--danger);font-size:.82rem;padding:.4rem 0"></div>
+      <div id="pe-error" style="display:none;color:var(--danger);font-size:.8rem;padding:.3rem 0"></div>
     </div>
 
     <!-- 경제 캘린더 -->
@@ -4039,8 +4050,66 @@ function renderAssetHistory() {
 
 // ── VIX ──
 var currentVixRange = '1mo';
+var _peType = 'US';
+var _peSelTicker = null;
+var _peSearchTimer3;
+
+function setPeType(t) {
+  _peType = t;
+  ['US','KR'].forEach(function(k){
+    var btn = document.getElementById('pe-type-'+k);
+    if(btn) btn.className = k===t ? 'btn btn-primary' : 'btn btn-ghost';
+    if(btn) { btn.style.flex='1'; btn.style.fontSize='.75rem'; btn.style.padding='.32rem .3rem'; }
+  });
+  _peSelTicker = null;
+  var si = document.getElementById('pe-search-input'); if(si) si.value='';
+  var sd = document.getElementById('pe-selected'); if(sd) sd.style.display='none';
+  var rs = document.getElementById('pe-search-results'); if(rs) { rs.style.display='none'; rs.innerHTML=''; }
+  document.getElementById('pe-result').style.display='none';
+  document.getElementById('pe-error').style.display='none';
+}
+
+function onPeSearch(q, force) {
+  clearTimeout(_peSearchTimer3);
+  var r = document.getElementById('pe-search-results');
+  if(!q||!q.trim()){ if(r){r.style.display='none';r.innerHTML='';} return; }
+  if(force){ doPeSearch(q.trim()); return; }
+  _peSearchTimer3 = setTimeout(function(){ doPeSearch(q.trim()); }, 420);
+}
+
+async function doPeSearch(q) {
+  var r = document.getElementById('pe-search-results');
+  if(!r) return;
+  r.style.display='block';
+  r.innerHTML='<div style="padding:.6rem 1rem;color:var(--muted);font-size:.82rem">검색 중...</div>';
+  try {
+    var res = await fetch('/api/stock-search?q='+encodeURIComponent(q)+'&type='+_peType);
+    var d = await res.json();
+    var items = d.results||[];
+    if(!items.length){ r.innerHTML='<div style="padding:.6rem 1rem;color:var(--muted);font-size:.82rem">결과 없음</div>'; return; }
+    r.innerHTML = items.map(function(it){
+      return '<div style="padding:.5rem 1rem;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center" '+
+        'onmouseover="this.style.background=\'var(--surface)\'" onmouseout="this.style.background=\'\'" '+
+        'onclick="selectPeTicker(\''+pEsc(it.ticker)+'\',\''+pEsc(it.name)+'\')">'+
+        '<div><div style="font-size:.85rem;font-weight:600;color:var(--text)">'+pEsc(it.name)+'</div>'+
+        '<div style="font-size:.72rem;color:var(--muted);font-family:JetBrains Mono,monospace">'+pEsc(it.ticker)+(it.sub?' · '+pEsc(it.sub):'')+'</div></div>'+
+        '<span style="font-size:.75rem;color:var(--accent);font-family:JetBrains Mono,monospace">'+pEsc(it.ticker)+'</span></div>';
+    }).join('');
+  } catch(e) { r.innerHTML='<div style="padding:.6rem 1rem;color:var(--danger);font-size:.82rem">검색 실패</div>'; }
+}
+
+function selectPeTicker(ticker, name) {
+  _peSelTicker = ticker;
+  var r = document.getElementById('pe-search-results'); if(r) r.style.display='none';
+  var si = document.getElementById('pe-search-input'); if(si) si.value=name;
+  var sn = document.getElementById('pe-sel-name'); if(sn) sn.textContent=name;
+  var st = document.getElementById('pe-sel-ticker'); if(st) st.textContent=ticker;
+  var sd = document.getElementById('pe-selected'); if(sd) sd.style.display='flex';
+  fetchPeRatio();
+}
+
 async function fetchPeRatio() {
-  var ticker = (document.getElementById('pe-ticker-input').value || '').trim().toUpperCase();
+  var ticker = _peSelTicker || (document.getElementById('pe-search-input').value||'').trim().toUpperCase();
   if (!ticker) return;
   var result  = document.getElementById('pe-result');
   var loading = document.getElementById('pe-loading');
@@ -4052,13 +4121,13 @@ async function fetchPeRatio() {
   errEl.style.display   = 'none';
   loading.style.display = 'block';
   try {
-    var res = await fetchWithTimeout('/api/pe-ratio?ticker=' + encodeURIComponent(ticker), 12000);
+    var res = await fetchWithTimeout('/api/pe-ratio?ticker=' + encodeURIComponent(ticker), 15000);
     var d = await res.json();
     loading.style.display = 'none';
-    if (d.error) { errEl.textContent = '⚠ ' + d.error + (d.detail ? ' (' + d.detail + ')' : ''); errEl.style.display = 'block'; return; }
+    if (d.error) { errEl.textContent = '⚠ ' + d.error; errEl.style.display = 'block'; return; }
     ttmEl.textContent = d.ttm != null ? d.ttm : 'N/A';
     fwdEl.textContent = d.fwd != null ? d.fwd : 'N/A';
-    srcEl.textContent = d.source === 'seekingalpha' ? '출처: Seeking Alpha' : '출처: Yahoo Finance (analyst consensus 기준)';
+    srcEl.textContent = '출처: Yahoo Finance';
     result.style.display = 'block';
   } catch(e) {
     loading.style.display = 'none';
