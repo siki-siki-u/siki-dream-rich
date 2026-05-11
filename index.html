@@ -543,8 +543,11 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
       <div class="nav-item" onclick="showPage('budget',this);closeSidebar()"><span class="icon">💰</span> 가계부</div>
       <div class="nav-item" onclick="showPage('assets',this);closeSidebar()"><span class="icon">🏦</span> 자산현황</div>
       <div class="nav-item" onclick="showPage('market',this);closeSidebar()"><span class="icon">📊</span> 마켓 현황</div>
+
+      <div class="nav-label">투자공부</div>
       <div class="nav-item" onclick="showPage('youtube',this);closeSidebar()"><span class="icon">▶️</span> 올랜도킴 분석</div>
       <div class="nav-item" onclick="showPage('journal',this);closeSidebar()"><span class="icon">📝</span> 투자 일지</div>
+      <div class="nav-item" onclick="showPage('mock-invest',this);closeSidebar()"><span class="icon">🎯</span> 모의 투자</div>
     </div>
     <div class="nav-section">
       <div class="nav-label">내집마련</div>
@@ -1869,6 +1872,81 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
     </div>
   </div>
 
+  <!-- ── 모의 투자 ── -->
+  <div class="page" id="page-mock-invest">
+    <div class="page-header">
+      <h2>🎯 모의 투자</h2>
+      <p>실제처럼 종목을 담고, 수익률을 추적해요</p>
+    </div>
+
+    <!-- 요약 통계 -->
+    <div class="stats-row" style="grid-template-columns:repeat(2,1fr);margin-bottom:1.5rem">
+      <div class="stat-card blue"><div class="stat-label">총 투자금</div><div class="stat-value blue" id="mock-total-invested">₩0</div></div>
+      <div class="stat-card yellow"><div class="stat-label">현재 평가금</div><div class="stat-value yellow" id="mock-total-value">₩0</div></div>
+      <div class="stat-card" id="mock-profit-card" style="border-top:3px solid var(--muted)"><div class="stat-label">수익금</div><div class="stat-value" id="mock-profit" style="color:var(--muted)">₩0</div></div>
+      <div class="stat-card" id="mock-roi-card" style="border-top:3px solid var(--muted)"><div class="stat-label">수익률</div><div class="stat-value" id="mock-roi" style="color:var(--muted)">0.00%</div></div>
+    </div>
+
+    <!-- 종목 담기 폼 -->
+    <div class="card" style="margin-bottom:1.5rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none" onclick="toggleMockForm()">
+        <div class="sec-title" style="margin:0">➕ 종목 담기</div>
+        <span id="mock-form-arrow" style="font-size:.78rem;color:var(--muted);transition:transform .25s;display:inline-block">▼</span>
+      </div>
+      <div id="mock-add-form" style="display:none;margin-top:1rem">
+        <!-- 자산 유형 -->
+        <div style="display:flex;gap:.4rem;margin-bottom:.7rem;flex-wrap:wrap">
+          <button class="btn btn-primary" id="mock-type-US"     onclick="setMockType('US')"     style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🇺🇸 미국</button>
+          <button class="btn btn-ghost"   id="mock-type-KR"     onclick="setMockType('KR')"     style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🇰🇷 국내</button>
+          <button class="btn btn-ghost"   id="mock-type-CRYPTO" onclick="setMockType('CRYPTO')" style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">💰 코인</button>
+        </div>
+        <!-- 종목 검색 -->
+        <div style="position:relative;margin-bottom:.7rem">
+          <input id="mock-search" type="text" class="input" placeholder="티커 또는 종목명 검색 (예: AAPL, 삼성전자)"
+            oninput="onMockSearch(this.value)" onkeydown="if(event.key==='Enter')onMockSearch(this.value,true)"
+            style="width:100%;box-sizing:border-box"/>
+          <div id="mock-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:200;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.3)"></div>
+        </div>
+        <!-- 선택된 종목 -->
+        <div id="mock-selected" style="display:none;background:var(--surface);border:1px solid rgba(108,138,255,.35);border-radius:8px;padding:.5rem .8rem;margin-bottom:.7rem;justify-content:space-between;align-items:center">
+          <div><span id="mock-sel-name" style="font-weight:600;color:var(--text);font-size:.87rem"></span>
+            <span id="mock-sel-ticker" style="color:var(--muted);margin-left:.35rem;font-family:JetBrains Mono,monospace;font-size:.74rem"></span></div>
+          <span id="mock-sel-price" style="color:var(--accent4);font-family:JetBrains Mono,monospace;font-size:.85rem"></span>
+        </div>
+        <!-- 날짜 + 수량 + 가격 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:.6rem">
+          <div>
+            <label style="font-size:.71rem;color:var(--muted);display:block;margin-bottom:.2rem">투자 날짜</label>
+            <input id="mock-date" type="date" class="input" style="width:100%;box-sizing:border-box"/>
+          </div>
+          <div>
+            <label style="font-size:.71rem;color:var(--muted);display:block;margin-bottom:.2rem">수량</label>
+            <input id="mock-qty" type="number" class="input" placeholder="0" min="0" step="any" style="width:100%;box-sizing:border-box" oninput="calcMockAmount()"/>
+          </div>
+          <div>
+            <label style="font-size:.71rem;color:var(--muted);display:block;margin-bottom:.2rem">당시 가격</label>
+            <input id="mock-price" type="text" class="input" placeholder="0" style="width:100%;box-sizing:border-box"
+              oninput="this.value=this.value.replace(/[^0-9.]/g,'');calcMockAmount()"/>
+          </div>
+        </div>
+        <!-- 투자금액 자동계산 -->
+        <div id="mock-amount-row" style="display:none;background:var(--surface2);border-radius:8px;padding:.5rem .8rem;margin-bottom:.7rem;font-size:.82rem;display:flex;justify-content:space-between">
+          <span style="color:var(--muted)">투자 금액 (원화 환산)</span>
+          <span id="mock-amount-val" style="font-family:JetBrains Mono,monospace;color:var(--accent4)">₩0</span>
+        </div>
+        <!-- 투자 이유 -->
+        <div style="margin-bottom:.6rem">
+          <label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">투자 이유 <span style="color:var(--danger)">*</span></label>
+          <textarea id="mock-reason" class="input" rows="2" placeholder="왜 이 종목에 투자하려 했나요?" style="width:100%;box-sizing:border-box;resize:vertical;min-height:60px"></textarea>
+        </div>
+        <button class="btn btn-primary owner-only" onclick="addMockInvest()" style="width:100%">담기 ＋</button>
+      </div>
+    </div>
+
+    <!-- 목록 -->
+    <div id="mock-list"></div>
+  </div>
+
 </main>
 
 <!-- PORTFOLIO CHANGES MODAL -->
@@ -2018,6 +2096,9 @@ async function syncFromSupabase() {
     // realty
     const { data: realty } = await supa.from('realty').select('*');
     if(realty && realty.length > 0) S.set('apts', realty.map(function(r){ return r.data; }));
+    // mock_investments
+    const { data: mockInvData } = await supa.from('mock_investments').select('*').order('invest_date',{ascending:false});
+    if(mockInvData && mockInvData.length > 0) S.set('mock_investments', mockInvData.map(function(m){ return {id:m.id,invest_date:m.invest_date,symbol:m.symbol,name:m.name,asset_type:m.asset_type||'US',currency:m.currency||'USD',quantity:m.quantity,price_at_invest:m.price_at_invest,invest_amount_krw:m.invest_amount_krw||0,reason:m.reason||'',note:m.note||'',created_at:m.created_at}; }));
     // settings (고정비, 사용자 설정 등)
     // forEach 전에 로컬 원본 캡처 (forEach가 덮어쓰기 전)
     var _preLocalHoldings  = S.get('portfolio_holdings')  || [];
@@ -2284,6 +2365,7 @@ function showPage(id, el) {
   if(id==='gifts')       { renderGiftList(); }
   if(id==='condolences') { renderCondolenceList(); }
   if(id==='market')  { loadVix('1mo'); }
+  if(id==='mock-invest') { renderMockInvest(); }
 }
 
 // ── DATE HELPERS ──
@@ -7981,6 +8063,261 @@ if ('serviceWorker' in navigator) {
     })
     .subscribe();
 })();
+
+// ── 모의 투자 ──
+var _mockSelTicker = null;
+var _mockType = 'US';
+var _mockSearchTimer2;
+
+function setMockType(t) {
+  _mockType = t;
+  ['US','KR','CRYPTO'].forEach(function(k){
+    var btn = document.getElementById('mock-type-'+k);
+    if(btn) { btn.className = k===t ? 'btn btn-primary' : 'btn btn-ghost'; btn.style.flex='1'; btn.style.fontSize='.75rem'; btn.style.padding='.35rem .25rem'; btn.style.minWidth='60px'; }
+  });
+  _mockSelTicker = null;
+  var si = document.getElementById('mock-search'); if(si) si.value='';
+  var sd = document.getElementById('mock-selected'); if(sd) sd.style.display='none';
+  var pi = document.getElementById('mock-price'); if(pi) pi.value='';
+  calcMockAmount();
+}
+
+function toggleMockForm() {
+  var f = document.getElementById('mock-add-form');
+  var a = document.getElementById('mock-form-arrow');
+  var open = !f.style.display || f.style.display==='none';
+  f.style.display = open ? 'block' : 'none';
+  if(a) a.style.transform = open ? 'rotate(180deg)' : '';
+  if(open) { var d=document.getElementById('mock-date'); if(d&&!d.value) d.value=today(); }
+}
+
+function onMockSearch(q,force) {
+  clearTimeout(_mockSearchTimer2);
+  var r=document.getElementById('mock-search-results');
+  if(!q||!q.trim()){ if(r){r.style.display='none';r.innerHTML='';} return; }
+  if(force){ doMockSearch(q.trim()); return; }
+  _mockSearchTimer2=setTimeout(function(){doMockSearch(q.trim());},420);
+}
+
+async function doMockSearch(q) {
+  var r=document.getElementById('mock-search-results');
+  if(!r) return;
+  r.style.display='block';
+  r.innerHTML='<div style="padding:.6rem 1rem;color:var(--muted);font-size:.82rem">검색 중...</div>';
+  try{
+    var res=await fetch('/api/stock-search?q='+encodeURIComponent(q)+'&type='+_mockType);
+    var d=await res.json();
+    var items=d.results||[];
+    if(!items.length){r.innerHTML='<div style="padding:.6rem 1rem;color:var(--muted);font-size:.82rem">결과 없음</div>';return;}
+    r.innerHTML=items.map(function(it){
+      return '<div style="padding:.5rem 1rem;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center" '+
+        'onmouseover="this.style.background=\'var(--surface)\'" onmouseout="this.style.background=\'\'" '+
+        'onclick="selectMockTicker(\''+pEsc(it.ticker)+'\',\''+pEsc(it.name)+'\',\''+_mockType+'\')">'+
+        '<div><div style="font-size:.85rem;font-weight:600;color:var(--text)">'+pEsc(it.name)+'</div>'+
+        '<div style="font-size:.72rem;color:var(--muted);font-family:JetBrains Mono,monospace">'+pEsc(it.ticker)+(it.sub?' · '+pEsc(it.sub):'')+'</div></div>'+
+        '<span style="font-size:.75rem;color:var(--accent);font-family:JetBrains Mono,monospace">'+pEsc(it.ticker)+'</span></div>';
+    }).join('');
+  }catch(e){r.innerHTML='<div style="padding:.6rem 1rem;color:var(--danger);font-size:.82rem">검색 실패</div>';}
+}
+
+async function selectMockTicker(ticker,name,type) {
+  _mockSelTicker={ticker,name,type};
+  var r=document.getElementById('mock-search-results'); if(r) r.style.display='none';
+  var si=document.getElementById('mock-search'); if(si) si.value=name;
+  var sd=document.getElementById('mock-selected');
+  var sn=document.getElementById('mock-sel-name');
+  var st=document.getElementById('mock-sel-ticker');
+  var sp=document.getElementById('mock-sel-price');
+  if(sn) sn.textContent=name;
+  if(st) st.textContent=ticker;
+  if(sp) sp.textContent='조회 중...';
+  if(sd) sd.style.display='flex';
+  try{
+    var pd=await fetchPortPrice(ticker,type);
+    if(pd&&pd.price){
+      var ps=pd.currency==='USD'?'$'+pd.price.toLocaleString(undefined,{maximumFractionDigits:2}):'₩'+Math.round(pd.price).toLocaleString();
+      if(sp) sp.textContent=ps;
+      var pi=document.getElementById('mock-price');
+      if(pi&&!pi.value){ pi.value=pd.currency==='USD'?pd.price.toFixed(2):Math.round(pd.price); calcMockAmount(); }
+    } else { if(sp) sp.textContent='시세 없음'; }
+  }catch(e){ if(sp) sp.textContent='오류'; }
+}
+
+function calcMockAmount() {
+  var qty=parseFloat(document.getElementById('mock-qty').value)||0;
+  var price=parseFloat(document.getElementById('mock-price').value)||0;
+  var row=document.getElementById('mock-amount-row');
+  var val=document.getElementById('mock-amount-val');
+  if(!row||!val) return;
+  if(qty<=0||price<=0){ row.style.display='none'; return; }
+  var usdkrw=S.get('port_usdkrw')||_mockUsdKrw||1350;
+  var amtKrw=(_mockType==='KR')?Math.round(qty*price):Math.round(qty*price*usdkrw);
+  val.textContent='₩'+amtKrw.toLocaleString();
+  row.style.display='flex';
+}
+var _mockUsdKrw=S.get('port_usdkrw')||1350;
+
+async function addMockInvest() {
+  if(isGuest()){showToast('게스트는 저장할 수 없어요','error');return;}
+  if(!_mockSelTicker){showToast('종목을 먼저 선택해주세요','error');return;}
+  var date=document.getElementById('mock-date').value;
+  var qty=parseFloat(document.getElementById('mock-qty').value);
+  var price=parseFloat(document.getElementById('mock-price').value);
+  var reason=document.getElementById('mock-reason').value.trim();
+  if(!date){showToast('투자 날짜를 입력해주세요','error');return;}
+  if(!qty||qty<=0){showToast('수량을 입력해주세요','error');return;}
+  if(!price||price<=0){showToast('가격을 입력해주세요','error');return;}
+  if(!reason){showToast('투자 이유는 필수예요','error');return;}
+  var currency=_mockType==='KR'?'KRW':'USD';
+  var usdkrw=S.get('port_usdkrw')||_mockUsdKrw||1350;
+  var investAmtKrw=currency==='KRW'?Math.round(qty*price):Math.round(qty*price*usdkrw);
+  var row={
+    id:crypto.randomUUID(),invest_date:date,symbol:_mockSelTicker.ticker,name:_mockSelTicker.name,
+    asset_type:_mockType,currency:currency,quantity:qty,price_at_invest:price,
+    invest_amount_krw:investAmtKrw,reason:reason,note:'',created_at:new Date().toISOString()
+  };
+  var list=S.get('mock_investments')||[];
+  list.unshift(row);
+  S.set('mock_investments',list);
+  await dbUpsert('mock_investments',row);
+  _mockSelTicker=null;
+  document.getElementById('mock-search').value='';
+  document.getElementById('mock-selected').style.display='none';
+  document.getElementById('mock-qty').value='';
+  document.getElementById('mock-price').value='';
+  document.getElementById('mock-reason').value='';
+  document.getElementById('mock-amount-row').style.display='none';
+  document.getElementById('mock-add-form').style.display='none';
+  document.getElementById('mock-form-arrow').style.transform='';
+  showToast('담겼어요 🎯','success');
+  renderMockInvest();
+}
+
+async function deleteMockInvest(id) {
+  if(isGuest()) return;
+  if(!confirm('이 항목을 삭제할까요?')) return;
+  var list=(S.get('mock_investments')||[]).filter(function(x){return x.id!==id;});
+  S.set('mock_investments',list);
+  await dbDelete('mock_investments',id);
+  renderMockInvest();
+}
+
+function openMockNote(id) {
+  var list=S.get('mock_investments')||[];
+  var item=list.find(function(x){return x.id===id;});
+  if(!item) return;
+  var overlay=document.createElement('div');
+  overlay.id='mock-note-overlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  overlay.innerHTML=
+    '<div style="background:#1e2235;border:1px solid var(--border);border-radius:16px;width:100%;max-width:440px;padding:1.3rem;box-shadow:0 8px 40px rgba(0,0,0,.7)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">'+
+        '<div style="font-size:1rem;font-weight:700">✏️ 느낀점 — '+pEsc(item.name)+'</div>'+
+        '<button onclick="document.getElementById(\'mock-note-overlay\').remove()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;line-height:1">×</button>'+
+      '</div>'+
+      '<textarea id="mock-note-input" class="input" rows="5" placeholder="이 투자에서 무엇을 배웠나요? 실제로 투자했다면 어땠을까요?" '+
+        'style="width:100%;box-sizing:border-box;resize:vertical;min-height:120px">'+pEsc(item.note||'')+'</textarea>'+
+      '<div style="margin-top:.8rem;display:flex;gap:.6rem">'+
+        '<button class="btn btn-ghost" onclick="document.getElementById(\'mock-note-overlay\').remove()" style="flex:1">취소</button>'+
+        '<button class="btn btn-primary owner-only" onclick="saveMockNote(\''+id+'\')" style="flex:1">저장</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(overlay);
+}
+
+async function saveMockNote(id) {
+  var note=document.getElementById('mock-note-input').value.trim();
+  var list=S.get('mock_investments')||[];
+  var item=list.find(function(x){return x.id===id;});
+  if(!item) return;
+  item.note=note;
+  S.set('mock_investments',list);
+  await dbUpsert('mock_investments',Object.assign({},item,{note:note}));
+  var overlay=document.getElementById('mock-note-overlay');
+  if(overlay) overlay.remove();
+  showToast('저장됐어요','success');
+  renderMockInvest();
+}
+
+async function renderMockInvest() {
+  var list=(S.get('mock_investments')||[]).sort(function(a,b){return b.invest_date.localeCompare(a.invest_date);});
+  var listEl=document.getElementById('mock-list');
+  if(!listEl) return;
+  var resetSummary=function(){
+    ['mock-total-invested','mock-total-value','mock-profit','mock-roi'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el){el.textContent=id==='mock-roi'?'0.00%':'₩0';el.style.color='';}
+    });
+    ['mock-profit-card','mock-roi-card'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.borderTop='3px solid var(--muted)';});
+  };
+  if(!list.length){
+    listEl.innerHTML='<div class="card" style="text-align:center;padding:2.5rem;color:var(--muted);font-size:.88rem">아직 담은 종목이 없어요<br><span style="font-size:.78rem;margin-top:.4rem;display:block">위에서 종목을 검색해서 가상으로 투자해보세요 📈</span></div>';
+    resetSummary(); return;
+  }
+  listEl.innerHTML='<div style="color:var(--muted);font-size:.78rem;text-align:center;padding:.8rem">현재 시세 조회 중...</div>';
+  var uniq=[];
+  list.forEach(function(x){if(!uniq.find(function(u){return u.s===x.symbol;}))uniq.push({s:x.symbol,t:x.asset_type});});
+  var prices={};
+  await Promise.all(uniq.map(async function(u){
+    try{var pd=await fetchPortPrice(u.s,u.t);if(pd&&pd.price)prices[u.s]=pd;}catch(e){}
+  }));
+  var usdkrw=S.get('port_usdkrw')||_mockUsdKrw||1350;
+  var totalInvested=0,totalValue=0;
+  var html=list.map(function(item){
+    var pd=prices[item.symbol];
+    var investedKrw=item.invest_amount_krw||0;
+    totalInvested+=investedKrw;
+    var currentKrw=0,pnlKrw=0,roiPct=0,hasPrice=false;
+    if(pd&&pd.price){
+      hasPrice=true;
+      currentKrw=pd.currency==='USD'?Math.round(item.quantity*pd.price*usdkrw):Math.round(item.quantity*pd.price);
+      totalValue+=currentKrw;
+      pnlKrw=currentKrw-investedKrw;
+      roiPct=investedKrw>0?(pnlKrw/investedKrw)*100:0;
+    } else { totalValue+=investedKrw; }
+    var pnlColor=pnlKrw>=0?'var(--success)':'var(--danger)';
+    var pnlStr=hasPrice?((pnlKrw>=0?'+':'')+fmtMoney(pnlKrw)+' ('+roiPct.toFixed(2)+'%)') :'–';
+    var currentStr=hasPrice?fmtMoney(currentKrw):'조회 불가';
+    var priceAtStr=item.currency==='USD'?'$'+Number(item.price_at_invest).toLocaleString(undefined,{maximumFractionDigits:2}):'₩'+Math.round(item.price_at_invest).toLocaleString();
+    var curPriceStr=pd&&pd.price?(pd.currency==='USD'?'$'+pd.price.toLocaleString(undefined,{maximumFractionDigits:2}):'₩'+Math.round(pd.price).toLocaleString()):'–';
+    return '<div class="card" style="margin-bottom:1rem">'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.6rem">'+
+        '<div style="min-width:0;flex:1">'+
+          '<div style="font-size:.95rem;font-weight:700;color:var(--text)">'+pEsc(item.name)+'</div>'+
+          '<div style="font-size:.72rem;color:var(--muted);font-family:JetBrains Mono,monospace;margin-top:.1rem">'+pEsc(item.symbol)+' · '+item.invest_date+'</div>'+
+        '</div>'+
+        '<div style="text-align:right;flex-shrink:0;margin-left:.8rem">'+
+          '<div style="font-size:.88rem;font-weight:700;font-family:JetBrains Mono,monospace;color:'+(hasPrice?pnlColor:'var(--muted)')+'">'+pnlStr+'</div>'+
+          '<div style="font-size:.7rem;color:var(--muted);margin-top:.1rem">'+currentStr+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.4rem;margin-bottom:.7rem;background:var(--surface2);border-radius:8px;padding:.5rem .6rem">'+
+        '<div><div style="font-size:.63rem;color:var(--muted);margin-bottom:.1rem">수량</div><div style="font-size:.78rem;font-family:JetBrains Mono,monospace">'+Number(item.quantity).toLocaleString()+'</div></div>'+
+        '<div><div style="font-size:.63rem;color:var(--muted);margin-bottom:.1rem">당시가</div><div style="font-size:.78rem;font-family:JetBrains Mono,monospace">'+priceAtStr+'</div></div>'+
+        '<div><div style="font-size:.63rem;color:var(--muted);margin-bottom:.1rem">현재가</div><div style="font-size:.78rem;font-family:JetBrains Mono,monospace;color:var(--accent4)">'+curPriceStr+'</div></div>'+
+      '</div>'+
+      '<div style="background:rgba(108,138,255,.08);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:.45rem .65rem;margin-bottom:.55rem;font-size:.8rem;color:var(--text);line-height:1.5">'+
+        '<span style="font-size:.63rem;color:var(--muted);display:block;margin-bottom:.15rem">💡 투자 이유</span>'+pEsc(item.reason)+
+      '</div>'+
+      (item.note?'<div style="background:rgba(82,217,163,.08);border-left:3px solid var(--success);border-radius:0 6px 6px 0;padding:.45rem .65rem;margin-bottom:.55rem;font-size:.8rem;color:var(--text);line-height:1.5">'+
+        '<span style="font-size:.63rem;color:var(--muted);display:block;margin-bottom:.15rem">📝 느낀점</span>'+pEsc(item.note)+'</div>':'')+
+      '<div style="display:flex;gap:.5rem">'+
+        '<button class="btn btn-ghost owner-only" onclick="openMockNote(\''+item.id+'\')" style="flex:1;font-size:.76rem;padding:.28rem .4rem">✏️ '+(item.note?'느낀점 수정':'느낀점 쓰기')+'</button>'+
+        '<button class="btn btn-ghost owner-only" onclick="deleteMockInvest(\''+item.id+'\')" style="font-size:.76rem;padding:.28rem .5rem;color:var(--danger)">🗑</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+  listEl.innerHTML=html;
+  var pnlTotal=totalValue-totalInvested,roiTotal=totalInvested>0?(pnlTotal/totalInvested)*100:0;
+  var el;
+  el=document.getElementById('mock-total-invested');if(el)el.textContent=fmtMoney(totalInvested);
+  el=document.getElementById('mock-total-value');if(el)el.textContent=fmtMoney(totalValue);
+  el=document.getElementById('mock-profit');if(el){el.textContent=(pnlTotal>=0?'+':'')+fmtMoney(pnlTotal);el.style.color=pnlTotal>=0?'var(--success)':'var(--danger)';}
+  el=document.getElementById('mock-profit-card');if(el)el.style.borderTop='3px solid '+(pnlTotal>=0?'var(--success)':'var(--danger)');
+  el=document.getElementById('mock-roi');if(el){el.textContent=(roiTotal>=0?'+':'')+roiTotal.toFixed(2)+'%';el.style.color=roiTotal>=0?'var(--success)':'var(--danger)';}
+  el=document.getElementById('mock-roi-card');if(el)el.style.borderTop='3px solid '+(roiTotal>=0?'var(--success)':'var(--danger)');
+}
 </script>
 </body>
 </html>
