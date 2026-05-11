@@ -1400,6 +1400,35 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
       </div>
     </div>
 
+    <!-- P/E Non-GAAP 조회 -->
+    <div class="card" style="margin-bottom:1.5rem">
+      <div class="sec-title" style="margin-bottom:.9rem">📐 P/E Non-GAAP 조회</div>
+      <div style="display:flex;gap:.5rem;margin-bottom:.8rem">
+        <input id="pe-ticker-input" type="text" class="input" placeholder="티커 입력 (예: AAPL, MSFT, NVDA)"
+          style="flex:1;box-sizing:border-box;text-transform:uppercase"
+          oninput="this.value=this.value.toUpperCase()"
+          onkeydown="if(event.key==='Enter')fetchPeRatio()"/>
+        <button class="btn btn-primary" onclick="fetchPeRatio()" style="white-space:nowrap">조회</button>
+      </div>
+      <div id="pe-result" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:.6rem">
+          <div style="background:var(--surface2);border-radius:10px;padding:.85rem 1rem;border:1px solid var(--border)">
+            <div style="font-size:.68rem;color:var(--muted);margin-bottom:.35rem;letter-spacing:.04em">P/E Non-GAAP (TTM)</div>
+            <div id="pe-ttm-val" style="font-size:1.5rem;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--accent)">–</div>
+            <div style="font-size:.65rem;color:var(--muted);margin-top:.2rem">최근 12개월 실적 기준</div>
+          </div>
+          <div style="background:var(--surface2);border-radius:10px;padding:.85rem 1rem;border:1px solid var(--border)">
+            <div style="font-size:.68rem;color:var(--muted);margin-bottom:.35rem;letter-spacing:.04em">P/E Non-GAAP (FWD)</div>
+            <div id="pe-fwd-val" style="font-size:1.5rem;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--accent2)">–</div>
+            <div style="font-size:.65rem;color:var(--muted);margin-top:.2rem">향후 12개월 예상 기준</div>
+          </div>
+        </div>
+        <div id="pe-source-note" style="font-size:.7rem;color:var(--muted);text-align:right"></div>
+      </div>
+      <div id="pe-loading" style="display:none;color:var(--muted);font-size:.82rem;text-align:center;padding:.8rem">조회 중...</div>
+      <div id="pe-error" style="display:none;color:var(--danger);font-size:.82rem;padding:.4rem 0"></div>
+    </div>
+
     <!-- 경제 캘린더 -->
     <div class="card" style="padding:0;overflow:hidden">
       <div style="padding:1rem 1.2rem .5rem;background:var(--surface)">
@@ -4010,6 +4039,34 @@ function renderAssetHistory() {
 
 // ── VIX ──
 var currentVixRange = '1mo';
+async function fetchPeRatio() {
+  var ticker = (document.getElementById('pe-ticker-input').value || '').trim().toUpperCase();
+  if (!ticker) return;
+  var result  = document.getElementById('pe-result');
+  var loading = document.getElementById('pe-loading');
+  var errEl   = document.getElementById('pe-error');
+  var ttmEl   = document.getElementById('pe-ttm-val');
+  var fwdEl   = document.getElementById('pe-fwd-val');
+  var srcEl   = document.getElementById('pe-source-note');
+  result.style.display  = 'none';
+  errEl.style.display   = 'none';
+  loading.style.display = 'block';
+  try {
+    var res = await fetchWithTimeout('/api/pe-ratio?ticker=' + encodeURIComponent(ticker), 12000);
+    var d = await res.json();
+    loading.style.display = 'none';
+    if (d.error) { errEl.textContent = '⚠ ' + d.error; errEl.style.display = 'block'; return; }
+    ttmEl.textContent = d.ttm != null ? d.ttm : 'N/A';
+    fwdEl.textContent = d.fwd != null ? d.fwd : 'N/A';
+    srcEl.textContent = d.source === 'seekingalpha' ? '출처: Seeking Alpha' : '출처: Yahoo Finance (analyst consensus 기준)';
+    result.style.display = 'block';
+  } catch(e) {
+    loading.style.display = 'none';
+    errEl.textContent = '⚠ 조회 실패: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
 async function loadVix(range) {
   currentVixRange = range || currentVixRange;
   ['1mo','3mo','6mo','1y'].forEach(function(r){
