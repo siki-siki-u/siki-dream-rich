@@ -548,6 +548,7 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
       <div class="nav-item" onclick="showPage('youtube',this);closeSidebar()"><span class="icon">▶️</span> 올랜도킴 분석</div>
       <div class="nav-item" onclick="showPage('journal',this);closeSidebar()"><span class="icon">📝</span> 투자 일지</div>
       <div class="nav-item" onclick="showPage('mock-invest',this);closeSidebar()"><span class="icon">🎯</span> 모의 투자</div>
+      <div class="nav-item" onclick="showPage('invest-terms',this);closeSidebar()"><span class="icon">📖</span> 투자 용어</div>
     </div>
     <div class="nav-section">
       <div class="nav-label">내집마련</div>
@@ -1947,6 +1948,40 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
     <div id="mock-list"></div>
   </div>
 
+  <!-- ── 투자 용어 ── -->
+  <div class="page" id="page-invest-terms">
+    <div class="page-header">
+      <h2>📖 투자 용어</h2>
+      <p>모르는 용어를 기록하고 내 사전을 만들어요</p>
+    </div>
+
+    <!-- 용어 추가 -->
+    <div class="card" style="margin-bottom:1.5rem">
+      <div class="sec-title" style="margin-bottom:.8rem">➕ 용어 추가</div>
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:.6rem;margin-bottom:.6rem">
+        <div>
+          <label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">용어</label>
+          <input id="term-word" type="text" class="input" placeholder="예: PER, 유동성" style="width:100%;box-sizing:border-box"/>
+        </div>
+        <div>
+          <label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">뜻</label>
+          <input id="term-meaning" type="text" class="input" placeholder="뜻을 입력하세요" style="width:100%;box-sizing:border-box"
+            onkeydown="if(event.key==='Enter')addInvestTerm()"/>
+        </div>
+      </div>
+      <button class="btn btn-primary owner-only" onclick="addInvestTerm()" style="width:100%">저장 ＋</button>
+    </div>
+
+    <!-- 검색 -->
+    <div class="card" style="margin-bottom:1.2rem;padding:.65rem .85rem">
+      <input id="term-search" type="text" class="input" placeholder="🔍 용어 검색"
+        oninput="renderInvestTerms()" style="width:100%;box-sizing:border-box"/>
+    </div>
+
+    <!-- 목록 -->
+    <div id="terms-list"></div>
+  </div>
+
 </main>
 
 <!-- PORTFOLIO CHANGES MODAL -->
@@ -2099,6 +2134,9 @@ async function syncFromSupabase() {
     // mock_investments
     const { data: mockInvData } = await supa.from('mock_investments').select('*').order('invest_date',{ascending:false});
     if(mockInvData && mockInvData.length > 0) S.set('mock_investments', mockInvData.map(function(m){ return {id:m.id,invest_date:m.invest_date,symbol:m.symbol,name:m.name,asset_type:m.asset_type||'US',currency:m.currency||'USD',quantity:m.quantity,price_at_invest:m.price_at_invest,invest_amount_krw:m.invest_amount_krw||0,reason:m.reason||'',note:m.note||'',created_at:m.created_at}; }));
+    // invest_terms
+    const { data: termsData } = await supa.from('invest_terms').select('*').order('created_at',{ascending:false});
+    if(termsData && termsData.length > 0) S.set('invest_terms', termsData.map(function(t){ return {id:t.id,term:t.term,meaning:t.meaning,created_at:t.created_at}; }));
     // settings (고정비, 사용자 설정 등)
     // forEach 전에 로컬 원본 캡처 (forEach가 덮어쓰기 전)
     var _preLocalHoldings  = S.get('portfolio_holdings')  || [];
@@ -2366,6 +2404,7 @@ function showPage(id, el) {
   if(id==='condolences') { renderCondolenceList(); }
   if(id==='market')  { loadVix('1mo'); }
   if(id==='mock-invest') { renderMockInvest(); }
+  if(id==='invest-terms') { renderInvestTerms(); }
 }
 
 // ── DATE HELPERS ──
@@ -8202,6 +8241,45 @@ async function deleteMockInvest(id) {
   renderMockInvest();
 }
 
+function openMockReason(id) {
+  var list=S.get('mock_investments')||[];
+  var item=list.find(function(x){return x.id===id;});
+  if(!item) return;
+  var overlay=document.createElement('div');
+  overlay.id='mock-reason-overlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  overlay.innerHTML=
+    '<div style="background:#1e2235;border:1px solid var(--border);border-radius:16px;width:100%;max-width:440px;padding:1.3rem;box-shadow:0 8px 40px rgba(0,0,0,.7)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">'+
+        '<div style="font-size:1rem;font-weight:700">💡 투자 이유 수정 — '+pEsc(item.name)+'</div>'+
+        '<button onclick="document.getElementById(\'mock-reason-overlay\').remove()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;line-height:1">×</button>'+
+      '</div>'+
+      '<textarea id="mock-reason-input" class="input" rows="4" placeholder="왜 이 종목에 투자하려 했나요?" '+
+        'style="width:100%;box-sizing:border-box;resize:vertical;min-height:100px">'+pEsc(item.reason||'')+'</textarea>'+
+      '<div style="margin-top:.8rem;display:flex;gap:.6rem">'+
+        '<button class="btn btn-ghost" onclick="document.getElementById(\'mock-reason-overlay\').remove()" style="flex:1">취소</button>'+
+        '<button class="btn btn-primary owner-only" onclick="saveMockReason(\''+id+'\')" style="flex:1">저장</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(overlay);
+}
+
+async function saveMockReason(id) {
+  var reason=document.getElementById('mock-reason-input').value.trim();
+  if(!reason){showToast('이유를 입력해주세요','error');return;}
+  var list=S.get('mock_investments')||[];
+  var item=list.find(function(x){return x.id===id;});
+  if(!item) return;
+  item.reason=reason;
+  S.set('mock_investments',list);
+  await dbUpsert('mock_investments',Object.assign({},item,{reason:reason}));
+  var overlay=document.getElementById('mock-reason-overlay');
+  if(overlay) overlay.remove();
+  showToast('저장됐어요','success');
+  renderMockInvest();
+}
+
 function openMockNote(id) {
   var list=S.get('mock_investments')||[];
   var item=list.find(function(x){return x.id===id;});
@@ -8303,6 +8381,7 @@ async function renderMockInvest() {
       (item.note?'<div style="background:rgba(82,217,163,.08);border-left:3px solid var(--success);border-radius:0 6px 6px 0;padding:.45rem .65rem;margin-bottom:.55rem;font-size:.8rem;color:var(--text);line-height:1.5">'+
         '<span style="font-size:.63rem;color:var(--muted);display:block;margin-bottom:.15rem">📝 느낀점</span>'+pEsc(item.note)+'</div>':'')+
       '<div style="display:flex;gap:.5rem">'+
+        '<button class="btn btn-ghost owner-only" onclick="openMockReason(\''+item.id+'\')" style="flex:1;font-size:.76rem;padding:.28rem .4rem">💡 이유 수정</button>'+
         '<button class="btn btn-ghost owner-only" onclick="openMockNote(\''+item.id+'\')" style="flex:1;font-size:.76rem;padding:.28rem .4rem">✏️ '+(item.note?'느낀점 수정':'느낀점 쓰기')+'</button>'+
         '<button class="btn btn-ghost owner-only" onclick="deleteMockInvest(\''+item.id+'\')" style="font-size:.76rem;padding:.28rem .5rem;color:var(--danger)">🗑</button>'+
       '</div>'+
@@ -8317,6 +8396,106 @@ async function renderMockInvest() {
   el=document.getElementById('mock-profit-card');if(el)el.style.borderTop='3px solid '+(pnlTotal>=0?'var(--success)':'var(--danger)');
   el=document.getElementById('mock-roi');if(el){el.textContent=(roiTotal>=0?'+':'')+roiTotal.toFixed(2)+'%';el.style.color=roiTotal>=0?'var(--success)':'var(--danger)';}
   el=document.getElementById('mock-roi-card');if(el)el.style.borderTop='3px solid '+(roiTotal>=0?'var(--success)':'var(--danger)');
+}
+
+// ── 투자 용어 ──
+async function addInvestTerm() {
+  if(isGuest()){showToast('게스트는 저장할 수 없어요','error');return;}
+  var term=(document.getElementById('term-word').value||'').trim();
+  var meaning=(document.getElementById('term-meaning').value||'').trim();
+  if(!term){showToast('용어를 입력해주세요','error');return;}
+  if(!meaning){showToast('뜻을 입력해주세요','error');return;}
+  var row={id:crypto.randomUUID(),term:term,meaning:meaning,created_at:new Date().toISOString()};
+  var list=S.get('invest_terms')||[];
+  list.unshift(row);
+  S.set('invest_terms',list);
+  await dbUpsert('invest_terms',row);
+  document.getElementById('term-word').value='';
+  document.getElementById('term-meaning').value='';
+  showToast('저장됐어요 📖','success');
+  renderInvestTerms();
+}
+
+async function deleteInvestTerm(id) {
+  if(isGuest()) return;
+  if(!confirm('삭제할까요?')) return;
+  var list=(S.get('invest_terms')||[]).filter(function(x){return x.id!==id;});
+  S.set('invest_terms',list);
+  await dbDelete('invest_terms',id);
+  renderInvestTerms();
+}
+
+function openEditTerm(id) {
+  var list=S.get('invest_terms')||[];
+  var item=list.find(function(x){return x.id===id;});
+  if(!item) return;
+  var overlay=document.createElement('div');
+  overlay.id='term-edit-overlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  overlay.innerHTML=
+    '<div style="background:#1e2235;border:1px solid var(--border);border-radius:16px;width:100%;max-width:420px;padding:1.3rem;box-shadow:0 8px 40px rgba(0,0,0,.7)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">'+
+        '<div style="font-size:1rem;font-weight:700">📖 용어 수정</div>'+
+        '<button onclick="document.getElementById(\'term-edit-overlay\').remove()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;line-height:1">×</button>'+
+      '</div>'+
+      '<div style="margin-bottom:.6rem">'+
+        '<label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">용어</label>'+
+        '<input id="term-edit-word" class="input" type="text" value="'+pEsc(item.term)+'" style="width:100%;box-sizing:border-box"/>'+
+      '</div>'+
+      '<div style="margin-bottom:.9rem">'+
+        '<label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">뜻</label>'+
+        '<textarea id="term-edit-meaning" class="input" rows="3" style="width:100%;box-sizing:border-box;resize:vertical">'+pEsc(item.meaning)+'</textarea>'+
+      '</div>'+
+      '<div style="display:flex;gap:.6rem">'+
+        '<button class="btn btn-ghost" onclick="document.getElementById(\'term-edit-overlay\').remove()" style="flex:1">취소</button>'+
+        '<button class="btn btn-primary owner-only" onclick="saveEditTerm(\''+id+'\')" style="flex:1">저장</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(overlay);
+}
+
+async function saveEditTerm(id) {
+  var term=(document.getElementById('term-edit-word').value||'').trim();
+  var meaning=(document.getElementById('term-edit-meaning').value||'').trim();
+  if(!term||!meaning){showToast('용어와 뜻을 모두 입력해주세요','error');return;}
+  var list=S.get('invest_terms')||[];
+  var item=list.find(function(x){return x.id===id;});
+  if(!item) return;
+  item.term=term; item.meaning=meaning;
+  S.set('invest_terms',list);
+  await dbUpsert('invest_terms',Object.assign({},item));
+  var overlay=document.getElementById('term-edit-overlay');
+  if(overlay) overlay.remove();
+  showToast('수정됐어요','success');
+  renderInvestTerms();
+}
+
+function renderInvestTerms() {
+  var listEl=document.getElementById('terms-list');
+  if(!listEl) return;
+  var q=(document.getElementById('term-search')&&document.getElementById('term-search').value||'').trim().toLowerCase();
+  var list=(S.get('invest_terms')||[]).filter(function(x){
+    if(!q) return true;
+    return x.term.toLowerCase().includes(q)||x.meaning.toLowerCase().includes(q);
+  });
+  if(!list.length) {
+    listEl.innerHTML='<div class="card" style="text-align:center;padding:2.5rem;color:var(--muted);font-size:.88rem">'+(q?'검색 결과가 없어요':'아직 저장된 용어가 없어요')+'<br><span style="font-size:.78rem;margin-top:.4rem;display:block">위에서 용어와 뜻을 입력해서 나만의 사전을 만들어보세요 📖</span></div>';
+    return;
+  }
+  listEl.innerHTML=list.map(function(item){
+    return '<div class="card" style="margin-bottom:.75rem;display:flex;justify-content:space-between;align-items:flex-start;gap:.8rem">'+
+      '<div style="flex:1;min-width:0">'+
+        '<span style="font-size:.95rem;font-weight:700;color:var(--accent)">'+pEsc(item.term)+'</span>'+
+        '<span style="color:var(--muted);margin:0 .4rem;font-size:.85rem">:</span>'+
+        '<span style="font-size:.88rem;color:var(--text)">'+pEsc(item.meaning)+'</span>'+
+      '</div>'+
+      '<div style="display:flex;gap:.35rem;flex-shrink:0">'+
+        '<button class="btn btn-ghost owner-only" onclick="openEditTerm(\''+item.id+'\')" style="font-size:.72rem;padding:.22rem .45rem">✏️</button>'+
+        '<button class="btn btn-ghost owner-only" onclick="deleteInvestTerm(\''+item.id+'\')" style="font-size:.72rem;padding:.22rem .45rem;color:var(--danger)">🗑</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
 }
 </script>
 </body>

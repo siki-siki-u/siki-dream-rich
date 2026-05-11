@@ -52,7 +52,16 @@ create table if not exists mock_investments (
   created_at       timestamptz default now()
 );
 
+-- 4. invest_terms (투자 용어 사전)
+create table if not exists invest_terms (
+  id         uuid primary key default gen_random_uuid(),
+  term       text not null,
+  meaning    text not null,
+  created_at timestamptz default now()
+);
+
 -- RLS (Row Level Security) 비활성화 — 퍼블릭 접근 허용
 alter table portfolio_holdings  disable row level security;
 alter table portfolio_snapshots disable row level security;
 alter table mock_investments     disable row level security;
+alter table invest_terms         disable row level security;
