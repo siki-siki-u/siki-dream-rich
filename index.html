@@ -1443,6 +1443,74 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
       <div id="pe-error" style="display:none;color:var(--danger);font-size:.8rem;padding:.3rem 0"></div>
     </div>
 
+    <!-- 주식 가치 분석 -->
+    <div class="card" style="margin-bottom:1.5rem" id="stock-analysis-card">
+      <div class="sec-title" style="margin-bottom:.8rem">🔍 주식 가치 분석</div>
+      <div style="display:flex;gap:.4rem;margin-bottom:.65rem">
+        <button class="btn btn-primary" id="sa-type-US" onclick="setSaType('US')" style="flex:1;font-size:.75rem;padding:.32rem .3rem">🇺🇸 미국</button>
+        <button class="btn btn-ghost"   id="sa-type-KR" onclick="setSaType('KR')" style="flex:1;font-size:.75rem;padding:.32rem .3rem">🇰🇷 국내</button>
+      </div>
+      <div style="position:relative;margin-bottom:.65rem">
+        <input id="sa-search-input" type="text" class="input" placeholder="티커 또는 종목명 검색 (예: AAPL, Apple)"
+          oninput="onSaSearch(this.value)" onkeydown="if(event.key==='Enter')onSaSearch(this.value,true)"
+          style="width:100%;box-sizing:border-box"/>
+        <div id="sa-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:200;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.3)"></div>
+      </div>
+      <div id="sa-selected" style="display:none;background:var(--surface);border:1px solid rgba(108,138,255,.35);border-radius:8px;padding:.45rem .75rem;margin-bottom:.65rem;justify-content:space-between;align-items:center">
+        <span id="sa-sel-name" style="font-weight:600;font-size:.87rem;color:var(--text)"></span>
+        <span id="sa-sel-ticker" style="color:var(--muted);font-family:JetBrains Mono,monospace;font-size:.74rem"></span>
+      </div>
+      <div id="sa-loading" style="display:none;color:var(--muted);font-size:.82rem;text-align:center;padding:.8rem">분석 중... (RSI 계산 포함, 약 5초)</div>
+      <div id="sa-error"   style="display:none;color:var(--danger);font-size:.8rem;padding:.3rem 0"></div>
+      <div id="sa-result"  style="display:none">
+        <!-- 주요 지표 그리드 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-bottom:.9rem">
+          <div style="background:var(--surface2);border-radius:10px;padding:.8rem;border:1px solid var(--border)">
+            <div style="font-size:.64rem;color:var(--muted);margin-bottom:.3rem;letter-spacing:.04em">현재 주가</div>
+            <div id="sa-price" style="font-size:1.35rem;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--text)">–</div>
+          </div>
+          <div style="background:var(--surface2);border-radius:10px;padding:.8rem;border:1px solid var(--border)">
+            <div style="font-size:.64rem;color:var(--muted);margin-bottom:.3rem;letter-spacing:.04em">미래 예상 EPS (FWD)</div>
+            <div id="sa-eps" style="font-size:1.35rem;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--accent)">–</div>
+          </div>
+          <div style="background:var(--surface2);border-radius:10px;padding:.8rem;border:1px solid var(--border)">
+            <div style="font-size:.64rem;color:var(--muted);margin-bottom:.3rem;letter-spacing:.04em">선행 PER (FWD)</div>
+            <div id="sa-fwd-pe" style="font-size:1.35rem;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--accent2)">–</div>
+          </div>
+          <div style="background:var(--surface2);border-radius:10px;padding:.8rem;border:1px solid var(--border)">
+            <div style="font-size:.64rem;color:var(--muted);margin-bottom:.3rem;letter-spacing:.04em">5년 평균 PER</div>
+            <div id="sa-avg-pe" style="font-size:1.35rem;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--accent3)">–</div>
+          </div>
+        </div>
+        <!-- 미래 적정 주가 + 평가 -->
+        <div style="background:linear-gradient(135deg,rgba(108,138,255,.12),rgba(167,139,250,.08));border:1px solid rgba(108,138,255,.3);border-radius:12px;padding:1rem;margin-bottom:.9rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+            <div>
+              <div style="font-size:.7rem;color:var(--muted);margin-bottom:.25rem">미래 적정 주가 (EPS × 5년 평균 PER)</div>
+              <div id="sa-fair-value" style="font-size:1.6rem;font-weight:800;font-family:JetBrains Mono,monospace;color:var(--text)">–</div>
+            </div>
+            <div id="sa-valuation-badge" style="font-size:.85rem;font-weight:700;padding:.45rem 1rem;border-radius:20px;display:none"></div>
+          </div>
+          <div id="sa-valuation-detail" style="font-size:.7rem;color:var(--muted);margin-top:.5rem"></div>
+        </div>
+        <!-- RSI 현재값 + 상태 -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
+          <div style="font-size:.88rem;font-weight:600;color:var(--text)">📈 RSI (14일, 최근 3개월)</div>
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <span id="sa-rsi-val" style="font-size:1.1rem;font-weight:700;font-family:JetBrains Mono,monospace"></span>
+            <span id="sa-rsi-status" style="font-size:.75rem;font-weight:600;padding:.2rem .55rem;border-radius:10px"></span>
+          </div>
+        </div>
+        <!-- RSI 차트 캔버스 -->
+        <div style="position:relative">
+          <canvas id="sa-rsi-canvas" style="width:100%;height:140px;display:block"></canvas>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:.62rem;color:var(--muted);margin-top:.3rem">
+          <span id="sa-rsi-date-start"></span><span id="sa-rsi-date-end"></span>
+        </div>
+      </div>
+    </div>
+
     <!-- 경제 캘린더 -->
     <div class="card" style="padding:0;overflow:hidden">
       <div style="padding:1rem 1.2rem .5rem;background:var(--surface)">
@@ -4143,6 +4211,218 @@ async function fetchPeRatio() {
     loading.style.display = 'none';
     errEl.textContent = '⚠ 조회 실패: ' + e.message;
     errEl.style.display = 'block';
+  }
+}
+
+// ── 주식 가치 분석 ──
+var _saType = 'US';
+var _saSelTicker = '';
+var _saSearchTimer;
+
+function setSaType(t) {
+  _saType = t;
+  ['US','KR'].forEach(function(k) {
+    var b = document.getElementById('sa-type-' + k);
+    if (b) { b.className = k === t ? 'btn btn-primary' : 'btn btn-ghost'; b.style.cssText = 'flex:1;font-size:.75rem;padding:.32rem .3rem'; }
+  });
+  document.getElementById('sa-search-input').value = '';
+  document.getElementById('sa-selected').style.display = 'none';
+  document.getElementById('sa-result').style.display = 'none';
+  document.getElementById('sa-error').style.display = 'none';
+  _saSelTicker = '';
+}
+
+function onSaSearch(q, force) {
+  clearTimeout(_saSearchTimer);
+  var r = document.getElementById('sa-search-results');
+  if (!q || q.trim().length < 1) { if (r) r.style.display = 'none'; return; }
+  _saSearchTimer = setTimeout(function() { doSaSearch(q); }, force ? 0 : 300);
+}
+
+async function doSaSearch(q) {
+  var r = document.getElementById('sa-search-results');
+  if (!r) return;
+  try {
+    var res = await fetchWithTimeout('/api/stock-search?q=' + encodeURIComponent(q) + '&type=' + _saType, 6000);
+    var data = await res.json();
+    var items = (data.quotes || data.results || data || []).slice(0, 8);
+    if (!items.length) { r.style.display = 'none'; return; }
+    r.innerHTML = items.map(function(it) {
+      var sym = pEsc(it.symbol || it.ticker || '');
+      var nm  = pEsc(it.shortname || it.name || sym);
+      return '<div onclick="selectSaTicker(\'' + sym + '\',\'' + nm.replace(/'/g, '') + '\')" style="padding:.55rem 1rem;cursor:pointer;font-size:.83rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:.5rem" onmouseover="this.style.background=\'var(--surface)\'" onmouseout="this.style.background=\'\'"><span>' + nm + '</span><span style="color:var(--muted);font-family:JetBrains Mono,monospace;font-size:.75rem">' + sym + '</span></div>';
+    }).join('');
+    r.style.display = 'block';
+  } catch(e) { if (r) r.style.display = 'none'; }
+}
+
+function selectSaTicker(ticker, name) {
+  _saSelTicker = ticker;
+  var r = document.getElementById('sa-search-results'); if (r) r.style.display = 'none';
+  var sel = document.getElementById('sa-selected');
+  document.getElementById('sa-sel-name').textContent = name;
+  document.getElementById('sa-sel-ticker').textContent = ticker;
+  sel.style.display = 'flex';
+  document.getElementById('sa-search-input').value = '';
+  fetchStockAnalysis();
+}
+
+async function fetchStockAnalysis() {
+  var ticker = _saSelTicker;
+  if (!ticker) return;
+  var loading = document.getElementById('sa-loading');
+  var errEl   = document.getElementById('sa-error');
+  var result  = document.getElementById('sa-result');
+  result.style.display = 'none';
+  errEl.style.display  = 'none';
+  loading.style.display = 'block';
+  try {
+    var res = await fetchWithTimeout('/api/stock-analysis?ticker=' + encodeURIComponent(ticker), 20000);
+    var d = await res.json();
+    loading.style.display = 'none';
+    if (d.error) { errEl.textContent = '⚠ ' + d.error; errEl.style.display = 'block'; return; }
+
+    var sym = d.currency === 'KRW' ? '₩' : '$';
+    document.getElementById('sa-price').textContent   = d.currentPrice  != null ? sym + d.currentPrice.toLocaleString()  : 'N/A';
+    document.getElementById('sa-eps').textContent     = d.forwardEPS    != null ? sym + d.forwardEPS   : 'N/A';
+    document.getElementById('sa-fwd-pe').textContent  = d.forwardPE     != null ? d.forwardPE + 'x'    : 'N/A';
+    document.getElementById('sa-avg-pe').textContent  = d.avgPE5Y       != null ? d.avgPE5Y.toFixed(1) + 'x' : 'N/A';
+
+    var fvEl = document.getElementById('sa-fair-value');
+    fvEl.textContent = d.fairValue != null ? sym + d.fairValue.toLocaleString() : 'N/A';
+
+    var badge = document.getElementById('sa-valuation-badge');
+    if (d.valuation) {
+      var under = d.valuation === 'undervalued';
+      badge.textContent = under ? '✅ 저평가' : '⚠️ 고평가';
+      badge.style.cssText = 'font-size:.85rem;font-weight:700;padding:.45rem 1rem;border-radius:20px;' +
+        (under ? 'background:rgba(82,217,163,.2);color:var(--success)' : 'background:rgba(255,126,126,.15);color:#ff7e7e');
+      badge.style.display = 'block';
+    } else { badge.style.display = 'none'; }
+
+    var detail = document.getElementById('sa-valuation-detail');
+    var lines = [];
+    if (d.forwardPE && d.avgPE5Y) lines.push('선행 PER ' + d.forwardPE + 'x  vs  5년 평균 ' + d.avgPE5Y.toFixed(1) + 'x');
+    if (d.valuationKR) lines.push(d.valuationKR);
+    detail.textContent = lines.join(' · ');
+
+    // RSI current value + status
+    var rsiValEl = document.getElementById('sa-rsi-val');
+    var rsiSt    = document.getElementById('sa-rsi-status');
+    if (d.currentRSI != null) {
+      rsiValEl.textContent = d.currentRSI;
+      var rsiNum = parseFloat(d.currentRSI);
+      if (rsiNum >= 70) { rsiSt.textContent = '과매수'; rsiSt.style.cssText = 'font-size:.75rem;font-weight:600;padding:.2rem .55rem;border-radius:10px;background:rgba(255,126,126,.18);color:#ff7e7e'; }
+      else if (rsiNum <= 30) { rsiSt.textContent = '과매도'; rsiSt.style.cssText = 'font-size:.75rem;font-weight:600;padding:.2rem .55rem;border-radius:10px;background:rgba(82,217,163,.18);color:var(--success)'; }
+      else { rsiSt.textContent = '중립'; rsiSt.style.cssText = 'font-size:.75rem;font-weight:600;padding:.2rem .55rem;border-radius:10px;background:var(--surface2);color:var(--muted)'; }
+    }
+
+    // RSI Chart
+    if (d.rsiData && d.rsiData.length > 1) {
+      drawRsiChart(d.rsiData);
+      var dates = d.rsiData;
+      document.getElementById('sa-rsi-date-start').textContent = dates[0].date;
+      document.getElementById('sa-rsi-date-end').textContent   = dates[dates.length-1].date;
+    }
+
+    result.style.display = 'block';
+  } catch(e) {
+    loading.style.display = 'none';
+    errEl.textContent = '⚠ 조회 실패: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+function drawRsiChart(rsiData) {
+  var canvas = document.getElementById('sa-rsi-canvas');
+  if (!canvas) return;
+  var dpr = window.devicePixelRatio || 1;
+  var w = canvas.offsetWidth || canvas.parentElement.offsetWidth || 400;
+  var h = 140;
+  canvas.width  = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
+  var ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  var pad = { top: 8, right: 8, bottom: 20, left: 32 };
+  var cw = w - pad.left - pad.right;
+  var ch = h - pad.top - pad.bottom;
+
+  // background zones
+  ctx.fillStyle = 'rgba(255,126,126,.07)';
+  ctx.fillRect(pad.left, pad.top, cw, (30 / 100) * ch); // 70-100 → overbought (top)
+  // actually Y is inverted: RSI 100 at top, 0 at bottom
+  // RSI 70 → y = (1 - 70/100) * ch + pad.top
+  var y70 = pad.top + (1 - 70/100) * ch;
+  var y30 = pad.top + (1 - 30/100) * ch;
+  ctx.fillStyle = 'rgba(255,126,126,.07)';
+  ctx.fillRect(pad.left, pad.top, cw, y70 - pad.top);
+  ctx.fillStyle = 'rgba(82,217,163,.07)';
+  ctx.fillRect(pad.left, y30, cw, h - pad.bottom - y30);
+
+  // grid lines at 70, 50, 30
+  ctx.strokeStyle = 'rgba(255,255,255,.1)';
+  ctx.lineWidth = 1;
+  [30, 50, 70].forEach(function(level) {
+    var y = pad.top + (1 - level/100) * ch;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.font = '9px JetBrains Mono, monospace';
+    ctx.fillText(level, 2, y + 3);
+  });
+
+  // RSI line
+  var n = rsiData.length;
+  var xStep = cw / (n - 1);
+
+  // gradient fill under line
+  var grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch);
+  grad.addColorStop(0, 'rgba(108,138,255,.25)');
+  grad.addColorStop(1, 'rgba(108,138,255,0)');
+  ctx.beginPath();
+  rsiData.forEach(function(pt, i) {
+    var x = pad.left + i * xStep;
+    var y = pad.top + (1 - pt.rsi/100) * ch;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.lineTo(pad.left + (n-1) * xStep, pad.top + ch);
+  ctx.lineTo(pad.left, pad.top + ch);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // main line — color by zone
+  rsiData.forEach(function(pt, i) {
+    if (i === 0) return;
+    var x1 = pad.left + (i-1) * xStep, x2 = pad.left + i * xStep;
+    var y1 = pad.top + (1 - rsiData[i-1].rsi/100) * ch;
+    var y2 = pad.top + (1 - pt.rsi/100) * ch;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.strokeStyle = pt.rsi >= 70 ? '#ff7e7e' : pt.rsi <= 30 ? 'var(--success)' : '#6c8aff';
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+  });
+
+  // last RSI dot
+  var lastPt = rsiData[n-1];
+  var lx = pad.left + (n-1) * xStep;
+  var ly = pad.top + (1 - lastPt.rsi/100) * ch;
+  ctx.beginPath();
+  ctx.arc(lx, ly, 4, 0, Math.PI * 2);
+  ctx.fillStyle = lastPt.rsi >= 70 ? '#ff7e7e' : lastPt.rsi <= 30 ? '#52d9a3' : '#6c8aff';
+  ctx.fill();
+
+  // x-axis date ticks (show ~4 labels)
+  ctx.fillStyle = 'rgba(255,255,255,.35)';
+  ctx.font = '9px Noto Sans KR, sans-serif';
+  var tickInterval = Math.floor(n / 4);
+  for (var i = 0; i < n; i += tickInterval) {
+    var x = pad.left + i * xStep;
+    var label = rsiData[i].date.slice(5); // MM-DD
+    ctx.fillText(label, x - 10, h - 5);
   }
 }
 

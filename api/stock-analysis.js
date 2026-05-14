@@ -1,0 +1,196 @@
+const https = require('https');
+
+function httpGet(rawUrl, headers) {
+  return new Promise(function(resolve, reject) {
+    var parsed = new URL(rawUrl);
+    var opts = {
+      hostname: parsed.hostname,
+      port: 443,
+      path: parsed.pathname + parsed.search,
+      method: 'GET',
+      headers: Object.assign({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+      }, headers || {}),
+    };
+    var req = https.request(opts, function(res) {
+      if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
+        return httpGet(res.headers.location, headers).then(resolve).catch(reject);
+      }
+      var chunks = [];
+      res.on('data', function(c) { chunks.push(c); });
+      res.on('end', function() {
+        resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks).toString('utf8') });
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(12000, function() { req.destroy(); reject(new Error('timeout')); });
+    req.end();
+  });
+}
+
+function extractCookies(h) {
+  if (!h) return '';
+  var arr = Array.isArray(h) ? h : [h];
+  return arr.map(function(c) { return c.split(';')[0]; }).join('; ');
+}
+
+async function getCrumb() {
+  var r1 = await httpGet('https://fc.yahoo.com');
+  var cookie = extractCookies(r1.headers['set-cookie']);
+  if (!cookie) {
+    r1 = await httpGet('https://finance.yahoo.com/', { 'Accept': 'text/html' });
+    cookie = extractCookies(r1.headers['set-cookie']);
+  }
+  var r2 = await httpGet('https://query2.finance.yahoo.com/v1/test/getcrumb', { 'Cookie': cookie });
+  var crumb = r2.body.trim();
+  if (!crumb || crumb.length < 3) throw new Error('crumb 취득 실패');
+  return { crumb, cookie };
+}
+
+async function fetchQuoteSummary(ticker, modules, crumb, cookie) {
+  var url = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary/' +
+    encodeURIComponent(ticker) + '?modules=' + modules + '&crumb=' + encodeURIComponent(crumb);
+  var r = await httpGet(url, { Cookie: cookie, Accept: 'application/json' });
+  if (r.status !== 200) throw new Error('quoteSummary ' + r.status);
+  var d = JSON.parse(r.body);
+  var result = d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
+  if (!result) throw new Error('종목을 찾을 수 없어요');
+  return result;
+}
+
+async function fetchChartPrices(ticker, interval, range, crumb, cookie) {
+  var url = 'https://query2.finance.yahoo.com/v8/finance/chart/' +
+    encodeURIComponent(ticker) + '?interval=' + interval + '&range=' + range +
+    '&crumb=' + encodeURIComponent(crumb);
+  var r = await httpGet(url, { Cookie: cookie, Accept: 'application/json' });
+  if (r.status !== 200) return [];
+  var d = JSON.parse(r.body);
+  var res = d.chart && d.chart.result && d.chart.result[0];
+  if (!res || !res.timestamp) return [];
+  var closes = res.indicators.quote[0].close;
+  return res.timestamp.map(function(t, i) {
+    return { date: new Date(t * 1000).toISOString().split('T')[0], close: closes[i] };
+  }).filter(function(p) { return p.close != null; });
+}
+
+// Wilder's smoothed RSI
+function calcRSI(prices, period) {
+  period = period || 14;
+  if (prices.length < period + 1) return [];
+  var changes = [];
+  for (var i = 1; i < prices.length; i++) changes.push(prices[i].close - prices[i - 1].close);
+  var avgGain = 0, avgLoss = 0;
+  for (var i = 0; i < period; i++) {
+    if (changes[i] > 0) avgGain += changes[i] / period;
+    else avgLoss += Math.abs(changes[i]) / period;
+  }
+  var out = [];
+  function rsiVal(g, l) { return l === 0 ? 100 : Math.round((100 - 100 / (1 + g / l)) * 100) / 100; }
+  out.push({ date: prices[period].date, rsi: rsiVal(avgGain, avgLoss), close: prices[period].close });
+  for (var i = period; i < changes.length; i++) {
+    var g = changes[i] > 0 ? changes[i] : 0;
+    var l = changes[i] < 0 ? Math.abs(changes[i]) : 0;
+    avgGain = (avgGain * (period - 1) + g) / period;
+    avgLoss = (avgLoss * (period - 1) + l) / period;
+    out.push({ date: prices[i + 1].date, rsi: rsiVal(avgGain, avgLoss), close: prices[i + 1].close });
+  }
+  return out.slice(-65); // last ~3 months of trading days
+}
+
+function calcAvgPE5Y(annualPrices, incomeHistory, shares) {
+  if (!incomeHistory || !incomeHistory.length || !shares || !annualPrices.length) return null;
+  var peList = [];
+  for (var i = 0; i < incomeHistory.length; i++) {
+    var stmt = incomeHistory[i];
+    var netIncome = stmt.netIncomeApplicableToCommonShares && stmt.netIncomeApplicableToCommonShares.raw;
+    if (!netIncome) netIncome = stmt.netIncome && stmt.netIncome.raw;
+    if (!netIncome || netIncome <= 0) continue;
+    var eps = netIncome / shares;
+    if (eps <= 0) continue;
+    var stmtYear = new Date((stmt.endDate && stmt.endDate.raw) * 1000).getFullYear();
+    // find closest annual price by year
+    var best = annualPrices.reduce(function(b, p) {
+      return Math.abs(new Date(p.date).getFullYear() - stmtYear) <
+             Math.abs(new Date(b.date).getFullYear() - stmtYear) ? p : b;
+    }, annualPrices[0]);
+    if (!best) continue;
+    var pe = best.close / eps;
+    if (pe > 0 && pe < 600) peList.push(pe);
+  }
+  if (!peList.length) return null;
+  return Math.round(peList.reduce(function(a, b) { return a + b; }, 0) / peList.length * 100) / 100;
+}
+
+function r2(v) { return (v != null && !isNaN(v)) ? Math.round(v * 100) / 100 : null; }
+
+module.exports = async function(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  var ticker = (req.query.ticker || '').toUpperCase().trim();
+  if (!ticker) return res.status(400).json({ error: 'ticker 누락' });
+
+  try {
+    var { crumb, cookie } = await getCrumb();
+
+    var [summary, dailyPrices, annualPrices, incomeSummary] = await Promise.all([
+      fetchQuoteSummary(ticker, 'summaryDetail,defaultKeyStatistics,price', crumb, cookie),
+      fetchChartPrices(ticker, '1d', '5mo', crumb, cookie),
+      fetchChartPrices(ticker, '1y', '6y', crumb, cookie),
+      fetchQuoteSummary(ticker, 'incomeStatementHistory', crumb, cookie),
+    ]);
+
+    var sd  = summary.summaryDetail;
+    var ks  = summary.defaultKeyStatistics;
+    var pr  = summary.price;
+
+    var currentPrice = pr && pr.regularMarketPrice && pr.regularMarketPrice.raw;
+    var forwardEPS   = ks && ks.forwardEps && ks.forwardEps.raw;
+    var forwardPE    = (sd && sd.forwardPE && sd.forwardPE.raw) ||
+      (forwardEPS && currentPrice && forwardEPS > 0 ? r2(currentPrice / forwardEPS) : null);
+    var currency     = (pr && pr.currency) || 'USD';
+    var companyName  = (pr && pr.shortName) || ticker;
+    var shares       = ks && ks.sharesOutstanding && ks.sharesOutstanding.raw;
+
+    var rsiData = calcRSI(dailyPrices);
+    var currentRSI = rsiData.length ? rsiData[rsiData.length - 1].rsi : null;
+
+    var incomeHistory = incomeSummary &&
+      incomeSummary.incomeStatementHistory &&
+      incomeSummary.incomeStatementHistory.incomeStatementHistory;
+    var avgPE5Y = calcAvgPE5Y(annualPrices, incomeHistory, shares);
+
+    var fairValue = (forwardEPS && avgPE5Y) ? r2(forwardEPS * avgPE5Y) : null;
+
+    var valuation = null, valuationKR = null;
+    if (forwardPE && avgPE5Y) {
+      var gap = r2(((forwardPE - avgPE5Y) / avgPE5Y) * 100);
+      if (forwardPE < avgPE5Y) {
+        valuation = 'undervalued';
+        valuationKR = '저평가 (' + Math.abs(gap) + '% 낮음)';
+      } else {
+        valuation = 'overvalued';
+        valuationKR = '고평가 (' + Math.abs(gap) + '% 높음)';
+      }
+    }
+
+    return res.json({
+      ticker, companyName, currency,
+      currentPrice:  r2(currentPrice),
+      forwardEPS:    r2(forwardEPS),
+      forwardPE:     r2(forwardPE),
+      avgPE5Y,
+      fairValue,
+      valuation,
+      valuationKR,
+      currentRSI,
+      rsiData,
+    });
+
+  } catch (e) {
+    return res.status(500).json({ error: '조회 실패: ' + e.message });
+  }
+};
