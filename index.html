@@ -2501,9 +2501,11 @@ function closeSidebar() {
 function showPage(id, el) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-'+id).classList.add('active');
+  var pageEl = document.getElementById('page-'+id);
+  if (!pageEl) return;
+  pageEl.classList.add('active');
   if(el) el.classList.add('active');
-  history.replaceState(null, '', '#' + id);
+  try { history.replaceState(null, '', '#' + id); } catch(e) {}
   // 바텀 네비 active 동기화
   ['dashboard','budget','assets','market'].forEach(function(k){
     var b = document.getElementById('bn-'+k);
@@ -8458,27 +8460,13 @@ function hideChartTooltip(){
 </div>
 
 <script>
-// ── Service Worker 등록 ──
+// ── Service Worker: 모든 등록 해제 + 캐시 전부 삭제 (stale HTML 문제 영구 해결) ──
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/sw.js').then(function(reg) {
-      // 업데이트 감지
-      reg.addEventListener('updatefound', function() {
-        var newWorker = reg.installing;
-        newWorker.addEventListener('statechange', function() {
-          if (newWorker.state === 'activated') {
-            location.reload();
-          }
-        });
-      });
-    }).catch(function(e) { console.warn('[SW]', e.message); });
-
-    // SW 메시지 수신 → 자동 새로고침
-    navigator.serviceWorker.addEventListener('message', function(e) {
-      if (e.data && e.data.type === 'SW_UPDATED') {
-        location.reload();
-      }
-    });
+  navigator.serviceWorker.getRegistrations().then(function(regs) {
+    regs.forEach(function(r) { r.unregister(); });
+  });
+  caches.keys().then(function(names) {
+    names.forEach(function(n) { caches.delete(n); });
   });
 }
 
