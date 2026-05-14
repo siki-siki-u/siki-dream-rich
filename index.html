@@ -2108,8 +2108,14 @@ async function dbUpsert(table, row) {
     // settings 테이블은 key 컬럼 기준 upsert (onConflict 필수)
     var opts = (table === 'settings') ? {onConflict: 'key'} : {};
     const { error } = await supa.from(table).upsert(row, opts);
-    if(error) console.warn('[DB upsert]', table, error.message, JSON.stringify(row).slice(0,100));
-  } catch(e) { console.warn('[DB upsert]', table, e.message); }
+    if(error) {
+      console.warn('[DB upsert]', table, error.message);
+      showToast('저장 실패: ' + error.message, 'error');
+    }
+  } catch(e) {
+    console.warn('[DB upsert]', table, e.message);
+    showToast('저장 실패: ' + e.message, 'error');
+  }
 }
 async function dbDelete(table, id) {
   if(!supa) return;
@@ -8460,12 +8466,32 @@ async function saveMockNote(id) {
   renderMockInvest();
 }
 
+function mapMockRow(m){ return {id:m.id,invest_date:m.invest_date,symbol:m.symbol,name:m.name,asset_type:m.asset_type||'US',currency:m.currency||'USD',quantity:m.quantity,price_at_invest:m.price_at_invest,invest_amount_krw:m.invest_amount_krw||0,reason:m.reason||'',note:m.note||'',created_at:m.created_at}; }
+
 async function syncAndRenderMockInvest() {
   if (supa) {
     try {
-      var { data } = await supa.from('mock_investments').select('*').order('invest_date', {ascending: false});
-      if (data) S.set('mock_investments', data.map(function(m){ return {id:m.id,invest_date:m.invest_date,symbol:m.symbol,name:m.name,asset_type:m.asset_type||'US',currency:m.currency||'USD',quantity:m.quantity,price_at_invest:m.price_at_invest,invest_amount_krw:m.invest_amount_krw||0,reason:m.reason||'',note:m.note||'',created_at:m.created_at}; }));
-    } catch(e) {}
+      var { data, error } = await supa.from('mock_investments').select('*').order('invest_date', {ascending: false});
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        // DB에 데이터 있음 → 로컬 덮어쓰기
+        S.set('mock_investments', data.map(mapMockRow));
+      } else {
+        // DB가 비어있는데 로컬에 데이터가 있으면 → DB로 밀어 넣기 (복구)
+        var local = S.get('mock_investments') || [];
+        if (local.length > 0) {
+          showToast('데이터를 DB에 복구 중...', '');
+          for (var i = 0; i < local.length; i++) {
+            await dbUpsert('mock_investments', local[i]);
+          }
+          // 재조회
+          var r2 = await supa.from('mock_investments').select('*').order('invest_date', {ascending: false});
+          if (r2.data && r2.data.length > 0) S.set('mock_investments', r2.data.map(mapMockRow));
+          showToast('복구 완료 ✅', 'success');
+        }
+      }
+    } catch(e) { console.warn('mock sync:', e.message); }
   }
   renderMockInvest();
 }
