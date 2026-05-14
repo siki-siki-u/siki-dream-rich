@@ -4199,7 +4199,7 @@ async function fetchPeRatio() {
   errEl.style.display   = 'none';
   loading.style.display = 'block';
   try {
-    var res = await fetchWithTimeout('/api/pe-ratio?ticker=' + encodeURIComponent(ticker), 15000);
+    var res = await fetchWithTimeout('/api/stock-analysis?lite=1&ticker=' + encodeURIComponent(ticker), 15000);
     var d = await res.json();
     loading.style.display = 'none';
     if (d.error) { errEl.textContent = '⚠ ' + d.error; errEl.style.display = 'block'; return; }

@@ -136,6 +136,18 @@ module.exports = async function(req, res) {
   try {
     var { crumb, cookie } = await getCrumb();
 
+    // lite=1: P/E only mode (replaces pe-ratio.js)
+    if (req.query.lite === '1') {
+      var qs = await fetchQuoteSummary(ticker, 'summaryDetail,defaultKeyStatistics', crumb, cookie);
+      var sd2 = qs.summaryDetail, ks2 = qs.defaultKeyStatistics;
+      var ttm = r2(sd2 && sd2.trailingPE && sd2.trailingPE.raw);
+      var fwd = r2(sd2 && sd2.forwardPE  && sd2.forwardPE.raw);
+      if (fwd == null && sd2 && sd2.previousClose && sd2.previousClose.raw && ks2 && ks2.forwardEps && ks2.forwardEps.raw > 0) {
+        fwd = r2(sd2.previousClose.raw / ks2.forwardEps.raw);
+      }
+      return res.json({ source: 'yahoo', ttm, fwd });
+    }
+
     var [summary, dailyPrices, annualPrices, incomeSummary] = await Promise.all([
       fetchQuoteSummary(ticker, 'summaryDetail,defaultKeyStatistics,price', crumb, cookie),
       fetchChartPrices(ticker, '1d', '5mo', crumb, cookie),
