@@ -487,22 +487,25 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
 <div class="login-screen" id="login-screen">
   <div class="login-icon">🔐</div>
   <h1>식식징구월드 🏠</h1>
-  <p>로그인해 주세요</p>
-  <div class="login-form">
-    <div class="login-field">
-      <label>아이디</label>
-      <input class="login-input" type="text" id="login-id" placeholder="아이디" autocomplete="username"
-        onkeydown="if(event.key==='Enter')document.getElementById('login-pw').focus()"/>
+  <p id="login-loading-msg" style="color:var(--muted);font-size:.9rem;margin-top:-.6rem">인증 확인 중...</p>
+  <div id="login-form-wrap" style="display:none;flex-direction:column;align-items:center;gap:.75rem;width:280px">
+    <p style="color:var(--muted);font-size:.9rem;margin:0">로그인해 주세요</p>
+    <div class="login-form">
+      <div class="login-field">
+        <label>아이디</label>
+        <input class="login-input" type="text" id="login-id" placeholder="아이디" autocomplete="username"
+          onkeydown="if(event.key==='Enter')document.getElementById('login-pw').focus()"/>
+      </div>
+      <div class="login-field">
+        <label>비밀번호</label>
+        <input class="login-input" type="password" id="login-pw" placeholder="비밀번호" autocomplete="current-password"
+          onkeydown="if(event.key==='Enter')doLogin()"/>
+      </div>
+      <button class="btn btn-primary" onclick="doLogin()" style="width:100%;padding:.75rem;font-size:.95rem">입장하기</button>
+      <button class="login-biometric-btn" id="login-biometric-btn" onclick="doWebAuthnLogin()">👆 지문으로 로그인</button>
     </div>
-    <div class="login-field">
-      <label>비밀번호</label>
-      <input class="login-input" type="password" id="login-pw" placeholder="비밀번호" autocomplete="current-password"
-        onkeydown="if(event.key==='Enter')doLogin()"/>
-    </div>
-    <button class="btn btn-primary" onclick="doLogin()" style="width:100%;padding:.75rem;font-size:.95rem">입장하기</button>
-    <button class="login-biometric-btn" id="login-biometric-btn" onclick="doWebAuthnLogin()">👆 지문으로 로그인</button>
+    <div class="login-error" id="login-error"></div>
   </div>
-  <div class="login-error" id="login-error"></div>
 </div>
 
 <!-- WEBAUTHN OFFER MODAL -->
@@ -2432,6 +2435,7 @@ function showPage(id, el) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   if(el) el.classList.add('active');
+  history.replaceState(null, '', '#' + id);
   // 바텀 네비 active 동기화
   ['dashboard','budget','assets','market'].forEach(function(k){
     var b = document.getElementById('bn-'+k);
@@ -5077,6 +5081,7 @@ function isGuest() { return _userRole === 'guest'; }
       onAuthSuccess(session.user, false);
     } else {
       checkWebAuthnAutoLogin();
+      showLoginScreen();
     }
   });
   supa.auth.onAuthStateChange(function(event, session) {
@@ -5100,6 +5105,15 @@ function onAuthSuccess(user, fromLogin) {
   if (userEl) userEl.style.display = 'flex';
   hideLockScreen();
   enforceGuestMode();
+  var _validPages = ['dashboard','budget','assets','market','calendar','youtube','journal','mock-invest','invest-terms','realty','gifts','condolences'];
+  var _hash = location.hash.replace('#', '');
+  if (_hash && _validPages.indexOf(_hash) !== -1) {
+    var _navEl = null;
+    document.querySelectorAll('.nav-item').forEach(function(n) {
+      if ((n.getAttribute('onclick')||'').indexOf("'"+_hash+"'") !== -1) _navEl = n;
+    });
+    showPage(_hash, _navEl);
+  }
   if (_userRole === 'owner' && _loginUsername) {
     var u = _loginUsername;
     setTimeout(function() { maybeOfferWebAuthn(u); }, 600);
@@ -5128,8 +5142,13 @@ function showLoginScreen() {
   var ls = document.getElementById('login-screen');
   if (!ls) return;
   ls.style.display = 'flex'; ls.style.opacity = '1';
+  var loadingMsg = document.getElementById('login-loading-msg');
+  var formWrap = document.getElementById('login-form-wrap');
+  if (loadingMsg) loadingMsg.style.display = 'none';
+  if (formWrap) formWrap.style.display = 'flex';
   var errEl = document.getElementById('login-error');
   if (errEl) errEl.textContent = '';
+  setTimeout(function() { var el = document.getElementById('login-id'); if (el) el.focus(); }, 100);
 }
 
 function enforceGuestMode() {
