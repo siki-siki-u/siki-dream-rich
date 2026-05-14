@@ -8466,17 +8466,17 @@ if ('serviceWorker' in navigator) {
       reg.addEventListener('updatefound', function() {
         var newWorker = reg.installing;
         newWorker.addEventListener('statechange', function() {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            document.getElementById('pwa-update-banner').classList.add('show');
+          if (newWorker.state === 'activated') {
+            location.reload();
           }
         });
       });
     }).catch(function(e) { console.warn('[SW]', e.message); });
 
-    // SW 메시지 수신 (activate 시 배너)
+    // SW 메시지 수신 → 자동 새로고침
     navigator.serviceWorker.addEventListener('message', function(e) {
       if (e.data && e.data.type === 'SW_UPDATED') {
-        document.getElementById('pwa-update-banner').classList.add('show');
+        location.reload();
       }
     });
   });
