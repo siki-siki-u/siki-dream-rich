@@ -2443,7 +2443,7 @@ function showPage(id, el) {
   if(id==='gifts')       { renderGiftList(); }
   if(id==='condolences') { renderCondolenceList(); }
   if(id==='market')  { loadVix('1mo'); }
-  if(id==='mock-invest') { renderMockInvest(); }
+  if(id==='mock-invest') { syncAndRenderMockInvest(); }
   if(id==='invest-terms') { renderInvestTerms(); }
 }
 
@@ -8457,6 +8457,16 @@ async function saveMockNote(id) {
   var overlay=document.getElementById('mock-note-overlay');
   if(overlay) overlay.remove();
   showToast('저장됐어요','success');
+  renderMockInvest();
+}
+
+async function syncAndRenderMockInvest() {
+  if (supa) {
+    try {
+      var { data } = await supa.from('mock_investments').select('*').order('invest_date', {ascending: false});
+      if (data) S.set('mock_investments', data.map(function(m){ return {id:m.id,invest_date:m.invest_date,symbol:m.symbol,name:m.name,asset_type:m.asset_type||'US',currency:m.currency||'USD',quantity:m.quantity,price_at_invest:m.price_at_invest,invest_amount_krw:m.invest_amount_krw||0,reason:m.reason||'',note:m.note||'',created_at:m.created_at}; }));
+    } catch(e) {}
+  }
   renderMockInvest();
 }
 
