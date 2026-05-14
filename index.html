@@ -549,6 +549,7 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
 
       <div class="nav-label">투자공부</div>
       <div class="nav-item" onclick="showPage('youtube',this);closeSidebar()"><span class="icon">▶️</span> 올랜도킴 분석</div>
+      <div class="nav-item" onclick="showPage('stock-analysis',this);closeSidebar()"><span class="icon">🔍</span> 주식 가치 분석</div>
       <div class="nav-item" onclick="showPage('journal',this);closeSidebar()"><span class="icon">📝</span> 투자 일지</div>
       <div class="nav-item" onclick="showPage('mock-invest',this);closeSidebar()"><span class="icon">🎯</span> 모의 투자</div>
       <div class="nav-item" onclick="showPage('invest-terms',this);closeSidebar()"><span class="icon">📖</span> 투자 용어</div>
@@ -1513,9 +1514,15 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
         </div>
       </div>
     </div>
-    <!-- 주식 가치 분석 -->
-    <div class="card" style="margin-top:1.5rem" id="stock-analysis-card">
-      <div class="sec-title" style="margin-bottom:.8rem">🔍 주식 가치 분석</div>
+  </div>
+
+  <!-- 주식 가치 분석 -->
+  <div class="page" id="page-stock-analysis">
+    <div class="page-header">
+      <h2>🔍 주식 가치 분석</h2>
+      <p>미래 적정 주가 · 저평가/고평가 · RSI 분석</p>
+    </div>
+    <div class="card" id="stock-analysis-card">
       <div style="display:flex;gap:.4rem;margin-bottom:.65rem">
         <button class="btn btn-primary" id="sa-type-US" onclick="setSaType('US')" style="flex:1;font-size:.75rem;padding:.32rem .3rem">🇺🇸 미국</button>
         <button class="btn btn-ghost"   id="sa-type-KR" onclick="setSaType('KR')" style="flex:1;font-size:.75rem;padding:.32rem .3rem">🇰🇷 국내</button>
@@ -2520,6 +2527,7 @@ function showPage(id, el) {
   if(id==='market')  { loadVix('1mo'); }
   if(id==='mock-invest') { syncAndRenderMockInvest(); }
   if(id==='invest-terms') { renderInvestTerms(); }
+  if(id==='stock-analysis') { /* ready on load */ }
 }
 
 // ── DATE HELPERS ──
@@ -5382,7 +5390,7 @@ function onAuthSuccess(user, fromLogin) {
   if (userEl) userEl.style.display = 'flex';
   hideLockScreen();
   enforceGuestMode();
-  var _validPages = ['dashboard','budget','assets','market','calendar','youtube','journal','mock-invest','invest-terms','realty','gifts','condolences'];
+  var _validPages = ['dashboard','budget','assets','market','calendar','youtube','journal','mock-invest','invest-terms','realty','gifts','condolences','stock-analysis'];
   var _hash = location.hash.replace('#', '');
   if (_hash && _validPages.indexOf(_hash) !== -1) {
     var _navEl = null;
