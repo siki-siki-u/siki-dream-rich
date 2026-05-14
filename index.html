@@ -8196,6 +8196,22 @@ if ('serviceWorker' in navigator) {
         });
       } catch(e) {}
     })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'mock_investments' }, function() {
+      supa.from('mock_investments').select('*').order('invest_date',{ascending:false}).then(function(res) {
+        if (res.data) {
+          S.set('mock_investments', res.data.map(function(m){ return {id:m.id,invest_date:m.invest_date,symbol:m.symbol,name:m.name,asset_type:m.asset_type||'US',currency:m.currency||'USD',quantity:m.quantity,price_at_invest:m.price_at_invest,invest_amount_krw:m.invest_amount_krw||0,reason:m.reason||'',note:m.note||'',created_at:m.created_at}; }));
+          try { renderMockInvest(); } catch(e) {}
+        }
+      });
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'invest_terms' }, function() {
+      supa.from('invest_terms').select('*').order('created_at',{ascending:false}).then(function(res) {
+        if (res.data) {
+          S.set('invest_terms', res.data.map(function(t){ return {id:t.id,term:t.term,meaning:t.meaning,created_at:t.created_at}; }));
+          try { renderInvestTerms(); } catch(e) {}
+        }
+      });
+    })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, function(payload) {
       try {
         var row = payload.new;
