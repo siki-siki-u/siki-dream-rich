@@ -75,6 +75,27 @@ async function fetchChartPrices(ticker, interval, range, crumb, cookie) {
   }).filter(function(p) { return p.close != null; });
 }
 
+// Non-GAAP EPS 실적값을 chart events=earnings 에서 가져옴
+// Yahoo epsActual = 애널리스트 컨센서스 기준 Non-GAAP 조정 EPS
+async function fetchEarningsEvents(ticker, crumb, cookie) {
+  var url = 'https://query2.finance.yahoo.com/v8/finance/chart/' +
+    encodeURIComponent(ticker) + '?interval=3mo&range=6y&events=earnings' +
+    '&crumb=' + encodeURIComponent(crumb);
+  var r = await httpGet(url, { Cookie: cookie, Accept: 'application/json' });
+  if (r.status !== 200) return [];
+  var d = JSON.parse(r.body);
+  var res = d.chart && d.chart.result && d.chart.result[0];
+  if (!res || !res.events || !res.events.earnings) return [];
+  return Object.values(res.events.earnings)
+    .map(function(e) {
+      var dt = new Date(e.date * 1000);
+      var eps = e.epsActual != null ? e.epsActual : e.actual;
+      return { date: dt.toISOString().split('T')[0], eps: eps };
+    })
+    .filter(function(e) { return e.eps != null; })
+    .sort(function(a, b) { return a.date.localeCompare(b.date); });
+}
+
 // Wilder's smoothed RSI
 function calcRSI(prices, period) {
   period = period || 14;
@@ -99,25 +120,25 @@ function calcRSI(prices, period) {
   return out.slice(-65); // last ~3 months of trading days
 }
 
-function calcAvgPE5Y(annualPrices, incomeHistory, shares) {
-  if (!incomeHistory || !incomeHistory.length || !shares || !annualPrices.length) return null;
+// 각 연말 기준 TTM Non-GAAP EPS(직전 4분기 합산) → 연말 주가로 PE → 5년 평균
+function calcAvgPE5Y(annualPrices, earningsEvents) {
+  if (!earningsEvents || !earningsEvents.length || !annualPrices.length) return null;
+  var currentYear = new Date().getFullYear();
   var peList = [];
-  for (var i = 0; i < incomeHistory.length; i++) {
-    var stmt = incomeHistory[i];
-    var netIncome = stmt.netIncomeApplicableToCommonShares && stmt.netIncomeApplicableToCommonShares.raw;
-    if (!netIncome) netIncome = stmt.netIncome && stmt.netIncome.raw;
-    if (!netIncome || netIncome <= 0) continue;
-    var eps = netIncome / shares;
-    if (eps <= 0) continue;
-    var stmtYear = new Date((stmt.endDate && stmt.endDate.raw) * 1000).getFullYear();
-    // find closest annual price by year
+  for (var year = currentYear - 1; year >= currentYear - 5; year--) {
+    var yearEndDate = year + '-12-31';
+    var prior = earningsEvents.filter(function(e) { return e.date <= yearEndDate; });
+    if (prior.length < 4) continue;
+    var last4 = prior.slice(-4);
+    var ttmEPS = last4.reduce(function(s, e) { return s + e.eps; }, 0);
+    if (ttmEPS <= 0) continue;
     var best = annualPrices.reduce(function(b, p) {
-      return Math.abs(new Date(p.date).getFullYear() - stmtYear) <
-             Math.abs(new Date(b.date).getFullYear() - stmtYear) ? p : b;
+      return Math.abs(new Date(p.date).getFullYear() - year) <
+             Math.abs(new Date(b.date).getFullYear() - year) ? p : b;
     }, annualPrices[0]);
-    if (!best) continue;
-    var pe = best.close / eps;
-    if (pe > 0 && pe < 600) peList.push(pe);
+    if (!best || !best.close) continue;
+    var pe = best.close / ttmEPS;
+    if (pe > 0 && pe < 1000) peList.push(Math.round(pe * 100) / 100);
   }
   if (!peList.length) return null;
   return Math.round(peList.reduce(function(a, b) { return a + b; }, 0) / peList.length * 100) / 100;
@@ -148,32 +169,28 @@ module.exports = async function(req, res) {
       return res.json({ source: 'yahoo', ttm, fwd });
     }
 
-    var [summary, dailyPrices, annualPrices, incomeSummary] = await Promise.all([
+    var [summary, dailyPrices, annualPrices, earningsEvents] = await Promise.all([
       fetchQuoteSummary(ticker, 'summaryDetail,defaultKeyStatistics,price', crumb, cookie),
       fetchChartPrices(ticker, '1d', '5mo', crumb, cookie),
       fetchChartPrices(ticker, '1y', '6y', crumb, cookie),
-      fetchQuoteSummary(ticker, 'incomeStatementHistory', crumb, cookie),
+      fetchEarningsEvents(ticker, crumb, cookie),
     ]);
 
-    var sd  = summary.summaryDetail;
-    var ks  = summary.defaultKeyStatistics;
-    var pr  = summary.price;
+    var sd = summary.summaryDetail;
+    var ks = summary.defaultKeyStatistics;
+    var pr = summary.price;
 
     var currentPrice = pr && pr.regularMarketPrice && pr.regularMarketPrice.raw;
-    var forwardEPS   = ks && ks.forwardEps && ks.forwardEps.raw;
+    var forwardEPS   = ks && ks.forwardEps && ks.forwardEps.raw;  // Yahoo forwardEps = Non-GAAP
     var forwardPE    = (sd && sd.forwardPE && sd.forwardPE.raw) ||
       (forwardEPS && currentPrice && forwardEPS > 0 ? r2(currentPrice / forwardEPS) : null);
     var currency     = (pr && pr.currency) || 'USD';
     var companyName  = (pr && pr.shortName) || ticker;
-    var shares       = ks && ks.sharesOutstanding && ks.sharesOutstanding.raw;
 
-    var rsiData = calcRSI(dailyPrices);
+    var rsiData    = calcRSI(dailyPrices);
     var currentRSI = rsiData.length ? rsiData[rsiData.length - 1].rsi : null;
 
-    var incomeHistory = incomeSummary &&
-      incomeSummary.incomeStatementHistory &&
-      incomeSummary.incomeStatementHistory.incomeStatementHistory;
-    var avgPE5Y = calcAvgPE5Y(annualPrices, incomeHistory, shares);
+    var avgPE5Y = calcAvgPE5Y(annualPrices, earningsEvents);
 
     var fairValue = (forwardEPS && avgPE5Y) ? r2(forwardEPS * avgPE5Y) : null;
 
