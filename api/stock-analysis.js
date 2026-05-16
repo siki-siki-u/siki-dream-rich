@@ -78,22 +78,29 @@ async function fetchChartPrices(ticker, interval, range, crumb, cookie) {
 // Non-GAAP EPS 실적값을 chart events=earnings 에서 가져옴
 // Yahoo epsActual = 애널리스트 컨센서스 기준 Non-GAAP 조정 EPS
 async function fetchEarningsEvents(ticker, crumb, cookie) {
+  // interval=1d 필수 — 3mo 인터벌에서는 events 블록이 누락될 수 있음
   var url = 'https://query2.finance.yahoo.com/v8/finance/chart/' +
-    encodeURIComponent(ticker) + '?interval=3mo&range=6y&events=earnings' +
+    encodeURIComponent(ticker) + '?interval=1d&range=6y&events=earnings' +
     '&crumb=' + encodeURIComponent(crumb);
   var r = await httpGet(url, { Cookie: cookie, Accept: 'application/json' });
   if (r.status !== 200) return [];
-  var d = JSON.parse(r.body);
-  var res = d.chart && d.chart.result && d.chart.result[0];
-  if (!res || !res.events || !res.events.earnings) return [];
-  return Object.values(res.events.earnings)
-    .map(function(e) {
-      var dt = new Date(e.date * 1000);
-      var eps = e.epsActual != null ? e.epsActual : e.actual;
-      return { date: dt.toISOString().split('T')[0], eps: eps };
-    })
-    .filter(function(e) { return e.eps != null; })
-    .sort(function(a, b) { return a.date.localeCompare(b.date); });
+  try {
+    var d = JSON.parse(r.body);
+    var res = d.chart && d.chart.result && d.chart.result[0];
+    if (!res || !res.events || !res.events.earnings) return [];
+    var raw = res.events.earnings;
+    var items = Array.isArray(raw) ? raw : Object.values(raw);
+    return items
+      .map(function(e) {
+        var dt = new Date(e.date * 1000);
+        var eps = e.epsActual != null ? e.epsActual
+                : e.actual    != null ? e.actual
+                : null;
+        return { date: dt.toISOString().split('T')[0], eps: eps };
+      })
+      .filter(function(e) { return e.eps != null; })
+      .sort(function(a, b) { return a.date.localeCompare(b.date); });
+  } catch (e) { return []; }
 }
 
 // Wilder's smoothed RSI
@@ -128,8 +135,8 @@ function calcAvgPE5Y(annualPrices, earningsEvents) {
   for (var year = currentYear - 1; year >= currentYear - 5; year--) {
     var yearEndDate = year + '-12-31';
     var prior = earningsEvents.filter(function(e) { return e.date <= yearEndDate; });
-    if (prior.length < 4) continue;
-    var last4 = prior.slice(-4);
+    if (prior.length < 3) continue;
+    var last4 = prior.slice(-4); // 3~4개 분기로 TTM 근사
     var ttmEPS = last4.reduce(function(s, e) { return s + e.eps; }, 0);
     if (ttmEPS <= 0) continue;
     var best = annualPrices.reduce(function(b, p) {
@@ -217,6 +224,7 @@ module.exports = async function(req, res) {
       valuationKR,
       currentRSI,
       rsiData,
+      _dbg: { earningsCount: earningsEvents.length },
     });
 
   } catch (e) {
