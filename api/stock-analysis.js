@@ -169,7 +169,7 @@ module.exports = async function(req, res) {
     }
 
     var [summary, dailyPrices, priceByYear, incomeSummary] = await Promise.all([
-      fetchQuoteSummary(ticker, 'summaryDetail,defaultKeyStatistics,price', crumb, cookie),
+      fetchQuoteSummary(ticker, 'summaryDetail,defaultKeyStatistics,price,earningsTrend', crumb, cookie),
       fetchChartPrices(ticker, '1d', '5mo', crumb, cookie),
       fetchAnnualPriceMap(ticker, crumb, cookie),
       fetchQuoteSummary(ticker, 'incomeStatementHistory', crumb, cookie),
@@ -178,11 +178,15 @@ module.exports = async function(req, res) {
     var sd = summary.summaryDetail;
     var ks = summary.defaultKeyStatistics;
     var pr = summary.price;
+    var et = summary.earningsTrend;
 
     var currentPrice = pr && pr.regularMarketPrice && pr.regularMarketPrice.raw;
-    var forwardEPS   = ks && ks.forwardEps && ks.forwardEps.raw;  // Yahoo forwardEps = Non-GAAP
-    var forwardPE    = (sd && sd.forwardPE && sd.forwardPE.raw) ||
-      (forwardEPS && currentPrice && forwardEPS > 0 ? r2(currentPrice / forwardEPS) : null);
+
+    // earningsTrend 0y = 현재 회계연도 컨센서스 EPS → Seeking Alpha Non-GAAP FWD PE와 일치
+    var trend0y = et && et.trend && et.trend.find(function(t) { return t.period === '0y'; });
+    var forwardEPS = (trend0y && trend0y.earningsEstimate && trend0y.earningsEstimate.avg && trend0y.earningsEstimate.avg.raw) ||
+                    (ks && ks.forwardEps && ks.forwardEps.raw);
+    var forwardPE  = (forwardEPS && currentPrice && forwardEPS > 0) ? r2(currentPrice / forwardEPS) : null;
     var currency     = (pr && pr.currency) || 'USD';
     var companyName  = (pr && pr.shortName) || ticker;
 
