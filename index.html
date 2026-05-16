@@ -4650,7 +4650,7 @@ function drawEpsChart(epsData, currency) {
       // x축 연도 레이블
       ctx2.fillStyle = isHover ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.4)';
       ctx2.font = (isHover ? 'bold ' : '') + '9px Noto Sans KR, sans-serif';
-      ctx2.fillText(d.year + (d.type === 'estimate' ? 'E' : ''), x + barW / 2, h - 5);
+      ctx2.fillText(d.year, x + barW / 2, h - 5);
       ctx2.textAlign = 'left';
     });
   }
@@ -4667,7 +4667,7 @@ function drawEpsChart(epsData, currency) {
     render(idx);
     if (tooltip) {
       var d = epsData[idx];
-      tooltip.innerHTML = '<span style="color:var(--muted)">' + d.year + (d.type === 'estimate' ? 'E' : '') + '</span>' +
+      tooltip.innerHTML = '<span style="color:var(--muted)">' + d.year + '</span>' +
         '&nbsp;&nbsp;<b>' + sym + d.eps + '</b>' +
         '&nbsp;<span style="color:var(--muted)">' + (d.type === 'estimate' ? '증권사 추정치' : 'GAAP 실적') + '</span>';
       tooltip.style.display = 'block';

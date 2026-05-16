@@ -172,7 +172,7 @@ module.exports = async function(req, res) {
       fetchQuoteSummary(ticker, 'summaryDetail,defaultKeyStatistics,price', crumb, cookie),
       fetchChartPrices(ticker, '1d', '5mo', crumb, cookie),
       fetchAnnualPriceMap(ticker, crumb, cookie),
-      fetchQuoteSummary(ticker, 'incomeStatementHistory', crumb, cookie),
+      fetchQuoteSummary(ticker, 'incomeStatementHistory,incomeStatementHistoryQuarterly', crumb, cookie),
       fetchQuoteSummary(ticker, 'earningsTrend', crumb, cookie).catch(function() { return null; }),
     ]);
 
@@ -217,29 +217,37 @@ module.exports = async function(req, res) {
       }
     }
 
-    // EPS 히스토리: 과거 실적(GAAP) + 증권사 추정치
+    // EPS 히스토리: 분기별 실적(GAAP) + 분기 증권사 추정치
+    var incomeHistoryQ = incomeSummary &&
+      incomeSummary.incomeStatementHistoryQuarterly &&
+      incomeSummary.incomeStatementHistoryQuarterly.incomeStatementHistory;
+
+    function qLabel(ts) {
+      var d = new Date(ts * 1000);
+      var q = Math.floor(d.getMonth() / 3) + 1;
+      return d.getFullYear().toString().slice(2) + 'Q' + q;
+    }
+
     var epsHistory = [];
-    if (incomeHistory && shares) {
-      var sorted = incomeHistory.slice().sort(function(a, b) {
+    if (incomeHistoryQ && shares) {
+      var sortedQ = incomeHistoryQ.slice().sort(function(a, b) {
         return (a.endDate && a.endDate.raw || 0) - (b.endDate && b.endDate.raw || 0);
       });
-      sorted.slice(-5).forEach(function(stmt) {
+      sortedQ.slice(-8).forEach(function(stmt) {
         var ni = (stmt.netIncomeApplicableToCommonShares && stmt.netIncomeApplicableToCommonShares.raw) ||
                  (stmt.netIncome && stmt.netIncome.raw);
-        if (!ni) return;
+        if (!ni || !stmt.endDate || !stmt.endDate.raw) return;
         var eps = r2(ni / shares);
-        var year = new Date((stmt.endDate && stmt.endDate.raw) * 1000).getFullYear().toString();
-        epsHistory.push({ year: year, eps: eps, type: 'actual' });
+        epsHistory.push({ year: qLabel(stmt.endDate.raw), eps: eps, type: 'actual' });
       });
     }
     if (et && et.trend) {
-      var currentYear = new Date().getFullYear();
-      [{ period: '0y', yr: currentYear }, { period: '+1y', yr: currentYear + 1 }].forEach(function(p) {
-        var t = et.trend.find(function(x) { return x.period === p.period; });
+      ['0q', '+1q'].forEach(function(period) {
+        var t = et.trend.find(function(x) { return x.period === period; });
         if (!t || !t.earningsEstimate || !t.earningsEstimate.avg || !t.earningsEstimate.avg.raw) return;
-        var yr = p.yr.toString();
-        if (!epsHistory.find(function(e) { return e.year === yr; })) {
-          epsHistory.push({ year: yr, eps: r2(t.earningsEstimate.avg.raw), type: 'estimate' });
+        var label = (t.endDate && t.endDate.raw) ? qLabel(t.endDate.raw) : (period === '0q' ? '현재Q' : '다음Q');
+        if (!epsHistory.find(function(e) { return e.year === label; })) {
+          epsHistory.push({ year: label, eps: r2(t.earningsEstimate.avg.raw), type: 'estimate' });
         }
       });
     }
