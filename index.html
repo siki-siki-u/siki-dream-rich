@@ -4362,20 +4362,19 @@ async function fetchStockAnalysis() {
       else { rsiSt.textContent = '중립'; rsiSt.style.cssText = 'font-size:.75rem;font-weight:600;padding:.2rem .55rem;border-radius:10px;background:var(--surface2);color:var(--muted)'; }
     }
 
-    // RSI Chart
     if (d.rsiData && d.rsiData.length > 1) {
-      drawRsiChart(d.rsiData);
       var dates = d.rsiData;
       document.getElementById('sa-rsi-date-start').textContent = dates[0].date;
       document.getElementById('sa-rsi-date-end').textContent   = dates[dates.length-1].date;
     }
 
-    // EPS Chart
-    if (d.epsHistory && d.epsHistory.length > 0) {
-      drawEpsChart(d.epsHistory, d.currency);
-    }
-
     result.style.display = 'block';
+
+    // 차트는 display:block 이후 레이아웃이 완성된 다음 프레임에 그려야 offsetWidth가 정확함
+    requestAnimationFrame(function() {
+      if (d.rsiData && d.rsiData.length > 1) drawRsiChart(d.rsiData);
+      if (d.epsHistory && d.epsHistory.length > 0) drawEpsChart(d.epsHistory, d.currency);
+    });
   } catch(e) {
     loading.style.display = 'none';
     errEl.textContent = '⚠ 조회 실패: ' + e.message;
@@ -4388,109 +4387,173 @@ function drawRsiChart(rsiData) {
   if (!canvas) return;
   var dpr = window.devicePixelRatio || 1;
   var w = canvas.offsetWidth || canvas.parentElement.offsetWidth || 400;
-  var h = 140;
+  var h = 160;
   canvas.width  = w * dpr;
   canvas.height = h * dpr;
   canvas.style.width  = w + 'px';
   canvas.style.height = h + 'px';
-  var ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
 
-  var pad = { top: 8, right: 8, bottom: 20, left: 32 };
+  var pad = { top: 12, right: 12, bottom: 22, left: 34 };
   var cw = w - pad.left - pad.right;
   var ch = h - pad.top - pad.bottom;
-
-  // background zones
-  ctx.fillStyle = 'rgba(255,126,126,.07)';
-  ctx.fillRect(pad.left, pad.top, cw, (30 / 100) * ch); // 70-100 → overbought (top)
-  // actually Y is inverted: RSI 100 at top, 0 at bottom
-  // RSI 70 → y = (1 - 70/100) * ch + pad.top
-  var y70 = pad.top + (1 - 70/100) * ch;
-  var y30 = pad.top + (1 - 30/100) * ch;
-  ctx.fillStyle = 'rgba(255,126,126,.07)';
-  ctx.fillRect(pad.left, pad.top, cw, y70 - pad.top);
-  ctx.fillStyle = 'rgba(82,217,163,.07)';
-  ctx.fillRect(pad.left, y30, cw, h - pad.bottom - y30);
-
-  // grid lines at 70, 50, 30
-  ctx.strokeStyle = 'rgba(255,255,255,.1)';
-  ctx.lineWidth = 1;
-  [30, 50, 70].forEach(function(level) {
-    var y = pad.top + (1 - level/100) * ch;
-    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,.35)';
-    ctx.font = '9px JetBrains Mono, monospace';
-    ctx.fillText(level, 2, y + 3);
-  });
-
-  // RSI line
   var n = rsiData.length;
-  var xStep = cw / (n - 1);
+  var xStep = n > 1 ? cw / (n - 1) : 0;
 
-  // gradient fill under line
-  var grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch);
-  grad.addColorStop(0, 'rgba(108,138,255,.25)');
-  grad.addColorStop(1, 'rgba(108,138,255,0)');
-  ctx.beginPath();
-  rsiData.forEach(function(pt, i) {
-    var x = pad.left + i * xStep;
-    var y = pad.top + (1 - pt.rsi/100) * ch;
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-  });
-  ctx.lineTo(pad.left + (n-1) * xStep, pad.top + ch);
-  ctx.lineTo(pad.left, pad.top + ch);
-  ctx.closePath();
-  ctx.fillStyle = grad;
-  ctx.fill();
+  function ptX(i) { return pad.left + i * xStep; }
+  function ptY(rsi) { return pad.top + (1 - rsi / 100) * ch; }
+  function rsiColor(rsi) { return rsi >= 70 ? '#ff7e7e' : rsi <= 30 ? '#52d9a3' : '#6c8aff'; }
 
-  // main line — color by zone
-  rsiData.forEach(function(pt, i) {
-    if (i === 0) return;
-    var x1 = pad.left + (i-1) * xStep, x2 = pad.left + i * xStep;
-    var y1 = pad.top + (1 - rsiData[i-1].rsi/100) * ch;
-    var y2 = pad.top + (1 - pt.rsi/100) * ch;
+  function render(hoverIdx) {
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(dpr, dpr);
+
+    var y70 = ptY(70), y30 = ptY(30);
+
+    // 과매수/과매도 배경
+    ctx.fillStyle = 'rgba(255,126,126,.07)';
+    ctx.fillRect(pad.left, pad.top, cw, y70 - pad.top);
+    ctx.fillStyle = 'rgba(82,217,163,.07)';
+    ctx.fillRect(pad.left, y30, cw, h - pad.bottom - y30);
+
+    // 수평 가이드라인 (30, 50, 70)
+    [30, 50, 70].forEach(function(level) {
+      var y = ptY(level);
+      ctx.strokeStyle = 'rgba(255,255,255,.1)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash(level === 50 ? [4, 3] : []);
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,255,255,.3)';
+      ctx.font = '9px JetBrains Mono, monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(level, pad.left - 3, y + 3);
+      ctx.textAlign = 'left';
+    });
+
+    // 그라디언트 영역 채우기
+    var grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch);
+    grad.addColorStop(0, 'rgba(108,138,255,.22)');
+    grad.addColorStop(1, 'rgba(108,138,255,0)');
     ctx.beginPath();
-    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
-    ctx.strokeStyle = pt.rsi >= 70 ? '#ff7e7e' : pt.rsi <= 30 ? 'var(--success)' : '#6c8aff';
-    ctx.lineWidth = 1.8;
-    ctx.stroke();
-  });
+    rsiData.forEach(function(pt, i) {
+      var x = ptX(i), y = ptY(pt.rsi);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.lineTo(ptX(n - 1), pad.top + ch);
+    ctx.lineTo(ptX(0), pad.top + ch);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
 
-  // last RSI dot
-  var lastPt = rsiData[n-1];
-  var lx = pad.left + (n-1) * xStep;
-  var ly = pad.top + (1 - lastPt.rsi/100) * ch;
-  ctx.beginPath();
-  ctx.arc(lx, ly, 4, 0, Math.PI * 2);
-  ctx.fillStyle = lastPt.rsi >= 70 ? '#ff7e7e' : lastPt.rsi <= 30 ? '#52d9a3' : '#6c8aff';
-  ctx.fill();
+    // RSI 선 (구간별 색상)
+    rsiData.forEach(function(pt, i) {
+      if (i === 0) return;
+      ctx.beginPath();
+      ctx.moveTo(ptX(i - 1), ptY(rsiData[i - 1].rsi));
+      ctx.lineTo(ptX(i), ptY(pt.rsi));
+      ctx.strokeStyle = rsiColor(pt.rsi);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
 
-  // x-axis date ticks (show ~4 labels)
-  ctx.fillStyle = 'rgba(255,255,255,.35)';
-  ctx.font = '9px Noto Sans KR, sans-serif';
-  var tickInterval = Math.floor(n / 4);
-  for (var i = 0; i < n; i += tickInterval) {
-    var x = pad.left + i * xStep;
-    var label = rsiData[i].date.slice(5); // MM-DD
-    ctx.fillText(label, x - 10, h - 5);
+    // x축 날짜 레이블 (4개)
+    ctx.fillStyle = 'rgba(255,255,255,.3)';
+    ctx.font = '9px Noto Sans KR, sans-serif';
+    ctx.textAlign = 'center';
+    var tickStep = Math.floor(n / 4);
+    for (var i = 0; i < n; i += tickStep) {
+      ctx.fillText(rsiData[i].date.slice(5), ptX(i), h - 4);
+    }
+    ctx.textAlign = 'left';
+
+    // 마지막 점 (항상 표시)
+    var lastPt = rsiData[n - 1];
+    ctx.beginPath();
+    ctx.arc(ptX(n - 1), ptY(lastPt.rsi), 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = rsiColor(lastPt.rsi);
+    ctx.fill();
+
+    // ── Hover 크로스헤어 ──
+    if (hoverIdx != null && hoverIdx >= 0) {
+      var hpt = rsiData[hoverIdx];
+      var hx = ptX(hoverIdx), hy = ptY(hpt.rsi);
+      var hc = rsiColor(hpt.rsi);
+
+      // 수직 점선
+      ctx.strokeStyle = 'rgba(255,255,255,.25)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.moveTo(hx, pad.top); ctx.lineTo(hx, pad.top + ch); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 수평 점선 (y축까지)
+      ctx.strokeStyle = 'rgba(255,255,255,.15)';
+      ctx.beginPath(); ctx.moveTo(pad.left, hy); ctx.lineTo(hx, hy); ctx.stroke();
+
+      // y축 RSI 값
+      ctx.fillStyle = 'rgba(255,255,255,.75)';
+      ctx.font = 'bold 9px JetBrains Mono, monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(hpt.rsi, pad.left - 3, hy + 3);
+      ctx.textAlign = 'left';
+
+      // 글로우 도트
+      ctx.save();
+      ctx.shadowColor = hc;
+      ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.arc(hx, hy, 5.5, 0, Math.PI * 2);
+      ctx.fillStyle = hc;
+      ctx.fill();
+      ctx.restore();
+
+      // 흰 테두리 도트
+      ctx.beginPath(); ctx.arc(hx, hy, 5.5, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,.7)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
   }
 
-  // RSI hover tooltip
+  render(null);
+
+  // 마우스 이벤트
   var tooltip = document.getElementById('sa-rsi-tooltip');
-  if (!tooltip) return;
   canvas.onmousemove = function(e) {
     var rect = canvas.getBoundingClientRect();
     var mx = e.clientX - rect.left;
-    var idx = Math.round((mx - pad.left) / (cw / (n - 1)));
+    var idx = Math.round((mx - pad.left) / xStep);
     idx = Math.max(0, Math.min(n - 1, idx));
-    var pt = rsiData[idx];
-    tooltip.innerHTML = pt.date + '&nbsp;&nbsp;<b>' + pt.rsi + '</b>&nbsp;RSI' +
-      (pt.close ? '&nbsp;&nbsp;$' + pt.close.toFixed(2) : '');
-    tooltip.style.display = 'block';
-    tooltip.style.left = (e.clientX + 14) + 'px';
-    tooltip.style.top  = (e.clientY - 28) + 'px';
+    render(idx);
+    if (tooltip) {
+      var pt = rsiData[idx];
+      var sym2 = pt.close && pt.close > 1000 ? '₩' : '$';
+      tooltip.innerHTML = '<span style="color:var(--muted)">' + pt.date + '</span>' +
+        '&nbsp;&nbsp;<b style="color:' + (pt.rsi >= 70 ? '#ff7e7e' : pt.rsi <= 30 ? '#52d9a3' : '#6c8aff') + '">' + pt.rsi + '</b>' +
+        '&nbsp;<span style="color:var(--muted)">RSI</span>' +
+        (pt.close ? '&nbsp;&nbsp;<b>' + sym2 + pt.close.toFixed(2) + '</b>' : '');
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 16) + 'px';
+      tooltip.style.top  = (e.clientY - 36) + 'px';
+    }
   };
-  canvas.onmouseleave = function() { tooltip.style.display = 'none'; };
+  canvas.onmouseleave = function() {
+    render(null);
+    if (tooltip) tooltip.style.display = 'none';
+  };
+
+  // 터치 지원 (모바일)
+  canvas.ontouchmove = function(e) {
+    e.preventDefault();
+    var touch = e.touches[0];
+    var rect = canvas.getBoundingClientRect();
+    var mx = touch.clientX - rect.left;
+    var idx = Math.round((mx - pad.left) / xStep);
+    idx = Math.max(0, Math.min(n - 1, idx));
+    render(idx);
+  };
+  canvas.ontouchend = function() { render(null); };
 }
 
 function drawEpsChart(epsData, currency) {
@@ -4499,101 +4562,135 @@ function drawEpsChart(epsData, currency) {
   var sym = currency === 'KRW' ? '₩' : '$';
   var dpr = window.devicePixelRatio || 1;
   var w = canvas.offsetWidth || canvas.parentElement.offsetWidth || 400;
-  var h = 160;
+  var h = 170;
   canvas.width  = w * dpr;
   canvas.height = h * dpr;
   canvas.style.width  = w + 'px';
   canvas.style.height = h + 'px';
-  var ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
 
-  var pad = { top: 16, right: 10, bottom: 24, left: 42 };
+  var pad = { top: 22, right: 14, bottom: 26, left: 44 };
   var cw = w - pad.left - pad.right;
   var ch = h - pad.top - pad.bottom;
-
   var n = epsData.length;
-  var barW = Math.min(40, (cw / n) * 0.55);
   var barGap = cw / n;
+  var barW = Math.min(52, barGap * 0.58);
 
   var vals = epsData.map(function(d) { return d.eps || 0; });
-  var maxV = Math.max.apply(null, vals.map(Math.abs));
+  var maxV = Math.max.apply(null, vals);
   var minV = Math.min.apply(null, vals);
-  var hasNeg = minV < 0;
-  var rangeV = hasNeg ? (maxV - minV) : maxV;
-  var vPad = rangeV * 0.15 || 1;
-  var vMax = (hasNeg ? maxV : maxV) + vPad;
-  var vMin = (hasNeg ? minV : 0) - vPad;
+  var vPad = ((maxV - Math.min(0, minV)) || 1) * 0.18;
+  var vMax = maxV + vPad;
+  var vMin = Math.min(0, minV) - vPad;
 
   function py(v) { return pad.top + ch - ((v - vMin) / (vMax - vMin)) * ch; }
-  function bx(i) { return pad.left + i * barGap + barGap / 2 - barW / 2; }
-
-  // zero line
+  function bx(i) { return pad.left + i * barGap + (barGap - barW) / 2; }
   var y0 = py(0);
-  ctx.strokeStyle = 'rgba(255,255,255,.15)';
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(pad.left, y0); ctx.lineTo(pad.left + cw, y0); ctx.stroke();
 
-  // y-axis labels
-  ctx.fillStyle = 'rgba(255,255,255,.35)';
-  ctx.font = '9px JetBrains Mono, monospace';
-  var yTicks = 3;
-  for (var t = 0; t <= yTicks; t++) {
-    var v = vMin + (vMax - vMin) * (t / yTicks);
-    var yp = py(v);
-    ctx.fillText(v.toFixed(1), 0, yp + 3);
-    ctx.strokeStyle = 'rgba(255,255,255,.05)';
-    ctx.beginPath(); ctx.moveTo(pad.left, yp); ctx.lineTo(pad.left + cw, yp); ctx.stroke();
+  function render(hoverIdx) {
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(dpr, dpr);
+
+    // 수평 가이드라인
+    var ticks = 4;
+    for (var t = 0; t <= ticks; t++) {
+      var v = vMin + (vMax - vMin) * (t / ticks);
+      var yp = py(v);
+      ctx.strokeStyle = 'rgba(255,255,255,.06)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(pad.left, yp); ctx.lineTo(pad.left + cw, yp); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.3)';
+      ctx.font = '9px JetBrains Mono, monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(v.toFixed(1), pad.left - 3, yp + 3);
+      ctx.textAlign = 'left';
+    }
+
+    // 제로라인
+    ctx.strokeStyle = 'rgba(255,255,255,.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.left, y0); ctx.lineTo(pad.left + cw, y0); ctx.stroke();
+
+    // 바 그리기
+    epsData.forEach(function(d, i) {
+      var v = d.eps || 0;
+      var x = bx(i);
+      var yTop = v >= 0 ? py(v) : y0;
+      var barH = Math.max(2, Math.abs(py(v) - y0));
+      var isHover = hoverIdx === i;
+      var ctx2 = canvas.getContext('2d');
+
+      if (d.type === 'estimate') {
+        ctx2.fillStyle = isHover ? 'rgba(82,217,163,.85)' : 'rgba(82,217,163,.5)';
+        ctx2.fillRect(x, yTop, barW, barH);
+        ctx2.strokeStyle = isHover ? 'rgba(82,217,163,1)' : 'rgba(82,217,163,.75)';
+        ctx2.lineWidth = isHover ? 2 : 1.5;
+        ctx2.setLineDash([4, 2]);
+        ctx2.strokeRect(x, yTop, barW, barH);
+        ctx2.setLineDash([]);
+      } else {
+        var baseColor = v >= 0 ? 'rgba(108,138,255,' : 'rgba(255,107,107,';
+        ctx2.fillStyle = baseColor + (isHover ? '1)' : '.7)');
+        ctx2.fillRect(x, yTop, barW, barH);
+        if (isHover) {
+          ctx2.strokeStyle = 'rgba(255,255,255,.8)';
+          ctx2.lineWidth = 1.5;
+          ctx2.strokeRect(x, yTop, barW, barH);
+        }
+      }
+
+      // 바 위 값 레이블
+      var label = (v >= 0 ? '+' : '') + v.toFixed(2);
+      ctx2.fillStyle = isHover ? '#fff' : 'rgba(255,255,255,.65)';
+      ctx2.font = (isHover ? 'bold ' : '') + '9px JetBrains Mono, monospace';
+      ctx2.textAlign = 'center';
+      ctx2.fillText(label, x + barW / 2, yTop - 4);
+
+      // x축 연도 레이블
+      ctx2.fillStyle = isHover ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.4)';
+      ctx2.font = (isHover ? 'bold ' : '') + '9px Noto Sans KR, sans-serif';
+      ctx2.fillText(d.year + (d.type === 'estimate' ? 'E' : ''), x + barW / 2, h - 5);
+      ctx2.textAlign = 'left';
+    });
   }
 
-  // bars
-  epsData.forEach(function(d, i) {
-    var v = d.eps || 0;
-    var x = bx(i);
-    var yTop = v >= 0 ? py(v) : y0;
-    var yBot = v >= 0 ? y0 : py(v);
-    var barH = Math.max(2, Math.abs(yTop - yBot));
-    if (d.type === 'estimate') {
-      ctx.fillStyle = 'rgba(82,217,163,.55)';
-      ctx.strokeStyle = 'rgba(82,217,163,.9)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([3, 2]);
-      ctx.fillRect(x, Math.min(yTop, yBot), barW, barH);
-      ctx.strokeRect(x, Math.min(yTop, yBot), barW, barH);
-      ctx.setLineDash([]);
-    } else {
-      ctx.fillStyle = v >= 0 ? 'rgba(108,138,255,.75)' : 'rgba(255,107,107,.65)';
-      ctx.fillRect(x, Math.min(yTop, yBot), barW, barH);
-    }
-    // value label above bar
-    ctx.fillStyle = 'rgba(255,255,255,.7)';
-    ctx.font = '9px JetBrains Mono, monospace';
-    var label = v >= 0 ? '+' + v.toFixed(2) : v.toFixed(2);
-    var tx = x + barW / 2;
-    var ty = Math.min(yTop, yBot) - 3;
-    ctx.textAlign = 'center';
-    ctx.fillText(label, tx, ty);
-    // x-axis year label
-    ctx.fillStyle = 'rgba(255,255,255,.45)';
-    ctx.font = '9px Noto Sans KR, sans-serif';
-    ctx.fillText(d.year, tx, h - 5);
-    ctx.textAlign = 'left';
-  });
+  render(null);
 
-  // hover
+  // 마우스 이벤트
   var tooltip = document.getElementById('sa-eps-tooltip');
-  if (!tooltip) return;
   canvas.onmousemove = function(e) {
     var rect = canvas.getBoundingClientRect();
     var mx = e.clientX - rect.left;
-    var idx = Math.floor((mx - pad.left) / barGap);
+    var idx = Math.round((mx - pad.left) / barGap - 0.5);
     idx = Math.max(0, Math.min(n - 1, idx));
-    var d = epsData[idx];
-    tooltip.innerHTML = d.year + '&nbsp;&nbsp;<b>' + sym + d.eps + '</b>&nbsp;EPS&nbsp;' + (d.type === 'estimate' ? '(추정)' : '(실적)');
-    tooltip.style.display = 'block';
-    tooltip.style.left = (e.clientX + 14) + 'px';
-    tooltip.style.top  = (e.clientY - 28) + 'px';
+    render(idx);
+    if (tooltip) {
+      var d = epsData[idx];
+      tooltip.innerHTML = '<span style="color:var(--muted)">' + d.year + (d.type === 'estimate' ? 'E' : '') + '</span>' +
+        '&nbsp;&nbsp;<b>' + sym + d.eps + '</b>' +
+        '&nbsp;<span style="color:var(--muted)">' + (d.type === 'estimate' ? '증권사 추정치' : 'GAAP 실적') + '</span>';
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 16) + 'px';
+      tooltip.style.top  = (e.clientY - 36) + 'px';
+    }
   };
-  canvas.onmouseleave = function() { tooltip.style.display = 'none'; };
+  canvas.onmouseleave = function() {
+    render(null);
+    if (tooltip) tooltip.style.display = 'none';
+  };
+
+  // 터치 지원 (모바일)
+  canvas.ontouchmove = function(e) {
+    e.preventDefault();
+    var touch = e.touches[0];
+    var rect = canvas.getBoundingClientRect();
+    var mx = touch.clientX - rect.left;
+    var idx = Math.round((mx - pad.left) / barGap - 0.5);
+    idx = Math.max(0, Math.min(n - 1, idx));
+    render(idx);
+  };
+  canvas.ontouchend = function() { render(null); };
 }
 
 // 투자일지 피드백 기반 가이드 텍스트
