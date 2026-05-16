@@ -75,32 +75,26 @@ async function fetchChartPrices(ticker, interval, range, crumb, cookie) {
   }).filter(function(p) { return p.close != null; });
 }
 
-// Non-GAAP EPS 실적값을 chart events=earnings 에서 가져옴
-// Yahoo epsActual = 애널리스트 컨센서스 기준 Non-GAAP 조정 EPS
-async function fetchEarningsEvents(ticker, crumb, cookie) {
-  // interval=1d 필수 — 3mo 인터벌에서는 events 블록이 누락될 수 있음
+// interval=1y 는 Yahoo에서 지원 안 함 → 3mo로 받아서 연도별 마지막 가격 맵 반환
+async function fetchAnnualPriceMap(ticker, crumb, cookie) {
   var url = 'https://query2.finance.yahoo.com/v8/finance/chart/' +
-    encodeURIComponent(ticker) + '?interval=1d&range=6y&events=earnings' +
+    encodeURIComponent(ticker) + '?interval=3mo&range=7y' +
     '&crumb=' + encodeURIComponent(crumb);
   var r = await httpGet(url, { Cookie: cookie, Accept: 'application/json' });
-  if (r.status !== 200) return [];
+  if (r.status !== 200) return {};
   try {
     var d = JSON.parse(r.body);
     var res = d.chart && d.chart.result && d.chart.result[0];
-    if (!res || !res.events || !res.events.earnings) return [];
-    var raw = res.events.earnings;
-    var items = Array.isArray(raw) ? raw : Object.values(raw);
-    return items
-      .map(function(e) {
-        var dt = new Date(e.date * 1000);
-        var eps = e.epsActual != null ? e.epsActual
-                : e.actual    != null ? e.actual
-                : null;
-        return { date: dt.toISOString().split('T')[0], eps: eps };
-      })
-      .filter(function(e) { return e.eps != null; })
-      .sort(function(a, b) { return a.date.localeCompare(b.date); });
-  } catch (e) { return []; }
+    if (!res || !res.timestamp) return {};
+    var closes = res.indicators.quote[0].close;
+    var byYear = {};
+    res.timestamp.forEach(function(t, i) {
+      if (closes[i] == null) return;
+      var yr = new Date(t * 1000).getFullYear();
+      byYear[yr] = closes[i]; // 같은 연도면 뒤(최신) 값으로 덮어씀
+    });
+    return byYear;
+  } catch (e) { return {}; }
 }
 
 // Wilder's smoothed RSI
@@ -127,26 +121,24 @@ function calcRSI(prices, period) {
   return out.slice(-65); // last ~3 months of trading days
 }
 
-// 각 연말 기준 TTM Non-GAAP EPS(직전 4분기 합산) → 연말 주가로 PE → 5년 평균
-function calcAvgPE5Y(annualPrices, earningsEvents) {
-  if (!earningsEvents || !earningsEvents.length || !annualPrices.length) return null;
-  var currentYear = new Date().getFullYear();
+// GAAP 연간 순이익 / 현재 발행주식수 = EPS → 연말 주가로 PE → 평균
+// (Yahoo 역사적 가격은 분할 반영 조정가, 현재 주식수도 분할 후 기준 → PE 정합)
+function calcAvgPE5Y(priceByYear, incomeHistory, shares) {
+  if (!incomeHistory || !incomeHistory.length || !shares || !Object.keys(priceByYear).length) return null;
   var peList = [];
-  for (var year = currentYear - 1; year >= currentYear - 5; year--) {
-    var yearEndDate = year + '-12-31';
-    var prior = earningsEvents.filter(function(e) { return e.date <= yearEndDate; });
-    if (prior.length < 3) continue;
-    var last4 = prior.slice(-4); // 3~4개 분기로 TTM 근사
-    var ttmEPS = last4.reduce(function(s, e) { return s + e.eps; }, 0);
-    if (ttmEPS <= 0) continue;
-    var best = annualPrices.reduce(function(b, p) {
-      return Math.abs(new Date(p.date).getFullYear() - year) <
-             Math.abs(new Date(b.date).getFullYear() - year) ? p : b;
-    }, annualPrices[0]);
-    if (!best || !best.close) continue;
-    var pe = best.close / ttmEPS;
-    if (pe > 0 && pe < 1000) peList.push(Math.round(pe * 100) / 100);
-  }
+  incomeHistory.forEach(function(stmt) {
+    var ni = (stmt.netIncomeApplicableToCommonShares && stmt.netIncomeApplicableToCommonShares.raw) ||
+             (stmt.netIncome && stmt.netIncome.raw);
+    if (!ni || ni <= 0) return;
+    var eps = ni / shares;
+    if (eps <= 0) return;
+    var stmtYear = new Date((stmt.endDate && stmt.endDate.raw) * 1000).getFullYear();
+    // 해당 연도 가격이 없으면 ±1년 내에서 찾기
+    var price = priceByYear[stmtYear] || priceByYear[stmtYear - 1] || priceByYear[stmtYear + 1];
+    if (!price) return;
+    var pe = price / eps;
+    if (pe > 0 && pe < 2000) peList.push(Math.round(pe * 100) / 100);
+  });
   if (!peList.length) return null;
   return Math.round(peList.reduce(function(a, b) { return a + b; }, 0) / peList.length * 100) / 100;
 }
@@ -176,11 +168,11 @@ module.exports = async function(req, res) {
       return res.json({ source: 'yahoo', ttm, fwd });
     }
 
-    var [summary, dailyPrices, annualPrices, earningsEvents] = await Promise.all([
+    var [summary, dailyPrices, priceByYear, incomeSummary] = await Promise.all([
       fetchQuoteSummary(ticker, 'summaryDetail,defaultKeyStatistics,price', crumb, cookie),
       fetchChartPrices(ticker, '1d', '5mo', crumb, cookie),
-      fetchChartPrices(ticker, '1y', '6y', crumb, cookie),
-      fetchEarningsEvents(ticker, crumb, cookie),
+      fetchAnnualPriceMap(ticker, crumb, cookie),
+      fetchQuoteSummary(ticker, 'incomeStatementHistory', crumb, cookie),
     ]);
 
     var sd = summary.summaryDetail;
@@ -194,10 +186,15 @@ module.exports = async function(req, res) {
     var currency     = (pr && pr.currency) || 'USD';
     var companyName  = (pr && pr.shortName) || ticker;
 
+    var shares = ks && ks.sharesOutstanding && ks.sharesOutstanding.raw;
+
     var rsiData    = calcRSI(dailyPrices);
     var currentRSI = rsiData.length ? rsiData[rsiData.length - 1].rsi : null;
 
-    var avgPE5Y = calcAvgPE5Y(annualPrices, earningsEvents);
+    var incomeHistory = incomeSummary &&
+      incomeSummary.incomeStatementHistory &&
+      incomeSummary.incomeStatementHistory.incomeStatementHistory;
+    var avgPE5Y = calcAvgPE5Y(priceByYear, incomeHistory, shares);
 
     var fairValue = (forwardEPS && avgPE5Y) ? r2(forwardEPS * avgPE5Y) : null;
 
@@ -224,7 +221,7 @@ module.exports = async function(req, res) {
       valuationKR,
       currentRSI,
       rsiData,
-      _dbg: { earningsCount: earningsEvents.length },
+      _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0 },
     });
 
   } catch (e) {
