@@ -168,25 +168,28 @@ module.exports = async function(req, res) {
       return res.json({ source: 'yahoo', ttm, fwd });
     }
 
-    var [summary, dailyPrices, priceByYear, incomeSummary] = await Promise.all([
-      fetchQuoteSummary(ticker, 'summaryDetail,defaultKeyStatistics,price,earningsTrend', crumb, cookie),
+    var [summary, dailyPrices, priceByYear, incomeSummary, trendSummary] = await Promise.all([
+      fetchQuoteSummary(ticker, 'summaryDetail,defaultKeyStatistics,price', crumb, cookie),
       fetchChartPrices(ticker, '1d', '5mo', crumb, cookie),
       fetchAnnualPriceMap(ticker, crumb, cookie),
       fetchQuoteSummary(ticker, 'incomeStatementHistory', crumb, cookie),
+      fetchQuoteSummary(ticker, 'earningsTrend', crumb, cookie).catch(function() { return null; }),
     ]);
 
     var sd = summary.summaryDetail;
     var ks = summary.defaultKeyStatistics;
     var pr = summary.price;
-    var et = summary.earningsTrend;
+    var et = trendSummary && trendSummary.earningsTrend;
 
     var currentPrice = pr && pr.regularMarketPrice && pr.regularMarketPrice.raw;
 
     // earningsTrend 0y = 현재 회계연도 컨센서스 EPS → Seeking Alpha Non-GAAP FWD PE와 일치
+    // 국내 종목 등 earningsTrend 없는 경우 forwardEps 폴백
     var trend0y = et && et.trend && et.trend.find(function(t) { return t.period === '0y'; });
     var forwardEPS = (trend0y && trend0y.earningsEstimate && trend0y.earningsEstimate.avg && trend0y.earningsEstimate.avg.raw) ||
                     (ks && ks.forwardEps && ks.forwardEps.raw);
-    var forwardPE  = (forwardEPS && currentPrice && forwardEPS > 0) ? r2(currentPrice / forwardEPS) : null;
+    var forwardPE  = (forwardEPS && currentPrice && forwardEPS > 0) ? r2(currentPrice / forwardEPS)
+                   : r2(sd && sd.forwardPE && sd.forwardPE.raw);
     var currency     = (pr && pr.currency) || 'USD';
     var companyName  = (pr && pr.shortName) || ticker;
 
@@ -214,6 +217,33 @@ module.exports = async function(req, res) {
       }
     }
 
+    // EPS 히스토리: 과거 실적(GAAP) + 증권사 추정치
+    var epsHistory = [];
+    if (incomeHistory && shares) {
+      var sorted = incomeHistory.slice().sort(function(a, b) {
+        return (a.endDate && a.endDate.raw || 0) - (b.endDate && b.endDate.raw || 0);
+      });
+      sorted.slice(-5).forEach(function(stmt) {
+        var ni = (stmt.netIncomeApplicableToCommonShares && stmt.netIncomeApplicableToCommonShares.raw) ||
+                 (stmt.netIncome && stmt.netIncome.raw);
+        if (!ni) return;
+        var eps = r2(ni / shares);
+        var year = new Date((stmt.endDate && stmt.endDate.raw) * 1000).getFullYear().toString();
+        epsHistory.push({ year: year, eps: eps, type: 'actual' });
+      });
+    }
+    if (et && et.trend) {
+      var currentYear = new Date().getFullYear();
+      [{ period: '0y', yr: currentYear }, { period: '+1y', yr: currentYear + 1 }].forEach(function(p) {
+        var t = et.trend.find(function(x) { return x.period === p.period; });
+        if (!t || !t.earningsEstimate || !t.earningsEstimate.avg || !t.earningsEstimate.avg.raw) return;
+        var yr = p.yr.toString();
+        if (!epsHistory.find(function(e) { return e.year === yr; })) {
+          epsHistory.push({ year: yr, eps: r2(t.earningsEstimate.avg.raw), type: 'estimate' });
+        }
+      });
+    }
+
     return res.json({
       ticker, companyName, currency,
       currentPrice:  r2(currentPrice),
@@ -225,6 +255,7 @@ module.exports = async function(req, res) {
       valuationKR,
       currentRSI,
       rsiData,
+      epsHistory,
       _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0 },
     });
 

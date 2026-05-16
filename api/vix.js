@@ -4,12 +4,12 @@ let cache = null;
 let cacheTime = 0;
 const CACHE_MS = 15 * 60 * 1000; // 15분 캐시
 
-function fetchYahoo(range) {
+function fetchYahoo(ticker, range) {
+  const encoded = encodeURIComponent(ticker);
   return new Promise(function(resolve, reject) {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d&range=${range}&includePrePost=false`;
     const opts = {
       hostname: 'query1.finance.yahoo.com',
-      path: `/v8/finance/chart/%5EVIX?interval=1d&range=${range}&includePrePost=false`,
+      path: `/v8/finance/chart/${encoded}?interval=1d&range=${range}&includePrePost=false`,
       method: 'GET',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -33,16 +33,17 @@ module.exports = async function(req, res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
+  const ticker = (req.query && req.query.ticker) || '^VIX';
   const range = (req.query && req.query.range) || '1mo';
 
-  // 캐시 (range별)
-  const cacheKey = range;
+  // 캐시 (ticker+range별)
+  const cacheKey = ticker + '_' + range;
   if (cache && cache[cacheKey] && (Date.now() - cache[cacheKey].t) < CACHE_MS) {
     return res.json({ ...cache[cacheKey].data, cached: true });
   }
 
   try {
-    const r = await fetchYahoo(range);
+    const r = await fetchYahoo(ticker, range);
     if (r.status !== 200) throw new Error('Yahoo HTTP ' + r.status);
 
     const d = JSON.parse(r.body);

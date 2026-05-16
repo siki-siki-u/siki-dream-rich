@@ -1353,6 +1353,60 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
       </div>
     </div>
 
+    <!-- 엔/달러 환율 + 엔캐리 경고 -->
+    <div class="card" style="margin-bottom:1.5rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;flex-wrap:wrap;gap:.5rem">
+        <div>
+          <div style="font-size:1rem;font-weight:700;color:var(--text)">💴 엔/달러 환율 (USD/JPY)</div>
+          <div style="font-size:.75rem;color:var(--muted);margin-top:.1rem">급락 시 엔캐리 청산 신호</div>
+        </div>
+        <div id="yen-alert" style="display:none;background:rgba(255,92,122,.15);border:1px solid rgba(255,92,122,.4);border-radius:20px;padding:.35rem .9rem;font-size:.78rem;font-weight:700;color:#ff5c7a">
+          ⚠️ 엔캐리 청산 경고
+        </div>
+      </div>
+      <div id="yen-meta" style="display:flex;gap:1.2rem;margin-bottom:.7rem;flex-wrap:wrap">
+        <div><span style="font-size:.68rem;color:var(--muted)">현재</span><br><span id="yen-current" style="font-size:1.4rem;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--text)">--</span></div>
+        <div><span style="font-size:.68rem;color:var(--muted)">1개월 변화</span><br><span id="yen-chg" style="font-size:1rem;font-weight:600;font-family:JetBrains Mono,monospace">--</span></div>
+        <div><span style="font-size:.68rem;color:var(--muted)">1주 변화</span><br><span id="yen-chg-1w" style="font-size:1rem;font-weight:600;font-family:JetBrains Mono,monospace">--</span></div>
+      </div>
+      <div id="yen-chart" style="min-height:130px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.85rem">로딩 중...</div>
+      <div style="display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap">
+        <button onclick="loadYen('3mo')" id="yen-btn-3mo" class="btn btn-primary" style="font-size:.72rem;padding:.2rem .5rem">3개월</button>
+        <button onclick="loadYen('6mo')" id="yen-btn-6mo" class="btn btn-ghost" style="font-size:.72rem;padding:.2rem .5rem">6개월</button>
+        <button onclick="loadYen('1y')"  id="yen-btn-1y"  class="btn btn-ghost" style="font-size:.72rem;padding:.2rem .5rem">1년</button>
+      </div>
+    </div>
+
+    <!-- 미국 vs 일본 2년물 국채금리 비교 -->
+    <div class="card" style="margin-bottom:1.5rem;padding:0;overflow:hidden">
+      <div style="padding:1rem 1.2rem .5rem;background:var(--surface)">
+        <div style="font-size:1rem;font-weight:700;color:var(--text)">📊 미국 vs 일본 2년물 국채금리 (6개월)</div>
+        <div style="font-size:.75rem;color:var(--muted);margin-top:.1rem">미국(파랑) vs 일본(주황) — 금리 역전 시 엔화 강세 압력</div>
+      </div>
+      <div class="tradingview-widget-container" style="height:300px">
+        <div class="tradingview-widget-container__widget" style="height:100%"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+        {
+          "autosize": true,
+          "symbol": "TVC:US02Y",
+          "interval": "D",
+          "range": "6M",
+          "timezone": "Asia/Seoul",
+          "theme": "dark",
+          "style": "2",
+          "locale": "kr",
+          "backgroundColor": "rgba(26,28,43,0)",
+          "gridColor": "rgba(255,255,255,0.06)",
+          "hide_top_toolbar": true,
+          "hide_legend": false,
+          "save_image": false,
+          "compareSymbols": [{"symbol":"TVC:JP02Y","position":"SameScale"}],
+          "hide_volume": true
+        }
+        </script>
+      </div>
+    </div>
+
     <!-- S&P 500 섹터 히트맵 (Finviz 스타일) -->
     <div class="card" style="padding:0;overflow:hidden;margin-bottom:1.5rem">
       <div style="padding:1rem 1.2rem .5rem;background:var(--surface)">
@@ -1402,46 +1456,6 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
         }
         </script>
       </div>
-    </div>
-
-    <!-- P/E Non-GAAP 조회 -->
-    <div class="card" style="margin-bottom:1.5rem">
-      <div class="sec-title" style="margin-bottom:.8rem">📐 P/E Non-GAAP 조회</div>
-      <!-- 자산 유형 -->
-      <div style="display:flex;gap:.4rem;margin-bottom:.65rem">
-        <button class="btn btn-primary" id="pe-type-US" onclick="setPeType('US')" style="flex:1;font-size:.75rem;padding:.32rem .3rem">🇺🇸 미국</button>
-        <button class="btn btn-ghost"   id="pe-type-KR" onclick="setPeType('KR')" style="flex:1;font-size:.75rem;padding:.32rem .3rem">🇰🇷 국내</button>
-      </div>
-      <!-- 종목 검색 드롭다운 -->
-      <div style="position:relative;margin-bottom:.65rem">
-        <input id="pe-search-input" type="text" class="input" placeholder="티커 또는 종목명 검색 (예: AAPL, Apple)"
-          oninput="onPeSearch(this.value)" onkeydown="if(event.key==='Enter')onPeSearch(this.value,true)"
-          style="width:100%;box-sizing:border-box"/>
-        <div id="pe-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:200;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.3)"></div>
-      </div>
-      <!-- 선택된 종목 -->
-      <div id="pe-selected" style="display:none;background:var(--surface);border:1px solid rgba(108,138,255,.35);border-radius:8px;padding:.45rem .75rem;margin-bottom:.65rem;justify-content:space-between;align-items:center">
-        <span id="pe-sel-name" style="font-weight:600;font-size:.87rem;color:var(--text)"></span>
-        <span id="pe-sel-ticker" style="color:var(--muted);font-family:JetBrains Mono,monospace;font-size:.74rem"></span>
-      </div>
-      <!-- 결과 -->
-      <div id="pe-result" style="display:none">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:.5rem">
-          <div style="background:var(--surface2);border-radius:10px;padding:.85rem 1rem;border:1px solid var(--border)">
-            <div style="font-size:.68rem;color:var(--muted);margin-bottom:.35rem;letter-spacing:.04em">P/E Non-GAAP (TTM)</div>
-            <div id="pe-ttm-val" style="font-size:1.5rem;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--accent)">–</div>
-            <div style="font-size:.65rem;color:var(--muted);margin-top:.2rem">최근 12개월 실적 기준</div>
-          </div>
-          <div style="background:var(--surface2);border-radius:10px;padding:.85rem 1rem;border:1px solid var(--border)">
-            <div style="font-size:.68rem;color:var(--muted);margin-bottom:.35rem;letter-spacing:.04em">P/E Non-GAAP (FWD)</div>
-            <div id="pe-fwd-val" style="font-size:1.5rem;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--accent2)">–</div>
-            <div style="font-size:.65rem;color:var(--muted);margin-top:.2rem">향후 12개월 예상 기준</div>
-          </div>
-        </div>
-        <div id="pe-source-note" style="font-size:.68rem;color:var(--muted);text-align:right"></div>
-      </div>
-      <div id="pe-loading" style="display:none;color:var(--muted);font-size:.82rem;text-align:center;padding:.8rem">조회 중...</div>
-      <div id="pe-error" style="display:none;color:var(--danger);font-size:.8rem;padding:.3rem 0"></div>
     </div>
 
     <!-- 경제 캘린더 -->
@@ -1522,6 +1536,16 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
       <h2>🔍 주식 가치 분석</h2>
       <p>미래 적정 주가 · 저평가/고평가 · RSI 분석</p>
     </div>
+    <!-- 투자일지 피드백 기반 가이드 -->
+    <div class="card" id="sa-guide-card" style="display:none;margin-bottom:1rem;background:linear-gradient(135deg,rgba(82,217,163,.08),rgba(108,138,255,.06));border:1px solid rgba(82,217,163,.25)">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+        <span style="font-size:1rem">💡</span>
+        <span style="font-size:.82rem;font-weight:700;color:var(--accent3)">나의 투자 원칙 (일지 피드백 기반)</span>
+        <button onclick="document.getElementById('sa-guide-card').style.display='none'" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:.85rem">✕</button>
+      </div>
+      <div id="sa-guide-text" style="font-size:.8rem;color:var(--text);line-height:1.7;white-space:pre-wrap"></div>
+    </div>
+
     <div class="card" id="stock-analysis-card">
       <div style="display:flex;gap:.4rem;margin-bottom:.65rem">
         <button class="btn btn-primary" id="sa-type-US" onclick="setSaType('US')" style="flex:1;font-size:.75rem;padding:.32rem .3rem">🇺🇸 미국</button>
@@ -1581,6 +1605,22 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
         <div style="display:flex;justify-content:space-between;font-size:.62rem;color:var(--muted);margin-top:.3rem">
           <span id="sa-rsi-date-start"></span><span id="sa-rsi-date-end"></span>
         </div>
+
+        <!-- EPS 히스토리 차트 -->
+        <div style="margin-top:1.2rem">
+          <div style="font-size:.88rem;font-weight:600;color:var(--text);margin-bottom:.6rem">📊 EPS 추이 (실적 + 증권사 추정치)</div>
+          <div style="position:relative">
+            <canvas id="sa-eps-canvas" style="width:100%;height:160px;display:block"></canvas>
+            <div id="sa-eps-tooltip" style="display:none;position:fixed;pointer-events:none;z-index:9999;background:rgba(20,24,38,.95);border:1px solid rgba(108,138,255,.35);border-radius:8px;padding:.4rem .7rem;font-size:.76rem;font-family:JetBrains Mono,monospace;color:var(--text);white-space:nowrap"></div>
+          </div>
+          <div style="display:flex;gap:1rem;margin-top:.4rem;font-size:.7rem;color:var(--muted)">
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#6c8aff;margin-right:.3rem"></span>실제 EPS (GAAP)</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#52d9a3;margin-right:.3rem;opacity:.7;border:1px dashed #52d9a3"></span>증권사 추정치</span>
+          </div>
+        </div>
+
+        <!-- RSI 툴팁 -->
+        <div id="sa-rsi-tooltip" style="display:none;position:fixed;pointer-events:none;z-index:9999;background:rgba(20,24,38,.95);border:1px solid rgba(108,138,255,.35);border-radius:8px;padding:.4rem .7rem;font-size:.76rem;font-family:JetBrains Mono,monospace;color:var(--text);white-space:nowrap"></div>
       </div>
     </div>
   </div>
@@ -2524,10 +2564,10 @@ function showPage(id, el) {
   if(id==='realty')  { renderRealty(); initCheongak(); }
   if(id==='gifts')       { renderGiftList(); }
   if(id==='condolences') { renderCondolenceList(); }
-  if(id==='market')  { loadVix('1mo'); }
+  if(id==='market')  { loadVix('1mo'); loadYen('3mo'); }
   if(id==='mock-invest') { syncAndRenderMockInvest(); }
   if(id==='invest-terms') { renderInvestTerms(); }
-  if(id==='stock-analysis') { /* ready on load */ }
+  if(id==='stock-analysis') { loadSaGuide(); }
 }
 
 // ── DATE HELPERS ──
@@ -4330,6 +4370,11 @@ async function fetchStockAnalysis() {
       document.getElementById('sa-rsi-date-end').textContent   = dates[dates.length-1].date;
     }
 
+    // EPS Chart
+    if (d.epsHistory && d.epsHistory.length > 0) {
+      drawEpsChart(d.epsHistory, d.currency);
+    }
+
     result.style.display = 'block';
   } catch(e) {
     loading.style.display = 'none';
@@ -4429,6 +4474,161 @@ function drawRsiChart(rsiData) {
     var label = rsiData[i].date.slice(5); // MM-DD
     ctx.fillText(label, x - 10, h - 5);
   }
+
+  // RSI hover tooltip
+  var tooltip = document.getElementById('sa-rsi-tooltip');
+  if (!tooltip) return;
+  canvas.onmousemove = function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = e.clientX - rect.left;
+    var idx = Math.round((mx - pad.left) / (cw / (n - 1)));
+    idx = Math.max(0, Math.min(n - 1, idx));
+    var pt = rsiData[idx];
+    tooltip.innerHTML = pt.date + '&nbsp;&nbsp;<b>' + pt.rsi + '</b>&nbsp;RSI' +
+      (pt.close ? '&nbsp;&nbsp;$' + pt.close.toFixed(2) : '');
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX + 14) + 'px';
+    tooltip.style.top  = (e.clientY - 28) + 'px';
+  };
+  canvas.onmouseleave = function() { tooltip.style.display = 'none'; };
+}
+
+function drawEpsChart(epsData, currency) {
+  var canvas = document.getElementById('sa-eps-canvas');
+  if (!canvas || !epsData || !epsData.length) return;
+  var sym = currency === 'KRW' ? '₩' : '$';
+  var dpr = window.devicePixelRatio || 1;
+  var w = canvas.offsetWidth || canvas.parentElement.offsetWidth || 400;
+  var h = 160;
+  canvas.width  = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
+  var ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  var pad = { top: 16, right: 10, bottom: 24, left: 42 };
+  var cw = w - pad.left - pad.right;
+  var ch = h - pad.top - pad.bottom;
+
+  var n = epsData.length;
+  var barW = Math.min(40, (cw / n) * 0.55);
+  var barGap = cw / n;
+
+  var vals = epsData.map(function(d) { return d.eps || 0; });
+  var maxV = Math.max.apply(null, vals.map(Math.abs));
+  var minV = Math.min.apply(null, vals);
+  var hasNeg = minV < 0;
+  var rangeV = hasNeg ? (maxV - minV) : maxV;
+  var vPad = rangeV * 0.15 || 1;
+  var vMax = (hasNeg ? maxV : maxV) + vPad;
+  var vMin = (hasNeg ? minV : 0) - vPad;
+
+  function py(v) { return pad.top + ch - ((v - vMin) / (vMax - vMin)) * ch; }
+  function bx(i) { return pad.left + i * barGap + barGap / 2 - barW / 2; }
+
+  // zero line
+  var y0 = py(0);
+  ctx.strokeStyle = 'rgba(255,255,255,.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad.left, y0); ctx.lineTo(pad.left + cw, y0); ctx.stroke();
+
+  // y-axis labels
+  ctx.fillStyle = 'rgba(255,255,255,.35)';
+  ctx.font = '9px JetBrains Mono, monospace';
+  var yTicks = 3;
+  for (var t = 0; t <= yTicks; t++) {
+    var v = vMin + (vMax - vMin) * (t / yTicks);
+    var yp = py(v);
+    ctx.fillText(v.toFixed(1), 0, yp + 3);
+    ctx.strokeStyle = 'rgba(255,255,255,.05)';
+    ctx.beginPath(); ctx.moveTo(pad.left, yp); ctx.lineTo(pad.left + cw, yp); ctx.stroke();
+  }
+
+  // bars
+  epsData.forEach(function(d, i) {
+    var v = d.eps || 0;
+    var x = bx(i);
+    var yTop = v >= 0 ? py(v) : y0;
+    var yBot = v >= 0 ? y0 : py(v);
+    var barH = Math.max(2, Math.abs(yTop - yBot));
+    if (d.type === 'estimate') {
+      ctx.fillStyle = 'rgba(82,217,163,.55)';
+      ctx.strokeStyle = 'rgba(82,217,163,.9)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 2]);
+      ctx.fillRect(x, Math.min(yTop, yBot), barW, barH);
+      ctx.strokeRect(x, Math.min(yTop, yBot), barW, barH);
+      ctx.setLineDash([]);
+    } else {
+      ctx.fillStyle = v >= 0 ? 'rgba(108,138,255,.75)' : 'rgba(255,107,107,.65)';
+      ctx.fillRect(x, Math.min(yTop, yBot), barW, barH);
+    }
+    // value label above bar
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ctx.font = '9px JetBrains Mono, monospace';
+    var label = v >= 0 ? '+' + v.toFixed(2) : v.toFixed(2);
+    var tx = x + barW / 2;
+    var ty = Math.min(yTop, yBot) - 3;
+    ctx.textAlign = 'center';
+    ctx.fillText(label, tx, ty);
+    // x-axis year label
+    ctx.fillStyle = 'rgba(255,255,255,.45)';
+    ctx.font = '9px Noto Sans KR, sans-serif';
+    ctx.fillText(d.year, tx, h - 5);
+    ctx.textAlign = 'left';
+  });
+
+  // hover
+  var tooltip = document.getElementById('sa-eps-tooltip');
+  if (!tooltip) return;
+  canvas.onmousemove = function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = e.clientX - rect.left;
+    var idx = Math.floor((mx - pad.left) / barGap);
+    idx = Math.max(0, Math.min(n - 1, idx));
+    var d = epsData[idx];
+    tooltip.innerHTML = d.year + '&nbsp;&nbsp;<b>' + sym + d.eps + '</b>&nbsp;EPS&nbsp;' + (d.type === 'estimate' ? '(추정)' : '(실적)');
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX + 14) + 'px';
+    tooltip.style.top  = (e.clientY - 28) + 'px';
+  };
+  canvas.onmouseleave = function() { tooltip.style.display = 'none'; };
+}
+
+// 투자일지 피드백 기반 가이드 텍스트
+async function loadSaGuide() {
+  var guideCard = document.getElementById('sa-guide-card');
+  var guideText = document.getElementById('sa-guide-text');
+  if (!guideCard || !guideText) return;
+  var journals = (typeof S !== 'undefined' ? S.get('journals') : null) || [];
+  var withFeedback = journals.filter(function(j) { return j.feedback && j.feedback.trim().length > 10; });
+  if (withFeedback.length === 0) return;
+  var excerpts = withFeedback.slice(0, 6).map(function(j) {
+    return '날짜: ' + j.date + '\n피드백: ' + j.feedback.slice(0, 200);
+  }).join('\n---\n');
+  guideText.textContent = '원칙 분석 중...';
+  guideCard.style.display = 'block';
+  try {
+    var res = await fetchWithTimeout('/api/claude', 20000, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 400,
+        messages: [{
+          role: 'user',
+          content: '아래 투자일지 AI 피드백들을 분석해서, 이 투자자가 종목 분석 시 반드시 챙겨야 할 핵심 투자 원칙 3~5가지를 간결하게 bullet로 정리해줘. 한국어로. 투자 조언 아닌 개인화된 습관/원칙 요약으로.\n\n' + excerpts
+        }]
+      })
+    });
+    var data = await res.json();
+    var text = data.content && data.content[0] && data.content[0].text;
+    if (text) { guideText.textContent = text; guideCard.style.display = 'block'; }
+    else { guideCard.style.display = 'none'; }
+  } catch(e) {
+    guideCard.style.display = 'none';
+  }
 }
 
 async function loadVix(range) {
@@ -4473,7 +4673,7 @@ async function loadVix(range) {
     }
 
     // 유효한 데이터만 필터
-    var pts = [];
+    pts = pts.filter(function(p){ return p && p.v != null; });
     if(pts.length < 2){ chartEl.innerHTML='<span style="color:var(--muted);font-size:.8rem">데이터 없음</span>'; return; }
 
     // SVG 차트
@@ -4527,6 +4727,77 @@ async function loadVix(range) {
     chartEl.innerHTML = svg;
   } catch(e) {
     chartEl.innerHTML = '<span style="color:var(--muted);font-size:.82rem">데이터를 불러오지 못했어요 ('+e.message+')</span>';
+  }
+}
+
+// ── 엔/달러 환율 ──
+var _yenRange = '3mo';
+async function loadYen(range) {
+  _yenRange = range || _yenRange;
+  ['3mo','6mo','1y'].forEach(function(r) {
+    var b = document.getElementById('yen-btn-'+r);
+    if(b) { b.className = r === _yenRange ? 'btn btn-primary' : 'btn btn-ghost'; b.style.cssText='font-size:.72rem;padding:.2rem .5rem'; }
+  });
+  var chartEl = document.getElementById('yen-chart');
+  if(!chartEl) return;
+  chartEl.innerHTML = '<span style="color:var(--muted);font-size:.85rem">로딩 중...</span>';
+  try {
+    // Yahoo Finance: USDJPY=X
+    var res = await fetchWithTimeout('/api/vix?ticker=USDJPY%3DX&range='+_yenRange, 12000);
+    if(!res || !res.ok) throw new Error('서버 오류');
+    var data = await res.json();
+    if(data.error) throw new Error(data.error);
+    var pts = (data.pts || []).filter(function(p){ return p && p.v != null; });
+    if(pts.length < 2) { chartEl.innerHTML='<span style="color:var(--muted);font-size:.8rem">데이터 없음</span>'; return; }
+
+    var current = data.current || pts[pts.length-1].v;
+    var oldest  = pts[0].v;
+    var weekAgo = pts.length >= 5 ? pts[pts.length-5].v : oldest;
+    var chgMo   = current - oldest;
+    var chgWk   = current - weekAgo;
+    var chgMoPct = oldest ? (chgMo/oldest*100) : 0;
+    var chgWkPct = weekAgo ? (chgWk/weekAgo*100) : 0;
+
+    var curEl = document.getElementById('yen-current');
+    var chgEl = document.getElementById('yen-chg');
+    var chgWEl = document.getElementById('yen-chg-1w');
+    var alertEl = document.getElementById('yen-alert');
+    if(curEl) curEl.textContent = current.toFixed(2);
+    var sign = function(v){ return v>=0?'+':''; };
+    if(chgEl) { chgEl.textContent = sign(chgMo)+chgMo.toFixed(2)+' ('+sign(chgMoPct)+chgMoPct.toFixed(1)+'%)'; chgEl.style.color=chgMo>=0?'var(--danger)':'var(--success)'; }
+    if(chgWEl){ chgWEl.textContent= sign(chgWk)+chgWk.toFixed(2)+' ('+sign(chgWkPct)+chgWkPct.toFixed(1)+'%)'; chgWEl.style.color=chgWk>=0?'var(--danger)':'var(--success)'; }
+    // 엔캐리 청산 경고: 1주 -2% 이상 or 1개월 -5% 이상 하락 (엔화 강세)
+    if(alertEl) alertEl.style.display = (chgWkPct <= -2 || chgMoPct <= -5) ? 'block' : 'none';
+
+    // SVG 차트
+    var svgW=540, svgH=120, pL=50, pR=10, pT=8, pB=20;
+    var gW=svgW-pL-pR, gH=svgH-pT-pB;
+    var vals=pts.map(function(p){return p.v;});
+    var maxV=Math.max.apply(null,vals), minV=Math.min.apply(null,vals);
+    var rng=maxV-minV||1; maxV+=rng*.05; minV-=rng*.05;
+    var n=pts.length;
+    function px(i){return pL+(i/(n-1))*gW;}
+    function py(v){return pT+gH-((v-minV)/(maxV-minV))*gH;}
+    var color='#60a5fa';
+    var linePath=pts.map(function(p,i){return(i===0?'M':'L')+px(i).toFixed(1)+','+py(p.v).toFixed(1);}).join(' ');
+    var areaPath=linePath+' L'+px(n-1).toFixed(1)+','+(pT+gH)+' L'+px(0).toFixed(1)+','+(pT+gH)+' Z';
+    var yLabels=[minV+(maxV-minV)*.25,minV+(maxV-minV)*.5,minV+(maxV-minV)*.75].map(function(v){
+      return '<line x1="'+pL+'" y1="'+py(v).toFixed(1)+'" x2="'+(pL+gW)+'" y2="'+py(v).toFixed(1)+'" stroke="rgba(255,255,255,.07)" stroke-width="1"/>'+
+             '<text x="'+(pL-3)+'" y="'+(parseFloat(py(v).toFixed(1))+4)+'" text-anchor="end" font-size="9" fill="rgba(123,130,168,.7)">'+v.toFixed(1)+'</text>';
+    }).join('');
+    var step=Math.floor((n-1)/4);
+    var xLabels='';
+    for(var j=0;j<=4;j++){var idx=Math.min(j*step,n-1);var d=new Date(pts[idx].ts*1000);xLabels+='<text x="'+px(idx).toFixed(1)+'" y="'+(pT+gH+14)+'" text-anchor="middle" font-size="9" fill="rgba(123,130,168,.7)">'+(d.getMonth()+1)+'/'+(d.getDate())+'</text>';}
+    var svg='<svg viewBox="0 0 '+svgW+' '+svgH+'" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">'+
+      '<defs><linearGradient id="yg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity=".3"/><stop offset="100%" stop-color="'+color+'" stop-opacity=".02"/></linearGradient></defs>'+
+      yLabels+
+      '<path d="'+areaPath+'" fill="url(#yg)"/>'+
+      '<path d="'+linePath+'" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>'+
+      '<circle cx="'+px(n-1).toFixed(1)+'" cy="'+py(pts[n-1].v).toFixed(1)+'" r="3.5" fill="'+color+'"/>'+
+      xLabels+'</svg>';
+    chartEl.innerHTML = svg;
+  } catch(e) {
+    chartEl.innerHTML = '<span style="color:var(--muted);font-size:.82rem">데이터 불러오기 실패 ('+e.message+')</span>';
   }
 }
 
@@ -6819,7 +7090,7 @@ async function getJournalFeedback(id, btn) {
           '\n제목: '+j.title+'\n관련종목: '+(j.tickers||'미기재')+'\n당시행동: '+j.action+
           '\n당시 생각:\n'+j.content+'\n\n'+
           (priceInfo?'현재 주가 (오늘 '+today()+'):\n'+priceInfo+'\n\n':'')+
-          '아래 형식으로 답해줘:\n\n[피드백]\n당시 판단 분석 + 지금 돌아보면 어떤지 + 수익률 언급(주가 있으면). 2~4줄.\n\n[조언]\n비슷한 상황 재발시 구체적 대응 전략. 실용적으로 2~4줄.\n\n투자 권유 아닌 참고 의견으로.'
+          '아래 형식을 정확히 지켜서 답해줘. 태그 이름은 절대 바꾸지 말 것:\n\n===피드백===\n당시 판단 분석 + 지금 돌아보면 어떤지 + 수익률 언급(주가 있으면). 2~4줄.\n\n===조언===\n비슷한 상황 재발시 구체적 대응 전략. 실용적으로 2~4줄.\n\n투자 권유 아닌 참고 의견으로.'
         }]
       })
     });
@@ -6828,9 +7099,9 @@ async function getJournalFeedback(id, btn) {
     var data=await res.json();
     var text=data.content?.[0]?.text||'';
     if(!text) throw new Error(JSON.stringify(data));
-    var fbM=text.match(/\[피드백\]([\s\S]*?)(?=\[조언\]|$)/);
-    var adM=text.match(/\[조언\]([\s\S]*?)$/);
-    var feedback=fbM?fbM[1].trim():text;
+    var fbM=text.match(/===피드백===([\s\S]*?)(?====조언===|$)/);
+    var adM=text.match(/===조언===([\s\S]*?)$/);
+    var feedback=fbM?fbM[1].trim():text.split(/===조언===/)[0].trim();
     var advice=adM?adM[1].trim():'';
     journals=journals.map(function(x){return x.id===id?Object.assign({},x,{feedback:feedback,advice:advice}):x;});
     S.set('journals',journals);
