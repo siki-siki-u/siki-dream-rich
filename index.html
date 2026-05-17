@@ -1180,6 +1180,23 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
       </div>
     </div>
 
+    <!-- 매수매도 이력 -->
+    <div class="card" style="margin-top:1.2rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:.4rem">
+        <span style="font-size:.9rem;font-weight:700;color:var(--text)">📋 매수매도 이력</span>
+        <div style="display:flex;gap:.35rem">
+          <button onclick="filterPortHistory('all')"    id="ph-btn-all"    class="btn btn-primary"  style="font-size:.7rem;padding:.2rem .5rem">전체</button>
+          <button onclick="filterPortHistory('buy')"    id="ph-btn-buy"    class="btn btn-ghost"    style="font-size:.7rem;padding:.2rem .5rem">매수</button>
+          <button onclick="filterPortHistory('sell')"   id="ph-btn-sell"   class="btn btn-ghost"    style="font-size:.7rem;padding:.2rem .5rem">매도</button>
+          <button onclick="filterPortHistory('modify')" id="ph-btn-modify" class="btn btn-ghost"    style="font-size:.7rem;padding:.2rem .5rem">수정</button>
+        </div>
+      </div>
+      <!-- 종목 필터 -->
+      <div id="ph-ticker-filter" style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.65rem"></div>
+      <!-- 이력 목록 -->
+      <div id="port-history-list" style="max-height:420px;overflow-y:auto"></div>
+    </div>
+
   </div>
 
   <!-- 투자현황(삭제됨) -->
@@ -1536,14 +1553,17 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
       <h2>🔍 주식 가치 분석</h2>
       <p>미래 적정 주가 · 저평가/고평가 · RSI 분석</p>
     </div>
-    <!-- 투자일지 피드백 기반 가이드 -->
-    <div class="card" id="sa-guide-card" style="display:none;margin-bottom:1rem;background:linear-gradient(135deg,rgba(82,217,163,.08),rgba(108,138,255,.06));border:1px solid rgba(82,217,163,.25)">
-      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
-        <span style="font-size:1rem">💡</span>
-        <span style="font-size:.82rem;font-weight:700;color:var(--accent3)">나의 투자 원칙 (일지 피드백 기반)</span>
-        <button onclick="document.getElementById('sa-guide-card').style.display='none'" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:.85rem">✕</button>
+    <!-- 나의 투자 원칙 -->
+    <div class="card" style="margin-bottom:1rem;background:linear-gradient(135deg,rgba(82,217,163,.06),rgba(108,138,255,.04));border:1px solid rgba(82,217,163,.2)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.55rem">
+        <span style="font-size:.82rem;font-weight:700;color:var(--accent3)">💡 나의 투자 원칙</span>
+        <button onclick="saveInvestmentPrinciples()" id="sa-principles-save-btn" class="btn btn-ghost" style="font-size:.73rem;padding:.18rem .55rem">저장</button>
       </div>
-      <div id="sa-guide-text" style="font-size:.8rem;color:var(--text);line-height:1.7;white-space:pre-wrap"></div>
+      <textarea id="sa-principles-textarea"
+        placeholder="종목 분석 전 스스로에게 상기시킬 원칙을 적어두세요&#10;예) • RSI 30 이하일 때만 분할 매수&#10;예) • 선행 PER이 5년 평균보다 낮아야 매수 고려&#10;예) • EPS 연속 감소 종목은 제외"
+        style="width:100%;min-height:90px;resize:vertical;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:.65rem .75rem;font-size:.82rem;font-family:'Noto Sans KR',sans-serif;line-height:1.65;outline:none"
+        oninput="document.getElementById('sa-principles-save-btn').style.color='var(--accent4)'"
+      ></textarea>
     </div>
 
     <div class="card" id="stock-analysis-card">
@@ -2331,6 +2351,9 @@ async function syncFromSupabase() {
       else if(s.key === 'portfolio_realized') {
         try { var _pr=JSON.parse(s.value); if(_pr) { S.set('portfolio_realized',_pr); _portRealized=_pr; } } catch(e){}
       }
+      else if(s.key === 'portfolio_history') {
+        try { var _ph=JSON.parse(s.value); if(_ph&&_ph.length) { S.set('portfolio_history',_ph); _portHistory=_ph; } } catch(e){}
+      }
     });
     // ── portfolio: DB 우선, DB 없으면 local → DB seed ──
     (function() {
@@ -2509,6 +2532,9 @@ var _events = [];  // populated by syncFromSupabase; written directly to Supabas
 // ── PORTFOLIO HOLDINGS IN-MEMORY (single source of truth after sync) ──
 // 페이지 로드 즉시 localStorage 캐시로 초기화 → sync 완료 후 DB 값으로 덮어씀
 var _holdings      = S.get('portfolio_holdings') || [];
+var _portHistory   = S.get('portfolio_history')  || [];
+var _phFilter      = 'all';
+var _phTickerFilter = null;
 var _homeGoalPrice = S.get('home_goal_price')    || 0;
 var _homeLoanAmount = S.get('home_loan_amount')  || 0;
 var _homeLoanRate   = S.get('home_loan_rate')    || 3.5;
@@ -2567,7 +2593,7 @@ function showPage(id, el) {
   if(id==='market')  { loadVix('1mo'); loadYen('3mo'); }
   if(id==='mock-invest') { syncAndRenderMockInvest(); }
   if(id==='invest-terms') { renderInvestTerms(); }
-  if(id==='stock-analysis') { loadSaGuide(); }
+  if(id==='stock-analysis') { loadInvestmentPrinciples(); }
 }
 
 // ── DATE HELPERS ──
@@ -4694,38 +4720,29 @@ function drawEpsChart(epsData, currency) {
 }
 
 // 투자일지 피드백 기반 가이드 텍스트
-async function loadSaGuide() {
-  var guideCard = document.getElementById('sa-guide-card');
-  var guideText = document.getElementById('sa-guide-text');
-  if (!guideCard || !guideText) return;
-  var journals = (typeof S !== 'undefined' ? S.get('journals') : null) || [];
-  var withFeedback = journals.filter(function(j) { return j.feedback && j.feedback.trim().length > 10; });
-  if (withFeedback.length === 0) return;
-  var excerpts = withFeedback.slice(0, 6).map(function(j) {
-    return '날짜: ' + j.date + '\n피드백: ' + j.feedback.slice(0, 200);
-  }).join('\n---\n');
-  guideText.textContent = '원칙 분석 중...';
-  guideCard.style.display = 'block';
+async function loadInvestmentPrinciples() {
+  var ta = document.getElementById('sa-principles-textarea');
+  if (!ta) return;
+  var cached = typeof S !== 'undefined' ? S.get('investment_principles') : null;
+  if (cached != null) { ta.value = cached; return; }
+  if (!supa) return;
   try {
-    var res = await fetchWithTimeout('/api/claude', 20000, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 400,
-        messages: [{
-          role: 'user',
-          content: '아래 투자일지 AI 피드백들을 분석해서, 이 투자자가 종목 분석 시 반드시 챙겨야 할 핵심 투자 원칙 3~5가지를 간결하게 bullet로 정리해줘. 한국어로. 투자 조언 아닌 개인화된 습관/원칙 요약으로.\n\n' + excerpts
-        }]
-      })
-    });
-    var data = await res.json();
-    var text = data.content && data.content[0] && data.content[0].text;
-    if (text) { guideText.textContent = text; guideCard.style.display = 'block'; }
-    else { guideCard.style.display = 'none'; }
-  } catch(e) {
-    guideCard.style.display = 'none';
-  }
+    var { data } = await supa.from('settings').select('value').eq('key', 'investment_principles').maybeSingle();
+    if (data && data.value != null) {
+      ta.value = data.value;
+      if (typeof S !== 'undefined') S.set('investment_principles', data.value);
+    }
+  } catch(e) {}
+}
+
+async function saveInvestmentPrinciples() {
+  var ta = document.getElementById('sa-principles-textarea');
+  var btn = document.getElementById('sa-principles-save-btn');
+  if (!ta) return;
+  var text = ta.value;
+  if (typeof S !== 'undefined') S.set('investment_principles', text);
+  await dbUpsert('settings', { key: 'investment_principles', value: text });
+  if (btn) { btn.textContent = '저장됨 ✓'; btn.style.color = 'var(--success)'; setTimeout(function(){ btn.textContent = '저장'; btn.style.color = ''; }, 2000); }
 }
 
 async function loadVix(range) {
@@ -7666,11 +7683,24 @@ async function confirmPortBuy(id){
   }
   var btn=document.querySelector('button[onclick="confirmPortBuy('+id+')"]');
   if(btn){btn.disabled=true;btn.textContent='저장 중...';}
+  // 이력 저장
+  var hRecord={id:Date.now()+'_'+Math.random().toString(36).slice(2,7),
+    action:h.isDirect?'modify':'buy', ticker:h.ticker||'', name:h.name||'',
+    type:h.type||'', owner:h.owner||'',
+    qty:h.isDirect?null:(parseFloat(qEl.value)||0),
+    price:h.isDirect?null:(document.getElementById('port-buy-price-'+id)?parseFloat(document.getElementById('port-buy-price-'+id).value)||null:null),
+    amountKRW:h.isDirect?(parseInt((iEl.value||'').replace(/,/g,''))||0):(Math.round((parseFloat(qEl.value)||0)*(parseFloat((document.getElementById('port-buy-price-'+id)||{}).value)||0))||0),
+    profit:null, date:new Date().toISOString().slice(0,10), time:new Date().toISOString().slice(0,16)};
+  _portHistory=([hRecord].concat(_portHistory)).slice(0,300);
+  S.set('portfolio_history',_portHistory);
   S.set('portfolio_holdings',holdings);
   _holdings=holdings;
-  await dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)});
+  await Promise.all([
+    dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)}),
+    dbUpsert('settings',{key:'portfolio_history',value:JSON.stringify(_portHistory)}),
+  ]);
   delete _portBuyOpen[id];
-  renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
+  renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart(); renderPortHistory();
 }
 
 async function confirmPortSell(id){
@@ -7708,14 +7738,22 @@ async function confirmPortSell(id){
   if(realized.history.length>100) realized.history=realized.history.slice(0,100);
   S.set('portfolio_realized',realized);
   _portRealized=realized;
+  // 이력 저장
+  var sRecord={id:Date.now()+'_'+Math.random().toString(36).slice(2,7),
+    action:'sell', ticker:h.ticker||'', name:h.name||'', type:h.type||'', owner:h.owner||'',
+    qty:sellQty, price:price, amountKRW:sellAmt, profit:profit,
+    date:new Date().toISOString().slice(0,10), time:new Date().toISOString().slice(0,16)};
+  _portHistory=([sRecord].concat(_portHistory)).slice(0,300);
+  S.set('portfolio_history',_portHistory);
   S.set('portfolio_holdings',holdings);
   _holdings=holdings;
   await Promise.all([
     dbUpsert('settings',{key:'portfolio_holdings',value:JSON.stringify(holdings)}),
-    dbUpsert('settings',{key:'portfolio_realized',value:JSON.stringify(realized)})
+    dbUpsert('settings',{key:'portfolio_realized',value:JSON.stringify(realized)}),
+    dbUpsert('settings',{key:'portfolio_history',value:JSON.stringify(_portHistory)}),
   ]);
   delete _portSellOpen[id];
-  renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
+  renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart(); renderPortHistory();
   showToast('매도 완료 ✅\n실현 손익: '+profStr);
 }
 
@@ -7752,6 +7790,70 @@ function showRealizedHistory(){
 }
 function closeRealizedModal(){
   document.getElementById('realized-modal').classList.remove('open');
+}
+
+function filterPortHistory(type) {
+  _phFilter = type;
+  _phTickerFilter = null;
+  ['all','buy','sell','modify'].forEach(function(t) {
+    var b = document.getElementById('ph-btn-'+t);
+    if (b) { b.className = t === type ? 'btn btn-primary' : 'btn btn-ghost'; b.style.cssText = 'font-size:.7rem;padding:.2rem .5rem'; }
+  });
+  renderPortHistory();
+}
+
+function renderPortHistory() {
+  var listEl = document.getElementById('port-history-list');
+  var tickerEl = document.getElementById('ph-ticker-filter');
+  if (!listEl) return;
+
+  var hist = _portHistory || S.get('portfolio_history') || [];
+
+  // 종목 필터 버튼 생성
+  if (tickerEl) {
+    var tickers = [];
+    hist.forEach(function(r) { if (r.ticker && !tickers.includes(r.ticker)) tickers.push(r.ticker); });
+    tickerEl.innerHTML = (tickers.length > 1 ?
+      '<button onclick="_phTickerFilter=null;renderPortHistory()" style="font-size:.68rem;padding:.15rem .45rem;border-radius:12px;border:1px solid var(--border);background:'+ (_phTickerFilter==null?'var(--accent)':'var(--surface2)') +';color:'+(_phTickerFilter==null?'#fff':'var(--muted)')+';cursor:pointer">전체</button>' : '') +
+      tickers.map(function(t) {
+        var active = _phTickerFilter === t;
+        return '<button onclick="_phTickerFilter=\''+t+'\';renderPortHistory()" style="font-size:.68rem;padding:.15rem .45rem;border-radius:12px;border:1px solid var(--border);background:'+(active?'var(--accent2)':'var(--surface2)')+';color:'+(active?'#fff':'var(--muted)')+';cursor:pointer">'+t+'</button>';
+      }).join('');
+  }
+
+  // 필터 적용
+  var filtered = hist;
+  if (_phFilter !== 'all') filtered = filtered.filter(function(r) { return r.action === _phFilter; });
+  if (_phTickerFilter) filtered = filtered.filter(function(r) { return r.ticker === _phTickerFilter; });
+
+  if (!filtered.length) {
+    listEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:.82rem">이력이 없어요</div>';
+    return;
+  }
+
+  var actionLabel = { buy: '매수', sell: '매도', modify: '수정' };
+  var actionColor = { buy: 'var(--accent)', sell: 'var(--danger)', modify: 'var(--accent4)' };
+  var flag = function(type) { return type==='US'?'🇺🇸':type==='KR'?'🇰🇷':type==='CRYPTO'?'₿':type==='GOLD'?'🥇':''; };
+
+  listEl.innerHTML = filtered.map(function(r) {
+    var ac = actionColor[r.action] || 'var(--muted)';
+    var al = actionLabel[r.action] || r.action;
+    var amtStr = r.amountKRW ? '₩'+Math.round(r.amountKRW).toLocaleString() : '';
+    var profitStr = r.profit != null ? ((r.profit>=0?'+':'')+'₩'+Math.round(r.profit).toLocaleString()) : '';
+    var qtyStr = r.qty ? r.qty+'주' : '';
+    var priceStr = r.price ? '@ ₩'+Math.round(r.price).toLocaleString() : '';
+    return '<div style="display:flex;align-items:center;gap:.6rem;padding:.55rem .2rem;border-bottom:1px solid rgba(255,255,255,.05)">' +
+      '<div style="width:32px;height:32px;border-radius:8px;background:rgba(0,0,0,.2);border:1px solid '+ac+';display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:'+ac+';flex-shrink:0">'+al+'</div>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:.82rem;font-weight:600;color:var(--text)">' + (r.name||r.ticker||'–') + ' <span style="font-size:.68rem;color:var(--muted)">'+flag(r.type)+' '+(r.ticker||'')+'</span></div>' +
+        '<div style="font-size:.7rem;color:var(--muted)">' + r.date + (qtyStr?' · '+qtyStr:'') + (priceStr?' '+priceStr:'') + '</div>' +
+      '</div>' +
+      '<div style="text-align:right;flex-shrink:0">' +
+        (amtStr ? '<div style="font-size:.8rem;font-weight:600;font-family:JetBrains Mono,monospace;color:var(--text)">'+amtStr+'</div>' : '') +
+        (profitStr ? '<div style="font-size:.75rem;font-weight:700;font-family:JetBrains Mono,monospace;color:'+(r.profit>=0?'var(--success)':'var(--danger)')+'">'+profitStr+'</div>' : '') +
+      '</div>' +
+    '</div>';
+  }).join('');
 }
 
 function openFxCorrect(){
@@ -8255,6 +8357,7 @@ async function initPortfolio(){
   renderPortHoldings();
   renderPortSummary();
   renderPortMonthlyChart();
+  renderPortHistory();
   fetchPortUsdKrw();
   var holdings=S.get('portfolio_holdings')||[];
   if(holdings.length){

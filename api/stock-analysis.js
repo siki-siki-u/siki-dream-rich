@@ -168,12 +168,14 @@ module.exports = async function(req, res) {
       return res.json({ source: 'yahoo', ttm, fwd });
     }
 
-    var [summary, dailyPrices, priceByYear, incomeSummary, trendSummary] = await Promise.all([
+    var [summary, dailyPrices, priceByYear, incomeSummary, trendSummary, incomeQ, earningsSummary] = await Promise.all([
       fetchQuoteSummary(ticker, 'summaryDetail,defaultKeyStatistics,price', crumb, cookie),
       fetchChartPrices(ticker, '1d', '5mo', crumb, cookie),
       fetchAnnualPriceMap(ticker, crumb, cookie),
-      fetchQuoteSummary(ticker, 'incomeStatementHistory,incomeStatementHistoryQuarterly', crumb, cookie),
+      fetchQuoteSummary(ticker, 'incomeStatementHistory', crumb, cookie).catch(function() { return null; }),
       fetchQuoteSummary(ticker, 'earningsTrend', crumb, cookie).catch(function() { return null; }),
+      fetchQuoteSummary(ticker, 'incomeStatementHistoryQuarterly', crumb, cookie).catch(function() { return null; }),
+      fetchQuoteSummary(ticker, 'earningsHistory', crumb, cookie).catch(function() { return null; }),
     ]);
 
     var sd = summary.summaryDetail;
@@ -201,6 +203,12 @@ module.exports = async function(req, res) {
     var incomeHistory = incomeSummary &&
       incomeSummary.incomeStatementHistory &&
       incomeSummary.incomeStatementHistory.incomeStatementHistory;
+    var incomeHistoryQ = incomeQ &&
+      incomeQ.incomeStatementHistoryQuarterly &&
+      incomeQ.incomeStatementHistoryQuarterly.incomeStatementHistory;
+    var earningsH = earningsSummary &&
+      earningsSummary.earningsHistory &&
+      earningsSummary.earningsHistory.history;
     var avgPE5Y = calcAvgPE5Y(priceByYear, incomeHistory, shares);
 
     var fairValue = (forwardEPS && avgPE5Y) ? r2(forwardEPS * avgPE5Y) : null;
@@ -217,11 +225,7 @@ module.exports = async function(req, res) {
       }
     }
 
-    // EPS 히스토리: 분기별 실적(GAAP) + 분기 증권사 추정치
-    var incomeHistoryQ = incomeSummary &&
-      incomeSummary.incomeStatementHistoryQuarterly &&
-      incomeSummary.incomeStatementHistoryQuarterly.incomeStatementHistory;
-
+    // EPS 히스토리: 분기별 실적 + 증권사 추정치
     function qLabel(ts) {
       var d = new Date(ts * 1000);
       var q = Math.floor(d.getMonth() / 3) + 1;
@@ -229,18 +233,30 @@ module.exports = async function(req, res) {
     }
 
     var epsHistory = [];
-    if (incomeHistoryQ && shares) {
-      var sortedQ = incomeHistoryQ.slice().sort(function(a, b) {
-        return (a.endDate && a.endDate.raw || 0) - (b.endDate && b.endDate.raw || 0);
+
+    // 1순위: earningsHistory — 주당 EPS 직접 제공, Yahoo가 4~6분기 반환
+    if (earningsH && earningsH.length) {
+      earningsH.slice().sort(function(a, b) {
+        return (a.quarter && a.quarter.raw || 0) - (b.quarter && b.quarter.raw || 0);
+      }).forEach(function(h) {
+        if (!h.epsActual || h.epsActual.raw == null || !h.quarter || !h.quarter.raw) return;
+        epsHistory.push({ year: qLabel(h.quarter.raw), eps: r2(h.epsActual.raw), type: 'actual' });
       });
-      sortedQ.slice(-8).forEach(function(stmt) {
+    }
+
+    // 2순위 폴백: incomeStatementHistoryQuarterly (순이익 / 발행주식수)
+    if (!epsHistory.length && incomeHistoryQ && shares) {
+      incomeHistoryQ.slice().sort(function(a, b) {
+        return (a.endDate && a.endDate.raw || 0) - (b.endDate && b.endDate.raw || 0);
+      }).slice(-6).forEach(function(stmt) {
         var ni = (stmt.netIncomeApplicableToCommonShares && stmt.netIncomeApplicableToCommonShares.raw) ||
                  (stmt.netIncome && stmt.netIncome.raw);
         if (!ni || !stmt.endDate || !stmt.endDate.raw) return;
-        var eps = r2(ni / shares);
-        epsHistory.push({ year: qLabel(stmt.endDate.raw), eps: eps, type: 'actual' });
+        epsHistory.push({ year: qLabel(stmt.endDate.raw), eps: r2(ni / shares), type: 'actual' });
       });
     }
+
+    // 증권사 추정치 (현재 분기 & 다음 분기)
     if (et && et.trend) {
       ['0q', '+1q'].forEach(function(period) {
         var t = et.trend.find(function(x) { return x.period === period; });
