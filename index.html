@@ -1634,9 +1634,10 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
             <div id="sa-eps-tooltip" style="display:none;position:fixed;pointer-events:none;z-index:9999;background:rgba(20,24,38,.95);border:1px solid rgba(108,138,255,.35);border-radius:8px;padding:.4rem .7rem;font-size:.76rem;font-family:JetBrains Mono,monospace;color:var(--text);white-space:nowrap"></div>
           </div>
           <div style="display:flex;gap:1rem;margin-top:.4rem;font-size:.7rem;color:var(--muted)">
-            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#6c8aff;margin-right:.3rem"></span>실제 EPS (GAAP)</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#6c8aff;margin-right:.3rem"></span>실제 EPS</span>
             <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#52d9a3;margin-right:.3rem;opacity:.7;border:1px dashed #52d9a3"></span>증권사 추정치</span>
           </div>
+          <div id="sa-earnings-dates" style="display:none;margin-top:.55rem;display:flex;flex-direction:column;gap:.28rem"></div>
         </div>
 
         <!-- RSI 툴팁 -->
@@ -3554,7 +3555,7 @@ function showCatPopup(catName) {
   }).sort(function(a,b){ return b.date.localeCompare(a.date); });
   var total = items.reduce(function(s,t){ return s + Math.abs(t.amount); }, 0);
   var catColors = {
-    '식료품':'var(--accent)','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
+    '식료품':'var(--accent)','생활용품':'#22d3ee','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
     '교통/자동차':'var(--accent4)','편의점':'#a78bfa','의료':'#f87171',
     '구독비':'#34d399','관리비':'#60a5fa','경조사':'#f472b6',
     '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'var(--muted)','입금/환급':'var(--success)'
@@ -3692,7 +3693,7 @@ function renderTransactions() {
   });
   const total = txs.reduce(function(s,t){return s+t.amount;},0);
   const catColors = {
-    '식료품':'var(--accent)','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
+    '식료품':'var(--accent)','생활용품':'#22d3ee','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
     '교통/자동차':'var(--accent4)','편의점':'#a78bfa','의료':'#f87171',
     '구독비':'#34d399','관리비':'#60a5fa','경조사':'#f472b6',
     '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'var(--muted)',
@@ -3749,7 +3750,7 @@ function renderTransactions() {
 
   const tbody = document.getElementById('tx-body');
   const txListEl = document.getElementById('tx-card-list');
-  var catOpts = ['식료품','식비(외식)','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
+  var catOpts = ['식료품','생활용품','식비(외식)','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
   var srcColors = {'공용생활비':'#60a5fa','여분통장':'#34d399','관리비':'#f472b6','경조사':'#f472b6','가족 선물/지원':'#a78bfa','여행비':'#fb923c'};
   // 카드형 (모바일 CSS가 제어) — 항상 렌더링
   if(txListEl) {
@@ -4400,6 +4401,7 @@ async function fetchStockAnalysis() {
     requestAnimationFrame(function() {
       if (d.rsiData && d.rsiData.length > 1) drawRsiChart(d.rsiData);
       if (d.epsHistory && d.epsHistory.length > 0) drawEpsChart(d.epsHistory, d.currency);
+      renderEarningsDates(d.earningsDates, d.currency);
     });
   } catch(e) {
     loading.style.display = 'none';
@@ -4719,7 +4721,34 @@ function drawEpsChart(epsData, currency) {
   canvas.ontouchend = function() { render(null); };
 }
 
-// 투자일지 피드백 기반 가이드 텍스트
+function renderEarningsDates(earningsDates, currency) {
+  var el = document.getElementById('sa-earnings-dates');
+  if (!el) return;
+  if (!earningsDates || !earningsDates.length) { el.style.display = 'none'; return; }
+  var today = new Date().toISOString().split('T')[0];
+  el.style.display = 'flex';
+  el.innerHTML = earningsDates.map(function(e) {
+    var isPast = e.date < today;
+    var isFuture = !isPast;
+    var label = e.period === '0q' ? '현재Q' : '다음Q';
+    var icon = isPast ? '✅' : '📅';
+    var dateStr = e.date.replace(/-/g, '.'); // 2025.07.24
+    var suffix = e.estimated ? ' <span style="font-size:.63rem;color:var(--muted)">(추정)</span>' : '';
+    var statusColor = isPast ? 'var(--muted)' : isFuture ? 'var(--accent4)' : 'var(--text)';
+    var daysStr = '';
+    if (isFuture) {
+      var diff = Math.round((new Date(e.date) - new Date(today)) / (1000 * 60 * 60 * 24));
+      daysStr = ' <span style="font-size:.68rem;color:var(--accent4);font-weight:600">D-' + diff + '</span>';
+    }
+    return '<div style="display:flex;align-items:center;gap:.45rem;font-size:.74rem">' +
+      icon + ' ' +
+      '<span style="color:var(--muted);min-width:36px">' + label + '</span>' +
+      '<span style="font-family:JetBrains Mono,monospace;color:' + statusColor + ';font-weight:600">' + dateStr + '</span>' +
+      daysStr + suffix +
+      '</div>';
+  }).join('');
+}
+
 async function loadInvestmentPrinciples() {
   var ta = document.getElementById('sa-principles-textarea');
   if (!ta) return;
@@ -6828,6 +6857,7 @@ try {
 function classifyTx(desc) {
   desc = (desc||'').toLowerCase();
   if(/코스트코|마트|이마트|홈플러스|롯데마트|쿠팡|gs25|cu |세븐|편의점/.test(desc)) return '식료품';
+  if(/다이소|생활용품|생필품|세제|청소|욕실|주방용품|화장지|샴푸|치약/.test(desc)) return '생활용품';
   if(/배달|배민|요기|쿠팡이츠|식당|카페|맥도|버거|피자|치킨|스타벅스/.test(desc)) return '식비(외식)';
   if(/주차|하이패스|주유|자동차|카세|세차/.test(desc)) return '교통/자동차';
   if(/지하철|버스|택시|카카오t/.test(desc)) return '교통/자동차';
@@ -6964,7 +6994,7 @@ function renderExcelPreview(detectedHeaders) {
     return;
   }
   var catColors = {
-    '식료품':'var(--accent)','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
+    '식료품':'var(--accent)','생활용품':'#22d3ee','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
     '교통/자동차':'var(--accent4)','편의점':'#a78bfa','의료':'#f87171',
     '구독비':'#34d399','관리비':'#60a5fa','경조사':'#f472b6',
     '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'var(--muted)','입금/환급':'var(--success)'
@@ -7006,7 +7036,7 @@ function renderExcelPreview(detectedHeaders) {
     '</tr></thead><tbody>'+
     parsedExcelRows.map(function(r,i){
       var clr = catColors[r.cat]||'var(--muted)';
-      var catOpts = ['식료품','식비(외식)','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
+      var catOpts = ['식료품','생활용품','식비(외식)','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
       var isIncome = r.amount < 0;
       var isOffset = offsetIdx.has(i);
       var amtClr = isOffset ? '#f59e0b' : (isIncome ? 'var(--success)' : 'var(--danger)');
