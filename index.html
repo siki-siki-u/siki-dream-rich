@@ -3558,7 +3558,7 @@ function showCatPopup(catName) {
     '식료품':'var(--accent)','생활용품':'#22d3ee','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
     '교통/자동차':'var(--accent4)','편의점':'#a78bfa','의료':'#f87171',
     '구독비':'#34d399','관리비':'#60a5fa','경조사':'#f472b6',
-    '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'var(--muted)','입금/환급':'var(--success)'
+    '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'#fb923c','입금/환급':'var(--success)'
   };
   var clr = catColors[catName] || 'var(--accent)';
   var rows = items.map(function(t){
@@ -6997,7 +6997,7 @@ function renderExcelPreview(detectedHeaders) {
     '식료품':'var(--accent)','생활용품':'#22d3ee','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
     '교통/자동차':'var(--accent4)','편의점':'#a78bfa','의료':'#f87171',
     '구독비':'#34d399','관리비':'#60a5fa','경조사':'#f472b6',
-    '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'var(--muted)','입금/환급':'var(--success)'
+    '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'#fb923c','입금/환급':'var(--success)'
   };
   // 출금/입금 상계 가능 쌍 탐지 (내용 유사 + 금액 동일)
   var normDesc = function(s) { return (s||'').replace(/\s+/g,'').toLowerCase(); };
