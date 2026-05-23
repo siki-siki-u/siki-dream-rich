@@ -3737,11 +3737,23 @@ function renderTransactions() {
             }
           }
         }
-        return '<div style="border-top:1px solid var(--border);margin-top:.5rem;padding-top:.6rem;font-size:.83rem;font-weight:700">'+
-          '<div style="color:var(--muted);margin-bottom:.15rem">전체 합계</div>'+
-          '<div style="display:flex;align-items:center;gap:.4rem">'+
-            '<span style="font-family:JetBrains Mono,monospace;color:var(--accent2);white-space:nowrap">'+fmtMoney(total)+'</span>'+
-            (overUnderHtml ? '<span>'+overUnderHtml+'</span>' : '')+
+        var totalOut = txs.filter(function(t){return t.amount>0;}).reduce(function(s,t){return s+t.amount;},0);
+        var totalIn  = txs.filter(function(t){return t.amount<0;}).reduce(function(s,t){return s+Math.abs(t.amount);},0);
+        return '<div style="border-top:1px solid var(--border);margin-top:.5rem;padding-top:.6rem;font-size:.83rem">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.22rem">'+
+            '<span style="font-size:.72rem;color:var(--muted)">출금</span>'+
+            '<span style="font-family:JetBrains Mono,monospace;color:var(--danger);font-size:.8rem">-'+fmtMoney(totalOut)+'</span>'+
+          '</div>'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.35rem">'+
+            '<span style="font-size:.72rem;color:var(--muted)">입금</span>'+
+            '<span style="font-family:JetBrains Mono,monospace;color:var(--success);font-size:.8rem">+'+fmtMoney(totalIn)+'</span>'+
+          '</div>'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:.3rem">'+
+            '<span style="font-size:.74rem;font-weight:700;color:var(--muted)">전체 합계</span>'+
+            '<div style="display:flex;align-items:center;gap:.4rem">'+
+              '<span style="font-family:JetBrains Mono,monospace;font-weight:700;color:var(--accent2);font-size:.85rem">'+fmtMoney(total)+'</span>'+
+              (overUnderHtml ? overUnderHtml : '')+
+            '</div>'+
           '</div>'+
         '</div>';
       })();
