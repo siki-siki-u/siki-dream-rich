@@ -1104,13 +1104,13 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
           <span style="font-size:.65rem;color:var(--muted);min-width:2rem">유형</span>
           <button id="pf-cat-all"      onclick="setPortHoldingsCat('all')"      style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--accent);background:rgba(108,138,255,.18);color:var(--accent);cursor:pointer">전체</button>
           <button id="pf-cat-volatile" onclick="setPortHoldingsCat('volatile')" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">📈 변동자산</button>
-          <button id="pf-cat-locked"   onclick="setPortHoldingsCat('locked')"   style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">🔒 해지필요</button>
+          <button id="pf-cat-locked"   onclick="setPortHoldingsCat('locked')"   style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">🔒 묶인 자산</button>
           <button id="pf-cat-fixed"    onclick="setPortHoldingsCat('fixed')"    style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">🏦 고정자산</button>
         </div>
-        <!-- 해지필요 설명 -->
+        <!-- 묶인 자산 설명 -->
         <div id="pf-locked-desc" style="display:none;font-size:.68rem;color:#ffbe5c;background:rgba(255,190,92,.07);border:1px solid rgba(255,190,92,.2);border-radius:7px;padding:.3rem .55rem;line-height:1.5">
-          🔒 <b>해지필요 자산</b>이란 부동산 매매 시, 추가적으로 충당할 수 있는 금액입니다.<br>
-          <span style="color:var(--muted)">단, 중도 해지 시 원금 손실·세금 불이익이 발생할 수 있는 자산입니다.</span><br>
+          🔒 <b>묶인 자산</b>이란 해지해야만 꺼낼 수 있는 자산입니다.<br>
+          <span style="color:var(--muted)">부동산 매매 시 추가로 충당 가능하지만, 중도 해지 시 원금 손실·세금 불이익이 발생할 수 있어요.</span><br>
           <span style="color:var(--muted)">퇴직연금(IRP·DC·DB), 주택청약 등이 해당됩니다.</span>
         </div>
         <div id="pf-fixed-desc" style="display:none;font-size:.68rem;color:#86efac;background:rgba(134,239,172,.07);border:1px solid rgba(134,239,172,.2);border-radius:7px;padding:.3rem .55rem;line-height:1.5">
@@ -1150,11 +1150,11 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
         <div id="port-chart-volatile" style="min-height:160px"></div>
       </div>
 
-      <!-- 해지필요자산 미니 차트 -->
+      <!-- 묶인 자산자산 미니 차트 -->
       <div style="margin-bottom:1rem">
         <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem">
           <span style="width:8px;height:8px;border-radius:2px;background:#ffbe5c;display:inline-block;flex-shrink:0"></span>
-          <span style="font-size:.74rem;color:var(--muted);font-weight:600;letter-spacing:.03em">해지필요자산 추이</span>
+          <span style="font-size:.74rem;color:var(--muted);font-weight:600;letter-spacing:.03em">묶인 자산 추이</span>
           <span style="font-size:.67rem;color:var(--muted);opacity:.6">퇴직연금·주택청약</span>
         </div>
         <div id="port-chart-locked" style="min-height:160px"></div>
@@ -5202,7 +5202,7 @@ var MARRIAGE_BASE = {
   label: '25년 10월 (결혼)',
   total: 475942728,      // 총 기준 원금
   volatile: 81773925,    // 변동자산 (미국·코인 등)
-  locked: 39168803,      // 해지필요 (연금)
+  locked: 39168803,      // 묶인 자산 (연금)
   fixed: 355000000,      // 고정자산 (적금 155M + 전세 200M)
 };
 
@@ -8010,7 +8010,7 @@ function renderPortHoldings(){
     var catTag=isVolatile?
       '<span style="font-size:.6rem;background:rgba(34,211,238,.15);color:#22d3ee;border-radius:3px;padding:.05rem .28rem;margin-left:.2rem">변동자산</span>':
       isLocked?
-      '<span style="font-size:.6rem;background:rgba(255,190,92,.15);color:#ffbe5c;border-radius:3px;padding:.05rem .28rem;margin-left:.2rem">해지필요</span>':
+      '<span style="font-size:.6rem;background:rgba(255,190,92,.15);color:#ffbe5c;border-radius:3px;padding:.05rem .28rem;margin-left:.2rem">묶인 자산</span>':
       isFixed?
       '<span style="font-size:.6rem;background:rgba(134,239,172,.15);color:#86efac;border-radius:3px;padding:.05rem .28rem;margin-left:.2rem">고정자산</span>':'';
     var ownerTag=h.owner==='유진'?'<span style="font-size:.63rem;background:rgba(244,114,182,.18);color:#f472b6;border-radius:3px;padding:.05rem .3rem;margin-left:.25rem">👩유진계좌</span>':
