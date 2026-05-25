@@ -1400,27 +1400,51 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
         <div style="font-size:1rem;font-weight:700;color:var(--text)">📊 미국 vs 일본 2년물 국채금리 (6개월)</div>
         <div style="font-size:.75rem;color:var(--muted);margin-top:.1rem">미국(파랑) vs 일본(주황) — 금리 역전 시 엔화 강세 압력</div>
       </div>
-      <div class="tradingview-widget-container" style="height:300px">
-        <div class="tradingview-widget-container__widget" style="height:100%"></div>
-        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
-        {
-          "autosize": true,
-          "symbol": "TVC:US02Y",
-          "interval": "D",
-          "range": "6M",
-          "timezone": "Asia/Seoul",
-          "theme": "dark",
-          "style": "2",
-          "locale": "kr",
-          "backgroundColor": "rgba(26,28,43,0)",
-          "gridColor": "rgba(255,255,255,0.06)",
-          "hide_top_toolbar": true,
-          "hide_legend": false,
-          "save_image": false,
-          "compareSymbols": [{"symbol":"TVC:JP02Y","position":"SameScale"}],
-          "hide_volume": true
-        }
-        </script>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;padding:.5rem .5rem .3rem">
+        <div>
+          <div style="font-size:.72rem;color:#6c8aff;font-weight:600;text-align:center;margin-bottom:.2rem">🇺🇸 미국 2년물</div>
+          <div class="tradingview-widget-container" style="height:160px">
+            <div class="tradingview-widget-container__widget" style="height:100%"></div>
+            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
+            {
+              "symbol": "TVC:US02Y",
+              "width": "100%",
+              "height": "100%",
+              "locale": "kr",
+              "dateRange": "6M",
+              "colorTheme": "dark",
+              "trendLineColor": "rgba(108,138,255,1)",
+              "underLineColor": "rgba(108,138,255,0.1)",
+              "underLineBottomColor": "rgba(41,98,255,0)",
+              "isTransparent": true,
+              "autosize": true,
+              "largeChartUrl": ""
+            }
+            </script>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:.72rem;color:#f59e0b;font-weight:600;text-align:center;margin-bottom:.2rem">🇯🇵 일본 2년물</div>
+          <div class="tradingview-widget-container" style="height:160px">
+            <div class="tradingview-widget-container__widget" style="height:100%"></div>
+            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
+            {
+              "symbol": "TVC:JP02Y",
+              "width": "100%",
+              "height": "100%",
+              "locale": "kr",
+              "dateRange": "6M",
+              "colorTheme": "dark",
+              "trendLineColor": "rgba(245,158,11,1)",
+              "underLineColor": "rgba(245,158,11,0.1)",
+              "underLineBottomColor": "rgba(245,158,11,0)",
+              "isTransparent": true,
+              "autosize": true,
+              "largeChartUrl": ""
+            }
+            </script>
+          </div>
+        </div>
       </div>
     </div>
 
