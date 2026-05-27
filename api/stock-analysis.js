@@ -194,6 +194,9 @@ module.exports = async function(req, res) {
     // 국내 종목 등 earningsTrend 없는 경우 forwardEps 폴백
     var trend0y = et && et.trend && et.trend.find(function(t) { return t.period === '0y'; });
     var trend1y = et && et.trend && et.trend.find(function(t) { return t.period === '+1y'; });
+    var trend5y = et && et.trend && et.trend.find(function(t) { return t.period === '+5y'; });
+    // PEG 계산용 장기 EPS 성장률 (5년 CAGR) — Seeking Alpha 등 금융 사이트 표준
+    var longTermGrowth = trend5y && trend5y.earningsEstimate && trend5y.earningsEstimate.growth && trend5y.earningsEstimate.growth.raw;
     var forwardEPS = (trend0y && trend0y.earningsEstimate && trend0y.earningsEstimate.avg && trend0y.earningsEstimate.avg.raw) ||
                     (ks && ks.forwardEps && ks.forwardEps.raw);
 
@@ -216,7 +219,7 @@ module.exports = async function(req, res) {
       var revEst = t.revenueEstimate && t.revenueEstimate.avg && t.revenueEstimate.avg.raw;
       var fpe = (eps > 0 && prevClose) ? r2(prevClose / eps) : null;
       var fpsr = (revEst && revEst > 0 && shares && prevClose) ? r2(prevClose * shares / revEst) : null;
-      var fpeg = (fpe && growth != null && growth > 0) ? r2(fpe / (growth * 100)) : null;
+      var fpeg = (fpe && longTermGrowth != null && longTermGrowth > 0) ? r2(fpe / (longTermGrowth * 100)) : null;
       annualEpsEstimates.push({
         period: t.period,
         fiscalEnd: fmtFiscalEnd(endRaw),
