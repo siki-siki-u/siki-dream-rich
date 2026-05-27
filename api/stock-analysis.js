@@ -259,6 +259,20 @@ module.exports = async function(req, res) {
       return d.getFullYear().toString().slice(2) + 'Q' + q;
     }
 
+    // 회계연도 종료월 기준 FQ 라벨: "FQ2 2027 (Oct 2026)"
+    var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var fyEndRaw = ks && ks.lastFiscalYearEnd && ks.lastFiscalYearEnd.raw;
+    var fyEndMonth = fyEndRaw != null ? new Date(fyEndRaw * 1000).getUTCMonth() : null; // 0-11
+    function fqLabel(endRaw) {
+      if (fyEndMonth == null || !endRaw) return null;
+      var d = new Date(endRaw * 1000);
+      var m = d.getUTCMonth(), y = d.getUTCFullYear();
+      var fiscalYear = m <= fyEndMonth ? y : y + 1;
+      var fyStartMonth = (fyEndMonth + 1) % 12;
+      var qNum = Math.floor(((m - fyStartMonth + 12) % 12) / 3) + 1;
+      return 'FQ' + qNum + ' ' + fiscalYear + ' (' + MONTHS[m] + ' ' + y + ')';
+    }
+
     var epsHistory = [];
 
     // 1순위: earningsHistory — 주당 EPS 직접 제공, Yahoo가 4~6분기 반환
@@ -283,29 +297,35 @@ module.exports = async function(req, res) {
       });
     }
 
-    // 증권사 추정치 (현재 분기 & 다음 분기)
+    // 증권사 추정치 (현재 분기 & 다음 2개 분기) — FQ 라벨 적용
     if (et && et.trend) {
-      ['0q', '+1q'].forEach(function(period) {
+      ['0q', '+1q', '+2q'].forEach(function(period) {
         var t = et.trend.find(function(x) { return x.period === period; });
         if (!t || !t.earningsEstimate || !t.earningsEstimate.avg || !t.earningsEstimate.avg.raw) return;
-        var label = (t.endDate && t.endDate.raw) ? qLabel(t.endDate.raw) : (period === '0q' ? '현재Q' : '다음Q');
+        var endRaw = t.endDate && t.endDate.raw;
+        var label = (endRaw && fqLabel(endRaw)) || (endRaw ? qLabel(endRaw) : period);
         if (!epsHistory.find(function(e) { return e.year === label; })) {
           epsHistory.push({ year: label, eps: r2(t.earningsEstimate.avg.raw), type: 'estimate' });
         }
       });
     }
 
-    // 실적 발표 예정일 (calendarEvents)
+    // 실적 발표 예정일 (calendarEvents) — FQ 라벨 적용
     var earningsDates = [];
     var calEv = calSummary && calSummary.calendarEvents && calSummary.calendarEvents.earnings;
     if (calEv && calEv.earningsDate && calEv.earningsDate.length) {
       // Yahoo는 보통 [최조기 예상, 최후기 예상] 2개 타임스탬프를 줌 → 첫 번째가 발표일 추정
       var d0 = new Date(calEv.earningsDate[0].raw * 1000);
-      var label0 = qLabel(calEv.earningsDate[0].raw);
+      // 분기 종료일은 earningsTrend 0q endDate로 매칭, 없으면 발표일 ~45일 전 추정
+      var trend0q = et && et.trend && et.trend.find(function(x) { return x.period === '0q'; });
+      var q0EndRaw = trend0q && trend0q.endDate && trend0q.endDate.raw;
+      var label0 = (q0EndRaw && fqLabel(q0EndRaw)) || (q0EndRaw ? qLabel(q0EndRaw) : qLabel(calEv.earningsDate[0].raw));
       earningsDates.push({ period: '0q', label: label0, date: d0.toISOString().split('T')[0] });
-      // +1q 예상일: 약 91일 후 (한 분기)
+      // +1q: earningsTrend +1q endDate 사용, 없으면 91일 후 추정
+      var trend1q = et && et.trend && et.trend.find(function(x) { return x.period === '+1q'; });
+      var q1EndRaw = trend1q && trend1q.endDate && trend1q.endDate.raw;
       var d1 = new Date(d0.getTime() + 91 * 24 * 60 * 60 * 1000);
-      var label1 = qLabel(d1.getTime() / 1000);
+      var label1 = (q1EndRaw && fqLabel(q1EndRaw)) || (q1EndRaw ? qLabel(q1EndRaw) : qLabel(d1.getTime() / 1000));
       earningsDates.push({ period: '+1q', label: label1, date: d1.toISOString().split('T')[0], estimated: true });
     }
 

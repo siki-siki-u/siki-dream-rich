@@ -4772,11 +4772,10 @@ function renderEarningsDates(earningsDates, currency) {
   el.innerHTML = earningsDates.map(function(e) {
     var isPast = e.date < today;
     var isFuture = !isPast;
-    var label = e.period === '0q' ? '현재Q' : '다음Q';
     var icon = isPast ? '✅' : '📅';
-    var dateStr = e.date.replace(/-/g, '.'); // 2025.07.24
+    var dateStr = e.date.replace(/-/g, '.');
     var suffix = e.estimated ? ' <span style="font-size:.63rem;color:var(--muted)">(추정)</span>' : '';
-    var statusColor = isPast ? 'var(--muted)' : isFuture ? 'var(--accent4)' : 'var(--text)';
+    var statusColor = isPast ? 'var(--muted)' : 'var(--accent4)';
     var daysStr = '';
     if (isFuture) {
       var diff = Math.round((new Date(e.date) - new Date(today)) / (1000 * 60 * 60 * 24));
@@ -4784,8 +4783,9 @@ function renderEarningsDates(earningsDates, currency) {
     }
     return '<div style="display:flex;align-items:center;gap:.45rem;font-size:.74rem">' +
       icon + ' ' +
-      '<span style="color:var(--muted);min-width:36px">' + label + '</span>' +
-      '<span style="font-family:JetBrains Mono,monospace;color:' + statusColor + ';font-weight:600">' + dateStr + '</span>' +
+      '<span style="font-family:JetBrains Mono,monospace;color:' + statusColor + ';font-weight:600">' + (e.label || e.period) + '</span>' +
+      ' <span style="color:var(--muted)">발표</span> ' +
+      '<span style="font-family:JetBrains Mono,monospace;color:var(--muted)">' + dateStr + '</span>' +
       daysStr + suffix +
       '</div>';
   }).join('');
