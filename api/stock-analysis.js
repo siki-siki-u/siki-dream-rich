@@ -168,7 +168,7 @@ module.exports = async function(req, res) {
       return res.json({ source: 'yahoo', ttm, fwd });
     }
 
-    var [summary, dailyPrices, priceByYear, incomeSummary, trendSummary, incomeQ, earningsSummary] = await Promise.all([
+    var [summary, dailyPrices, priceByYear, incomeSummary, trendSummary, incomeQ, earningsSummary, calSummary] = await Promise.all([
       fetchQuoteSummary(ticker, 'summaryDetail,defaultKeyStatistics,price', crumb, cookie),
       fetchChartPrices(ticker, '1d', '5mo', crumb, cookie),
       fetchAnnualPriceMap(ticker, crumb, cookie),
@@ -176,6 +176,7 @@ module.exports = async function(req, res) {
       fetchQuoteSummary(ticker, 'earningsTrend', crumb, cookie).catch(function() { return null; }),
       fetchQuoteSummary(ticker, 'incomeStatementHistoryQuarterly', crumb, cookie).catch(function() { return null; }),
       fetchQuoteSummary(ticker, 'earningsHistory', crumb, cookie).catch(function() { return null; }),
+      fetchQuoteSummary(ticker, 'calendarEvents', crumb, cookie).catch(function() { return null; }),
     ]);
 
     var sd = summary.summaryDetail;
@@ -188,8 +189,34 @@ module.exports = async function(req, res) {
     // earningsTrend 0y = 현재 회계연도 컨센서스 EPS → Seeking Alpha Non-GAAP FWD PE와 일치
     // 국내 종목 등 earningsTrend 없는 경우 forwardEps 폴백
     var trend0y = et && et.trend && et.trend.find(function(t) { return t.period === '0y'; });
+    var trend1y = et && et.trend && et.trend.find(function(t) { return t.period === '+1y'; });
     var forwardEPS = (trend0y && trend0y.earningsEstimate && trend0y.earningsEstimate.avg && trend0y.earningsEstimate.avg.raw) ||
                     (ks && ks.forwardEps && ks.forwardEps.raw);
+
+    // 연간 EPS 예상치 (Seeking Alpha Annual Estimates와 동일 소스)
+    function fmtFiscalEnd(raw) {
+      if (!raw) return null;
+      var d = new Date(raw * 1000);
+      return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+    }
+    var annualEpsEstimates = [];
+    [trend0y, trend1y].forEach(function(t) {
+      if (!t) return;
+      var eps = t.earningsEstimate && t.earningsEstimate.avg && t.earningsEstimate.avg.raw;
+      if (eps == null) return;
+      var endRaw = t.endDate && t.endDate.raw;
+      var growth = t.earningsEstimate && t.earningsEstimate.growth && t.earningsEstimate.growth.raw;
+      var numAnalysts = t.earningsEstimate && t.earningsEstimate.numberOfAnalysts && t.earningsEstimate.numberOfAnalysts.raw;
+      var fpe = (eps > 0 && currentPrice) ? r2(currentPrice / eps) : null;
+      annualEpsEstimates.push({
+        period: t.period,
+        fiscalEnd: fmtFiscalEnd(endRaw),
+        eps: r2(eps),
+        growthPct: growth != null ? r2(growth * 100) : null,
+        forwardPE: fpe,
+        numAnalysts: numAnalysts || null,
+      });
+    });
     var forwardPE  = (forwardEPS && currentPrice && forwardEPS > 0) ? r2(currentPrice / forwardEPS)
                    : r2(sd && sd.forwardPE && sd.forwardPE.raw);
     var currency     = (pr && pr.currency) || 'USD';
@@ -268,6 +295,20 @@ module.exports = async function(req, res) {
       });
     }
 
+    // 실적 발표 예정일 (calendarEvents)
+    var earningsDates = [];
+    var calEv = calSummary && calSummary.calendarEvents && calSummary.calendarEvents.earnings;
+    if (calEv && calEv.earningsDate && calEv.earningsDate.length) {
+      // Yahoo는 보통 [최조기 예상, 최후기 예상] 2개 타임스탬프를 줌 → 첫 번째가 발표일 추정
+      var d0 = new Date(calEv.earningsDate[0].raw * 1000);
+      var label0 = qLabel(calEv.earningsDate[0].raw);
+      earningsDates.push({ period: '0q', label: label0, date: d0.toISOString().split('T')[0] });
+      // +1q 예상일: 약 91일 후 (한 분기)
+      var d1 = new Date(d0.getTime() + 91 * 24 * 60 * 60 * 1000);
+      var label1 = qLabel(d1.getTime() / 1000);
+      earningsDates.push({ period: '+1q', label: label1, date: d1.toISOString().split('T')[0], estimated: true });
+    }
+
     return res.json({
       ticker, companyName, currency,
       currentPrice:  r2(currentPrice),
@@ -280,6 +321,8 @@ module.exports = async function(req, res) {
       currentRSI,
       rsiData,
       epsHistory,
+      annualEpsEstimates,
+      earningsDates,
       _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0 },
     });
 

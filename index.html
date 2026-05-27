@@ -1662,6 +1662,11 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
             <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#52d9a3;margin-right:.3rem;opacity:.7;border:1px dashed #52d9a3"></span>증권사 추정치</span>
           </div>
           <div id="sa-earnings-dates" style="display:none;margin-top:.55rem;display:flex;flex-direction:column;gap:.28rem"></div>
+          <!-- 연간 EPS 컨센서스 -->
+          <div id="sa-annual-eps-wrap" style="display:none;margin-top:.8rem">
+            <div style="font-size:.75rem;font-weight:600;color:var(--muted);margin-bottom:.35rem">📋 연간 EPS 컨센서스 (Yahoo Finance)</div>
+            <div id="sa-annual-eps-table"></div>
+          </div>
         </div>
 
         <!-- RSI 툴팁 -->
@@ -4438,6 +4443,7 @@ async function fetchStockAnalysis() {
       if (d.rsiData && d.rsiData.length > 1) drawRsiChart(d.rsiData);
       if (d.epsHistory && d.epsHistory.length > 0) drawEpsChart(d.epsHistory, d.currency);
       renderEarningsDates(d.earningsDates, d.currency);
+      renderAnnualEpsEstimates(d.annualEpsEstimates, d.currency);
     });
   } catch(e) {
     loading.style.display = 'none';
@@ -4783,6 +4789,41 @@ function renderEarningsDates(earningsDates, currency) {
       daysStr + suffix +
       '</div>';
   }).join('');
+}
+
+function renderAnnualEpsEstimates(estimates, currency) {
+  var wrap = document.getElementById('sa-annual-eps-wrap');
+  var tbl  = document.getElementById('sa-annual-eps-table');
+  if (!wrap || !tbl) return;
+  if (!estimates || !estimates.length) { wrap.style.display = 'none'; return; }
+  var sym = currency === 'KRW' ? '₩' : '$';
+  var rows = estimates.map(function(e) {
+    var growthStr = e.growthPct != null
+      ? '<span style="color:' + (e.growthPct >= 0 ? 'var(--success)' : 'var(--danger)') + '">' +
+        (e.growthPct >= 0 ? '+' : '') + e.growthPct + '%</span>'
+      : '<span style="color:var(--muted)">–</span>';
+    var fpeStr = e.forwardPE != null ? e.forwardPE + 'x' : '–';
+    var analystStr = e.numAnalysts != null ? e.numAnalysts + '명' : '–';
+    return '<tr style="border-bottom:1px solid var(--border)">' +
+      '<td style="padding:.38rem .5rem;font-size:.78rem;font-weight:600;color:var(--text)">' + (e.fiscalEnd || e.period) + '</td>' +
+      '<td style="padding:.38rem .5rem;font-size:.82rem;font-family:JetBrains Mono,monospace;font-weight:700;color:var(--accent);text-align:right">' + sym + e.eps + '</td>' +
+      '<td style="padding:.38rem .5rem;font-size:.76rem;text-align:right">' + growthStr + '</td>' +
+      '<td style="padding:.38rem .5rem;font-size:.76rem;font-family:JetBrains Mono,monospace;color:var(--muted);text-align:right">' + fpeStr + '</td>' +
+      '<td style="padding:.38rem .5rem;font-size:.72rem;color:var(--muted);text-align:right">' + analystStr + '</td>' +
+    '</tr>';
+  }).join('');
+  tbl.innerHTML =
+    '<table style="width:100%;border-collapse:collapse">' +
+      '<thead><tr>' +
+        '<th style="padding:.28rem .5rem;font-size:.68rem;color:var(--muted);font-weight:500;text-align:left">회계연도 종료</th>' +
+        '<th style="padding:.28rem .5rem;font-size:.68rem;color:var(--muted);font-weight:500;text-align:right">EPS 추정</th>' +
+        '<th style="padding:.28rem .5rem;font-size:.68rem;color:var(--muted);font-weight:500;text-align:right">YoY</th>' +
+        '<th style="padding:.28rem .5rem;font-size:.68rem;color:var(--muted);font-weight:500;text-align:right">Forward PE</th>' +
+        '<th style="padding:.28rem .5rem;font-size:.68rem;color:var(--muted);font-weight:500;text-align:right">분석가 수</th>' +
+      '</tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+    '</table>';
+  wrap.style.display = 'block';
 }
 
 async function loadInvestmentPrinciples() {
