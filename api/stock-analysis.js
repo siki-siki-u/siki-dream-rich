@@ -208,6 +208,12 @@ module.exports = async function(req, res) {
       var d = new Date(raw * 1000);
       return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()] + ' ' + d.getUTCFullYear();
     }
+    // PEG = (실시간가격 ÷ +1y EPS) ÷ (+1y EPS 성장률%) — Seeking Alpha 계산 방식
+    var eps1y = trend1y && trend1y.earningsEstimate && trend1y.earningsEstimate.avg && trend1y.earningsEstimate.avg.raw;
+    var growth1y = trend1y && trend1y.earningsEstimate && trend1y.earningsEstimate.growth && trend1y.earningsEstimate.growth.raw;
+    var fwdPEG = (eps1y > 0 && growth1y > 0 && currentPrice)
+      ? r2((currentPrice / eps1y) / (growth1y * 100)) : null;
+
     var annualEpsEstimates = [];
     [trend0y, trend1y].forEach(function(t) {
       if (!t) return;
@@ -219,7 +225,7 @@ module.exports = async function(req, res) {
       var revEst = t.revenueEstimate && t.revenueEstimate.avg && t.revenueEstimate.avg.raw;
       var fpe = (eps > 0 && prevClose) ? r2(prevClose / eps) : null;
       var fpsr = (revEst && revEst > 0 && shares && prevClose) ? r2(prevClose * shares / revEst) : null;
-      var fpeg = (fpe && longTermGrowth != null && longTermGrowth > 0) ? r2(fpe / (longTermGrowth * 100)) : null;
+      var fpeg = fwdPEG;
       annualEpsEstimates.push({
         period: t.period,
         fiscalEnd: fmtFiscalEnd(endRaw),
@@ -392,7 +398,7 @@ module.exports = async function(req, res) {
       pbr,
       annualEpsEstimates,
       earningsDates,
-      _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0, trend5y, pegRatio: ks && ks.pegRatio },
+      _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0 },
     });
 
   } catch (e) {
