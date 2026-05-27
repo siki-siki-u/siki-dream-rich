@@ -194,7 +194,7 @@ module.exports = async function(req, res) {
       fetchQuoteSummary(ticker, 'incomeStatementHistoryQuarterly', crumb, cookie).catch(function() { return null; }),
       fetchQuoteSummary(ticker, 'earningsHistory', crumb, cookie).catch(function() { return null; }),
       fetchQuoteSummary(ticker, 'calendarEvents', crumb, cookie).catch(function() { return null; }),
-      fetchQuoteSummary(ticker, 'balanceSheetHistory', crumb, cookie).catch(function() { return null; }),
+      fetchQuoteSummary(ticker, 'balanceSheetHistory,balanceSheetHistoryQuarterly', crumb, cookie).catch(function() { return null; }),
     ]);
 
     var sd = summary.summaryDetail;
@@ -282,10 +282,12 @@ module.exports = async function(req, res) {
     });
 
     // 5년 평균 PBR: price / (bookValue / shares)
-    var bsHistory = bsSummary &&
-      (bsSummary.balanceSheetHistory || bsSummary.balanceSheetHistoryAnnual) &&
-      ((bsSummary.balanceSheetHistory && bsSummary.balanceSheetHistory.balanceSheetStatements) ||
-       (bsSummary.balanceSheetHistoryAnnual && bsSummary.balanceSheetHistoryAnnual.balanceSheetStatements));
+    var bsHistoryA = bsSummary && bsSummary.balanceSheetHistory && bsSummary.balanceSheetHistory.balanceSheetStatements;
+    var bsHistoryQ = bsSummary && bsSummary.balanceSheetHistoryQuarterly && bsSummary.balanceSheetHistoryQuarterly.balanceSheetStatements;
+    // 연간 데이터 우선, 없으면 분기별 사용 (분기별은 endDate 기준으로 priceByYear 연도 매핑)
+    var bsHistory = (bsHistoryA && bsHistoryA.length && bsHistoryA[0] && Object.keys(bsHistoryA[0]).length > 3) ? bsHistoryA
+                  : (bsHistoryQ && bsHistoryQ.length && bsHistoryQ[0] && Object.keys(bsHistoryQ[0]).length > 3) ? bsHistoryQ
+                  : null;
     var avg5yPBR = calcAvg5Y(priceByYear, bsHistory, function(stmt) {
       var equity = (stmt.totalStockholderEquity && stmt.totalStockholderEquity.raw) ||
                    (stmt.commonStockEquity && stmt.commonStockEquity.raw);
@@ -442,7 +444,10 @@ module.exports = async function(req, res) {
         bsCount: bsHistory ? bsHistory.length : 0,
         bsSample: bsHistory && bsHistory[0] ? Object.keys(bsHistory[0]) : null,
         bsSummaryKeys: bsSummary ? Object.keys(bsSummary) : null,
-        bsRawStmt0: bsHistory && bsHistory[0] ? bsHistory[0] : null,
+        bsACount: bsHistoryA ? bsHistoryA.length : 0,
+        bsQCount: bsHistoryQ ? bsHistoryQ.length : 0,
+        bsAKeys0: bsHistoryA && bsHistoryA[0] ? Object.keys(bsHistoryA[0]) : null,
+        bsQKeys0: bsHistoryQ && bsHistoryQ[0] ? Object.keys(bsHistoryQ[0]) : null,
         sharesOutstanding: shares,
       },
     });
