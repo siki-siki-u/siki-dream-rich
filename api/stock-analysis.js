@@ -260,16 +260,10 @@ module.exports = async function(req, res) {
     }
 
     // 회계연도 종료월 기준 FQ 라벨: "FQ2 2027 (Oct 2026)"
+    // Yahoo는 "4월 말 결산"을 "5월 1일 UTC"로 저장 → 보정 없이 그대로 쓰면 모든 날짜가 일관성 있음
     var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     var fyEndRaw = ks && ks.lastFiscalYearEnd && ks.lastFiscalYearEnd.raw;
-    // Yahoo는 "4월 말" 결산을 5월 1일 00:00 UTC로 저장 → date==1이면 전월로 보정
-    var fyEndMonth = null;
-    if (fyEndRaw != null) {
-      var fyD = new Date(fyEndRaw * 1000);
-      fyEndMonth = fyD.getUTCDate() <= 5
-        ? (fyD.getUTCMonth() + 11) % 12   // 전월 보정
-        : fyD.getUTCMonth();
-    }
+    var fyEndMonth = fyEndRaw != null ? new Date(fyEndRaw * 1000).getUTCMonth() : null;
     function fqLabel(endRaw) {
       if (fyEndMonth == null || !endRaw) return null;
       var d = new Date(endRaw * 1000);
@@ -310,8 +304,8 @@ module.exports = async function(req, res) {
     }
 
     // 증권사 추정치 (Yahoo Finance는 0q, +1q 2개만 제공)
-    // endDate 없으면 마지막 실제 실적일 + 분기 오프셋으로 계산
-    var Q91 = 91 * 24 * 60 * 60; // 91일(초)
+    // endDate 없으면 fyEndRaw(마지막 회계연도 종료일) + 분기 오프셋으로 계산
+    var Q91 = 91 * 24 * 60 * 60;
     if (et && et.trend) {
       var qOffset = 0;
       ['0q', '+1q'].forEach(function(period) {
@@ -319,7 +313,7 @@ module.exports = async function(req, res) {
         if (!t || !t.earningsEstimate || !t.earningsEstimate.avg || !t.earningsEstimate.avg.raw) return;
         qOffset++;
         var endRaw = (t.endDate && t.endDate.raw) ||
-                     (lastActualRaw ? lastActualRaw + qOffset * Q91 : null);
+                     (fyEndRaw ? fyEndRaw + qOffset * Q91 : null);
         var label = (endRaw && fqLabel(endRaw)) || (endRaw ? qLabel(endRaw) : period);
         if (!epsHistory.find(function(e) { return e.year === label; })) {
           epsHistory.push({ year: label, eps: r2(t.earningsEstimate.avg.raw), type: 'estimate' });
@@ -333,12 +327,11 @@ module.exports = async function(req, res) {
     if (calEv && calEv.earningsDate && calEv.earningsDate.length) {
       // Yahoo는 보통 [최조기 예상, 최후기 예상] 2개 타임스탬프를 줌 → 첫 번째가 발표일 추정
       var d0 = new Date(calEv.earningsDate[0].raw * 1000);
-      // 분기 종료일: lastActualRaw + 91일로 계산 (endDate 없을 때)
-      var q0EndRaw = lastActualRaw ? lastActualRaw + Q91 : null;
+      var q0EndRaw = fyEndRaw ? fyEndRaw + Q91 : null;
       var label0 = (q0EndRaw && fqLabel(q0EndRaw)) || (q0EndRaw ? qLabel(q0EndRaw) : null);
       if (label0) earningsDates.push({ period: '0q', label: label0, date: d0.toISOString().split('T')[0] });
       var d1 = new Date(d0.getTime() + 91 * 24 * 60 * 60 * 1000);
-      var q1EndRaw = lastActualRaw ? lastActualRaw + 2 * Q91 : null;
+      var q1EndRaw = fyEndRaw ? fyEndRaw + 2 * Q91 : null;
       var label1 = (q1EndRaw && fqLabel(q1EndRaw)) || (q1EndRaw ? qLabel(q1EndRaw) : null);
       if (label1) earningsDates.push({ period: '+1q', label: label1, date: d1.toISOString().split('T')[0], estimated: true });
     }
