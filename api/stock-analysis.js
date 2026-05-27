@@ -346,7 +346,14 @@ module.exports = async function(req, res) {
       epsHistory,
       annualEpsEstimates,
       earningsDates,
-      _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0 },
+      _dbg: {
+        priceYears: Object.keys(priceByYear),
+        incomeCount: incomeHistory ? incomeHistory.length : 0,
+        fyEndMonth: fyEndMonth,
+        etPeriods: et && et.trend ? et.trend.map(function(t) {
+          return { period: t.period, endDate: t.endDate && t.endDate.fmt, eps: t.earningsEstimate && t.earningsEstimate.avg && t.earningsEstimate.avg.raw };
+        }) : null,
+      },
     });
 
   } catch (e) {
