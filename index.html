@@ -1642,6 +1642,19 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
           <span id="sa-rsi-date-start"></span><span id="sa-rsi-date-end"></span>
         </div>
 
+        <!-- 분기별 매출 차트 -->
+        <div id="sa-revenue-wrap" style="display:none;margin-top:1.2rem">
+          <div style="font-size:.88rem;font-weight:600;color:var(--text);margin-bottom:.6rem">💰 분기별 매출 추이</div>
+          <div style="position:relative">
+            <canvas id="sa-revenue-canvas" style="width:100%;height:160px;display:block"></canvas>
+            <div id="sa-revenue-tooltip" style="display:none;position:fixed;pointer-events:none;z-index:9999;background:rgba(20,24,38,.95);border:1px solid rgba(251,146,60,.35);border-radius:8px;padding:.4rem .7rem;font-size:.76rem;font-family:JetBrains Mono,monospace;color:var(--text);white-space:nowrap"></div>
+          </div>
+          <div style="display:flex;gap:1rem;margin-top:.4rem;font-size:.7rem;color:var(--muted)">
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fb923c;margin-right:.3rem"></span>실제 매출</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fb923c;margin-right:.3rem;opacity:.5;border:1px dashed #fb923c"></span>증권사 추정치</span>
+          </div>
+        </div>
+
         <!-- EPS 히스토리 차트 -->
         <div style="margin-top:1.2rem">
           <div style="font-size:.88rem;font-weight:600;color:var(--text);margin-bottom:.6rem">📊 EPS 추이 (실적 + 증권사 추정치)</div>
@@ -4416,6 +4429,10 @@ async function fetchStockAnalysis() {
     // 차트는 display:block 이후 레이아웃이 완성된 다음 프레임에 그려야 offsetWidth가 정확함
     requestAnimationFrame(function() {
       if (d.rsiData && d.rsiData.length > 1) drawRsiChart(d.rsiData);
+      if (d.revenueHistory && d.revenueHistory.length > 0) {
+        document.getElementById('sa-revenue-wrap').style.display = 'block';
+        drawRevenueChart(d.revenueHistory, d.currency);
+      }
       if (d.epsHistory && d.epsHistory.length > 0) drawEpsChart(d.epsHistory, d.currency);
       renderEarningsDates(d.earningsDates, d.currency);
       renderAnnualEpsEstimates(d.annualEpsEstimates, d.currency);
@@ -4595,6 +4612,133 @@ function drawRsiChart(rsiData) {
     var rect = canvas.getBoundingClientRect();
     var mx = touch.clientX - rect.left;
     var idx = Math.round((mx - pad.left) / xStep);
+    idx = Math.max(0, Math.min(n - 1, idx));
+    render(idx);
+  };
+  canvas.ontouchend = function() { render(null); };
+}
+
+function fmtRevenue(v, currency) {
+  if (currency === 'KRW') {
+    if (Math.abs(v) >= 1e12) return (v / 1e12).toFixed(1) + '조';
+    return (v / 1e8).toFixed(0) + '억';
+  }
+  if (Math.abs(v) >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B';
+  return '$' + (v / 1e6).toFixed(0) + 'M';
+}
+
+function drawRevenueChart(revData, currency) {
+  var canvas = document.getElementById('sa-revenue-canvas');
+  if (!canvas || !revData || !revData.length) return;
+  var dpr = window.devicePixelRatio || 1;
+  var w = canvas.offsetWidth || canvas.parentElement.offsetWidth || 400;
+  var h = 170;
+  canvas.width  = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
+
+  var pad = { top: 22, right: 14, bottom: 26, left: 56 };
+  var cw = w - pad.left - pad.right;
+  var ch = h - pad.top - pad.bottom;
+  var n = revData.length;
+  var barGap = cw / n;
+  var barW = Math.min(52, barGap * 0.58);
+
+  var vals = revData.map(function(d) { return d.revenue || 0; });
+  var maxV = Math.max.apply(null, vals);
+  var vMax = maxV * 1.2;
+  var vMin = 0;
+
+  function py(v) { return pad.top + ch - (v / vMax) * ch; }
+  function bx(i) { return pad.left + i * barGap + (barGap - barW) / 2; }
+
+  function render(hoverIdx) {
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(dpr, dpr);
+
+    var ticks = 4;
+    for (var t = 0; t <= ticks; t++) {
+      var v = vMax * (t / ticks);
+      var yp = py(v);
+      ctx.strokeStyle = 'rgba(255,255,255,.06)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(pad.left, yp); ctx.lineTo(pad.left + cw, yp); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.3)';
+      ctx.font = '9px JetBrains Mono, monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(fmtRevenue(v, currency).replace('$',''), pad.left - 3, yp + 3);
+      ctx.textAlign = 'left';
+    }
+
+    revData.forEach(function(d, i) {
+      var v = d.revenue || 0;
+      var x = bx(i);
+      var barH = Math.max(2, py(0) - py(v));
+      var yTop = py(v);
+      var isHover = hoverIdx === i;
+
+      if (d.type === 'estimate') {
+        ctx.fillStyle = isHover ? 'rgba(251,146,60,.7)' : 'rgba(251,146,60,.35)';
+        ctx.fillRect(x, yTop, barW, barH);
+        ctx.strokeStyle = isHover ? 'rgba(251,146,60,1)' : 'rgba(251,146,60,.7)';
+        ctx.lineWidth = isHover ? 2 : 1.5;
+        ctx.setLineDash([4, 2]);
+        ctx.strokeRect(x, yTop, barW, barH);
+        ctx.setLineDash([]);
+      } else {
+        ctx.fillStyle = isHover ? 'rgba(251,146,60,1)' : 'rgba(251,146,60,.7)';
+        ctx.fillRect(x, yTop, barW, barH);
+        if (isHover) {
+          ctx.strokeStyle = 'rgba(255,255,255,.8)';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(x, yTop, barW, barH);
+        }
+      }
+
+      ctx.fillStyle = isHover ? '#fff' : 'rgba(255,255,255,.65)';
+      ctx.font = (isHover ? 'bold ' : '') + '9px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(fmtRevenue(v, currency), x + barW / 2, yTop - 4);
+
+      ctx.fillStyle = isHover ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.4)';
+      ctx.font = (isHover ? 'bold ' : '') + '9px Noto Sans KR, sans-serif';
+      ctx.fillText(d.year, x + barW / 2, h - 5);
+      ctx.textAlign = 'left';
+    });
+  }
+
+  render(null);
+
+  var tooltip = document.getElementById('sa-revenue-tooltip');
+  canvas.onmousemove = function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = e.clientX - rect.left;
+    var idx = Math.round((mx - pad.left) / barGap - 0.5);
+    idx = Math.max(0, Math.min(n - 1, idx));
+    render(idx);
+    if (tooltip) {
+      var d = revData[idx];
+      tooltip.innerHTML = '<span style="color:var(--muted)">' + d.year + '</span>' +
+        '&nbsp;&nbsp;<b>' + fmtRevenue(d.revenue, currency) + '</b>' +
+        '&nbsp;<span style="color:var(--muted)">' + (d.type === 'estimate' ? '증권사 추정치' : '실제 매출') + '</span>';
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 16) + 'px';
+      tooltip.style.top  = (e.clientY - 36) + 'px';
+    }
+  };
+  canvas.onmouseleave = function() {
+    render(null);
+    if (tooltip) tooltip.style.display = 'none';
+  };
+  canvas.ontouchmove = function(e) {
+    e.preventDefault();
+    var touch = e.touches[0];
+    var rect = canvas.getBoundingClientRect();
+    var mx = touch.clientX - rect.left;
+    var idx = Math.round((mx - pad.left) / barGap - 0.5);
     idx = Math.max(0, Math.min(n - 1, idx));
     render(idx);
   };

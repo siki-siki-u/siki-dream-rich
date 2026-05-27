@@ -321,6 +321,33 @@ module.exports = async function(req, res) {
       });
     }
 
+    // 분기별 매출 히스토리 (incomeStatementHistoryQuarterly)
+    var revenueHistory = [];
+    if (incomeHistoryQ && incomeHistoryQ.length) {
+      incomeHistoryQ.slice().sort(function(a, b) {
+        return (a.endDate && a.endDate.raw || 0) - (b.endDate && b.endDate.raw || 0);
+      }).slice(-6).forEach(function(stmt) {
+        var rev = stmt.totalRevenue && stmt.totalRevenue.raw;
+        if (rev == null || !stmt.endDate || !stmt.endDate.raw) return;
+        revenueHistory.push({ year: fqLabel(stmt.endDate.raw) || qLabel(stmt.endDate.raw), revenue: rev, type: 'actual' });
+      });
+    }
+    // 매출 추정치 (earningsTrend revenueEstimate)
+    if (et && et.trend) {
+      var rqOffset = 0;
+      ['0q', '+1q'].forEach(function(period) {
+        var t = et.trend.find(function(x) { return x.period === period; });
+        if (!t || !t.revenueEstimate || !t.revenueEstimate.avg || !t.revenueEstimate.avg.raw) return;
+        rqOffset++;
+        var endRaw = (t.endDate && t.endDate.raw) ||
+                     (fyEndRaw ? fyEndRaw + rqOffset * Q91 : null);
+        var label = (endRaw && fqLabel(endRaw)) || (endRaw ? qLabel(endRaw) : period);
+        if (!revenueHistory.find(function(e) { return e.year === label; })) {
+          revenueHistory.push({ year: label, revenue: t.revenueEstimate.avg.raw, type: 'estimate' });
+        }
+      });
+    }
+
     // 실적 발표 예정일 (calendarEvents) — FQ 라벨 적용
     var earningsDates = [];
     var calEv = calSummary && calSummary.calendarEvents && calSummary.calendarEvents.earnings;
@@ -348,6 +375,7 @@ module.exports = async function(req, res) {
       currentRSI,
       rsiData,
       epsHistory,
+      revenueHistory,
       annualEpsEstimates,
       earningsDates,
       _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0 },
