@@ -154,7 +154,7 @@ function calcAvgPE5Y(priceByYear, incomeHistory, shares) {
     var price = priceByYear[stmtYear] || priceByYear[stmtYear - 1] || priceByYear[stmtYear + 1];
     if (!price) return;
     var pe = price / eps;
-    if (pe > 0 && pe < 200) peList.push(Math.round(pe * 100) / 100);
+    if (pe > 0 && pe < 500) peList.push(Math.round(pe * 100) / 100);
   });
   if (!peList.length) return null;
   return Math.round(peList.reduce(function(a, b) { return a + b; }, 0) / peList.length * 100) / 100;
@@ -194,7 +194,7 @@ module.exports = async function(req, res) {
       fetchQuoteSummary(ticker, 'incomeStatementHistoryQuarterly', crumb, cookie).catch(function() { return null; }),
       fetchQuoteSummary(ticker, 'earningsHistory', crumb, cookie).catch(function() { return null; }),
       fetchQuoteSummary(ticker, 'calendarEvents', crumb, cookie).catch(function() { return null; }),
-      fetchQuoteSummary(ticker, 'balanceSheetHistoryAnnual', crumb, cookie).catch(function() { return null; }),
+      fetchQuoteSummary(ticker, 'balanceSheetHistory', crumb, cookie).catch(function() { return null; }),
     ]);
 
     var sd = summary.summaryDetail;
@@ -283,8 +283,9 @@ module.exports = async function(req, res) {
 
     // 5년 평균 PBR: price / (bookValue / shares)
     var bsHistory = bsSummary &&
-      bsSummary.balanceSheetHistoryAnnual &&
-      bsSummary.balanceSheetHistoryAnnual.balanceSheetStatements;
+      (bsSummary.balanceSheetHistory || bsSummary.balanceSheetHistoryAnnual) &&
+      ((bsSummary.balanceSheetHistory && bsSummary.balanceSheetHistory.balanceSheetStatements) ||
+       (bsSummary.balanceSheetHistoryAnnual && bsSummary.balanceSheetHistoryAnnual.balanceSheetStatements));
     var avg5yPBR = calcAvg5Y(priceByYear, bsHistory, function(stmt) {
       var equity = (stmt.totalStockholderEquity && stmt.totalStockholderEquity.raw) ||
                    (stmt.commonStockEquity && stmt.commonStockEquity.raw);
@@ -441,6 +442,7 @@ module.exports = async function(req, res) {
         bsCount: bsHistory ? bsHistory.length : 0,
         bsSample: bsHistory && bsHistory[0] ? Object.keys(bsHistory[0]) : null,
         bsSummaryKeys: bsSummary ? Object.keys(bsSummary) : null,
+        bsRawStmt0: bsHistory && bsHistory[0] ? bsHistory[0] : null,
         sharesOutstanding: shares,
       },
     });
