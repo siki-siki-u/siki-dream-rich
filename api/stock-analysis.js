@@ -123,6 +123,22 @@ function calcRSI(prices, period) {
 
 // GAAP 연간 순이익 / 현재 발행주식수 = EPS → 연말 주가로 PE → 평균
 // (Yahoo 역사적 가격은 분할 반영 조정가, 현재 주식수도 분할 후 기준 → PE 정합)
+function calcAvg5Y(priceByYear, history, valFn) {
+  if (!history || !history.length || !Object.keys(priceByYear).length) return null;
+  var list = [];
+  history.forEach(function(stmt) {
+    var val = valFn(stmt);
+    if (val == null || val <= 0 || val > 2000) return;
+    var yr = new Date((stmt.endDate && stmt.endDate.raw || 0) * 1000).getFullYear();
+    var price = priceByYear[yr] || priceByYear[yr - 1] || priceByYear[yr + 1];
+    if (!price) return;
+    var ratio = price / val;
+    if (ratio > 0 && ratio < 2000) list.push(ratio);
+  });
+  if (!list.length) return null;
+  return r2(list.reduce(function(a, b) { return a + b; }, 0) / list.length);
+}
+
 function calcAvgPE5Y(priceByYear, incomeHistory, shares) {
   if (!incomeHistory || !incomeHistory.length || !shares || !Object.keys(priceByYear).length) return null;
   var peList = [];
@@ -168,7 +184,7 @@ module.exports = async function(req, res) {
       return res.json({ source: 'yahoo', ttm, fwd });
     }
 
-    var [summary, dailyPrices, priceByYear, incomeSummary, trendSummary, incomeQ, earningsSummary, calSummary] = await Promise.all([
+    var [summary, dailyPrices, priceByYear, incomeSummary, trendSummary, incomeQ, earningsSummary, calSummary, bsSummary] = await Promise.all([
       fetchQuoteSummary(ticker, 'summaryDetail,defaultKeyStatistics,price', crumb, cookie),
       fetchChartPrices(ticker, '1d', '5mo', crumb, cookie),
       fetchAnnualPriceMap(ticker, crumb, cookie),
@@ -177,6 +193,7 @@ module.exports = async function(req, res) {
       fetchQuoteSummary(ticker, 'incomeStatementHistoryQuarterly', crumb, cookie).catch(function() { return null; }),
       fetchQuoteSummary(ticker, 'earningsHistory', crumb, cookie).catch(function() { return null; }),
       fetchQuoteSummary(ticker, 'calendarEvents', crumb, cookie).catch(function() { return null; }),
+      fetchQuoteSummary(ticker, 'balanceSheetHistoryAnnual', crumb, cookie).catch(function() { return null; }),
     ]);
 
     var sd = summary.summaryDetail;
@@ -256,6 +273,22 @@ module.exports = async function(req, res) {
       earningsSummary.earningsHistory &&
       earningsSummary.earningsHistory.history;
     var avgPE5Y = calcAvgPE5Y(priceByYear, incomeHistory, shares);
+
+    // 5년 평균 PSR: price / (revenue / shares)
+    var avg5yPSR = calcAvg5Y(priceByYear, incomeHistory, function(stmt) {
+      var rev = stmt.totalRevenue && stmt.totalRevenue.raw;
+      return (rev && rev > 0 && shares) ? rev / shares : null;
+    });
+
+    // 5년 평균 PBR: price / (bookValue / shares)
+    var bsHistory = bsSummary &&
+      bsSummary.balanceSheetHistoryAnnual &&
+      bsSummary.balanceSheetHistoryAnnual.balanceSheetStatements;
+    var avg5yPBR = calcAvg5Y(priceByYear, bsHistory, function(stmt) {
+      var equity = (stmt.totalStockholderEquity && stmt.totalStockholderEquity.raw) ||
+                   (stmt.commonStockEquity && stmt.commonStockEquity.raw);
+      return (equity && equity > 0 && shares) ? equity / shares : null;
+    });
 
     var fairValue = (forwardEPS && avgPE5Y) ? r2(forwardEPS * avgPE5Y) : null;
 
@@ -396,6 +429,9 @@ module.exports = async function(req, res) {
       epsHistory,
       revenueHistory,
       pbr,
+      avg5yPE: avgPE5Y,
+      avg5yPSR,
+      avg5yPBR,
       annualEpsEstimates,
       earningsDates,
       _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0 },
