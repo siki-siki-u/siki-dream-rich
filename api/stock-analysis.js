@@ -297,15 +297,18 @@ module.exports = async function(req, res) {
       });
     }
 
-    // 증권사 추정치 (현재 분기 & 다음 2개 분기) — FQ 라벨 적용
+    // 증권사 추정치 — 미래 분기 3개가 차도록 0q~+3q 시도
     if (et && et.trend) {
-      ['0q', '+1q', '+2q'].forEach(function(period) {
+      var estimateCount = 0;
+      ['0q', '+1q', '+2q', '+3q'].forEach(function(period) {
+        if (estimateCount >= 3) return;
         var t = et.trend.find(function(x) { return x.period === period; });
         if (!t || !t.earningsEstimate || !t.earningsEstimate.avg || !t.earningsEstimate.avg.raw) return;
         var endRaw = t.endDate && t.endDate.raw;
         var label = (endRaw && fqLabel(endRaw)) || (endRaw ? qLabel(endRaw) : period);
         if (!epsHistory.find(function(e) { return e.year === label; })) {
           epsHistory.push({ year: label, eps: r2(t.earningsEstimate.avg.raw), type: 'estimate' });
+          estimateCount++;
         }
       });
     }
