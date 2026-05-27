@@ -123,17 +123,18 @@ function calcRSI(prices, period) {
 
 // GAAP 연간 순이익 / 현재 발행주식수 = EPS → 연말 주가로 PE → 평균
 // (Yahoo 역사적 가격은 분할 반영 조정가, 현재 주식수도 분할 후 기준 → PE 정합)
-function calcAvg5Y(priceByYear, history, valFn) {
+function calcAvg5Y(priceByYear, history, valFn, maxRatio) {
+  maxRatio = maxRatio || 200;
   if (!history || !history.length || !Object.keys(priceByYear).length) return null;
   var list = [];
   history.forEach(function(stmt) {
     var val = valFn(stmt);
-    if (val == null || val <= 0 || val > 2000) return;
+    if (val == null || val <= 0) return;
     var yr = new Date((stmt.endDate && stmt.endDate.raw || 0) * 1000).getFullYear();
     var price = priceByYear[yr] || priceByYear[yr - 1] || priceByYear[yr + 1];
     if (!price) return;
     var ratio = price / val;
-    if (ratio > 0 && ratio < 2000) list.push(ratio);
+    if (ratio > 0 && ratio < maxRatio) list.push(ratio);
   });
   if (!list.length) return null;
   return r2(list.reduce(function(a, b) { return a + b; }, 0) / list.length);
@@ -434,7 +435,13 @@ module.exports = async function(req, res) {
       avg5yPBR,
       annualEpsEstimates,
       earningsDates,
-      _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0 },
+      _dbg: {
+        priceYears: Object.keys(priceByYear),
+        incomeCount: incomeHistory ? incomeHistory.length : 0,
+        bsCount: bsHistory ? bsHistory.length : 0,
+        bsSample: bsHistory && bsHistory[0] ? Object.keys(bsHistory[0]) : null,
+        sharesOutstanding: shares,
+      },
     });
 
   } catch (e) {
