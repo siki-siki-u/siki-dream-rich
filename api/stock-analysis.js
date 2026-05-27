@@ -185,7 +185,7 @@ module.exports = async function(req, res) {
       return res.json({ source: 'yahoo', ttm, fwd });
     }
 
-    var [summary, dailyPrices, priceByYear, incomeSummary, trendSummary, incomeQ, earningsSummary, calSummary, bsSummary] = await Promise.all([
+    var [summary, dailyPrices, priceByYear, incomeSummary, trendSummary, incomeQ, earningsSummary, calSummary] = await Promise.all([
       fetchQuoteSummary(ticker, 'summaryDetail,defaultKeyStatistics,price', crumb, cookie),
       fetchChartPrices(ticker, '1d', '5mo', crumb, cookie),
       fetchAnnualPriceMap(ticker, crumb, cookie),
@@ -194,7 +194,6 @@ module.exports = async function(req, res) {
       fetchQuoteSummary(ticker, 'incomeStatementHistoryQuarterly', crumb, cookie).catch(function() { return null; }),
       fetchQuoteSummary(ticker, 'earningsHistory', crumb, cookie).catch(function() { return null; }),
       fetchQuoteSummary(ticker, 'calendarEvents', crumb, cookie).catch(function() { return null; }),
-      fetchQuoteSummary(ticker, 'balanceSheetHistory,balanceSheetHistoryQuarterly', crumb, cookie).catch(function() { return null; }),
     ]);
 
     var sd = summary.summaryDetail;
@@ -281,18 +280,8 @@ module.exports = async function(req, res) {
       return (rev && rev > 0 && shares) ? rev / shares : null;
     });
 
-    // 5년 평균 PBR: price / (bookValue / shares)
-    var bsHistoryA = bsSummary && bsSummary.balanceSheetHistory && bsSummary.balanceSheetHistory.balanceSheetStatements;
-    var bsHistoryQ = bsSummary && bsSummary.balanceSheetHistoryQuarterly && bsSummary.balanceSheetHistoryQuarterly.balanceSheetStatements;
-    // 연간 데이터 우선, 없으면 분기별 사용 (분기별은 endDate 기준으로 priceByYear 연도 매핑)
-    var bsHistory = (bsHistoryA && bsHistoryA.length && bsHistoryA[0] && Object.keys(bsHistoryA[0]).length > 3) ? bsHistoryA
-                  : (bsHistoryQ && bsHistoryQ.length && bsHistoryQ[0] && Object.keys(bsHistoryQ[0]).length > 3) ? bsHistoryQ
-                  : null;
-    var avg5yPBR = calcAvg5Y(priceByYear, bsHistory, function(stmt) {
-      var equity = (stmt.totalStockholderEquity && stmt.totalStockholderEquity.raw) ||
-                   (stmt.commonStockEquity && stmt.commonStockEquity.raw);
-      return (equity && equity > 0 && shares) ? equity / shares : null;
-    });
+    // Yahoo Finance는 balanceSheetHistory에서 재무상태표 세부 데이터를 더 이상 제공하지 않음 → avg5yPBR = null
+    var avg5yPBR = null;
 
     var fairValue = (forwardEPS && avgPE5Y) ? r2(forwardEPS * avgPE5Y) : null;
 
@@ -441,12 +430,6 @@ module.exports = async function(req, res) {
       _dbg: {
         priceYears: Object.keys(priceByYear),
         incomeCount: incomeHistory ? incomeHistory.length : 0,
-        bsCount: bsHistory ? bsHistory.length : 0,
-        bsSumNull: bsSummary == null,
-        bsALen: bsHistoryA ? bsHistoryA.length : -1,
-        bsQLen: bsHistoryQ ? bsHistoryQ.length : -1,
-        bsAKeys0: bsHistoryA && bsHistoryA[0] ? Object.keys(bsHistoryA[0]) : null,
-        bsQKeys0: bsHistoryQ && bsHistoryQ[0] ? Object.keys(bsHistoryQ[0]) : null,
       },
     });
 
