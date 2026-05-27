@@ -4802,10 +4802,11 @@ function renderAnnualEpsEstimates(estimates, currency) {
       ? '<span style="color:' + (e.growthPct >= 0 ? 'var(--success)' : 'var(--danger)') + '">' +
         (e.growthPct >= 0 ? '+' : '') + e.growthPct + '%</span>'
       : '<span style="color:var(--muted)">–</span>';
-    var fpeStr = e.forwardPE != null ? e.forwardPE + 'x' : '–';
+    var fpeStr = e.forwardPE != null ? e.forwardPE : '–';
     var analystStr = e.numAnalysts != null ? e.numAnalysts + '명' : '–';
+    var yearLabel = e.fiscalEnd ? e.fiscalEnd.split(' ').pop() : e.period;
     return '<tr style="border-bottom:1px solid var(--border)">' +
-      '<td style="padding:.38rem .5rem;font-size:.78rem;font-weight:600;color:var(--text)">' + (e.fiscalEnd || e.period) + '</td>' +
+      '<td style="padding:.38rem .5rem;font-size:.78rem;font-weight:600;color:var(--text)">' + yearLabel + '</td>' +
       '<td style="padding:.38rem .5rem;font-size:.82rem;font-family:JetBrains Mono,monospace;font-weight:700;color:var(--accent);text-align:right">' + sym + e.eps + '</td>' +
       '<td style="padding:.38rem .5rem;font-size:.76rem;text-align:right">' + growthStr + '</td>' +
       '<td style="padding:.38rem .5rem;font-size:.76rem;font-family:JetBrains Mono,monospace;color:var(--muted);text-align:right">' + fpeStr + '</td>' +
