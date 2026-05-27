@@ -1608,25 +1608,26 @@ body.guest-mode .g-blur{filter:blur(5px);user-select:none;pointer-events:none}
       <div id="sa-loading" style="display:none;color:var(--muted);font-size:.82rem;text-align:center;padding:.8rem">분석 중... (RSI 계산 포함, 약 5초)</div>
       <div id="sa-error"   style="display:none;color:var(--danger);font-size:.8rem;padding:.3rem 0"></div>
       <div id="sa-result"  style="display:none">
-        <div style="margin-bottom:.9rem">
-          <div style="background:var(--surface2);border-radius:10px;padding:.8rem;border:1px solid var(--border);display:inline-block">
-            <div style="font-size:.64rem;color:var(--muted);margin-bottom:.3rem;letter-spacing:.04em">현재 주가</div>
-            <div id="sa-price" style="font-size:1.35rem;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--text)">–</div>
-          </div>
-          <div id="sa-eps" style="display:none"></div>
-          <div id="sa-fwd-pe" style="display:none"></div>
-          <div id="sa-avg-pe" style="display:none"></div>
-        </div>
-        <div style="background:linear-gradient(135deg,rgba(108,138,255,.12),rgba(167,139,250,.08));border:1px solid rgba(108,138,255,.3);border-radius:12px;padding:1rem;margin-bottom:.9rem">
-          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+        <!-- 현재 주가 헤더 카드 -->
+        <div style="background:linear-gradient(135deg,rgba(108,138,255,.13),rgba(82,217,163,.07));border:1px solid rgba(108,138,255,.28);border-radius:14px;padding:1rem 1.2rem;margin-bottom:1rem;position:relative;overflow:hidden">
+          <div style="position:absolute;right:-8px;top:-8px;font-size:3.5rem;opacity:.04;pointer-events:none">📈</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap">
             <div>
-              <div style="font-size:.7rem;color:var(--muted);margin-bottom:.25rem">미래 적정 주가 (EPS × 5년 평균 PER)</div>
-              <div id="sa-fair-value" style="font-size:1.6rem;font-weight:800;font-family:JetBrains Mono,monospace;color:var(--text)">–</div>
+              <div id="sa-company-name-display" style="font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:.15rem">–</div>
+              <div id="sa-ticker-display" style="font-size:.72rem;color:var(--muted);font-family:JetBrains Mono,monospace;letter-spacing:.06em">–</div>
             </div>
-            <div id="sa-valuation-badge" style="font-size:.85rem;font-weight:700;padding:.45rem 1rem;border-radius:20px;display:none"></div>
+            <div style="text-align:right">
+              <div style="font-size:.62rem;color:var(--muted);margin-bottom:.18rem;letter-spacing:.04em">현재 주가</div>
+              <div id="sa-price" style="font-size:2rem;font-weight:800;font-family:JetBrains Mono,monospace;color:var(--text);line-height:1">–</div>
+            </div>
           </div>
-          <div id="sa-valuation-detail" style="font-size:.7rem;color:var(--muted);margin-top:.5rem"></div>
         </div>
+        <div id="sa-eps" style="display:none"></div>
+        <div id="sa-fwd-pe" style="display:none"></div>
+        <div id="sa-avg-pe" style="display:none"></div>
+        <div id="sa-fair-value" style="display:none"></div>
+        <div id="sa-valuation-badge" style="display:none"></div>
+        <div id="sa-valuation-detail" style="display:none"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
           <div style="font-size:.88rem;font-weight:600;color:var(--text)">📈 RSI (14일, 최근 3개월)</div>
           <div style="display:flex;align-items:center;gap:.5rem">
@@ -4387,28 +4388,11 @@ async function fetchStockAnalysis() {
     if (d.error) { errEl.textContent = '⚠ ' + d.error; errEl.style.display = 'block'; return; }
 
     var sym = d.currency === 'KRW' ? '₩' : '$';
-    document.getElementById('sa-price').textContent   = d.currentPrice  != null ? sym + d.currentPrice.toLocaleString()  : 'N/A';
-    document.getElementById('sa-eps').textContent     = d.forwardEPS    != null ? sym + d.forwardEPS   : 'N/A';
-    document.getElementById('sa-fwd-pe').textContent  = d.forwardPE     != null ? d.forwardPE + 'x'    : 'N/A';
-    document.getElementById('sa-avg-pe').textContent  = d.avgPE5Y       != null ? d.avgPE5Y.toFixed(1) + 'x' : 'N/A';
-
-    var fvEl = document.getElementById('sa-fair-value');
-    fvEl.textContent = d.fairValue != null ? sym + d.fairValue.toLocaleString() : 'N/A';
-
-    var badge = document.getElementById('sa-valuation-badge');
-    if (d.valuation) {
-      var under = d.valuation === 'undervalued';
-      badge.textContent = under ? '✅ 저평가' : '⚠️ 고평가';
-      badge.style.cssText = 'font-size:.85rem;font-weight:700;padding:.45rem 1rem;border-radius:20px;' +
-        (under ? 'background:rgba(82,217,163,.2);color:var(--success)' : 'background:rgba(255,126,126,.15);color:#ff7e7e');
-      badge.style.display = 'block';
-    } else { badge.style.display = 'none'; }
-
-    var detail = document.getElementById('sa-valuation-detail');
-    var lines = [];
-    if (d.forwardPE && d.avgPE5Y) lines.push('선행 PER ' + d.forwardPE + 'x  vs  5년 평균 ' + d.avgPE5Y.toFixed(1) + 'x');
-    if (d.valuationKR) lines.push(d.valuationKR);
-    detail.textContent = lines.join(' · ');
+    document.getElementById('sa-price').textContent = d.currentPrice != null ? sym + d.currentPrice.toLocaleString() : 'N/A';
+    var cnEl = document.getElementById('sa-company-name-display');
+    var tkEl = document.getElementById('sa-ticker-display');
+    if (cnEl) cnEl.textContent = d.companyName || d.ticker || '–';
+    if (tkEl) tkEl.textContent = d.ticker ? (d.ticker.toUpperCase() + (d.currency ? ' · ' + d.currency : '')) : '–';
 
     // RSI current value + status
     var rsiValEl = document.getElementById('sa-rsi-val');
