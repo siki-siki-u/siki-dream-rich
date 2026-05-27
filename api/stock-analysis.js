@@ -205,11 +205,6 @@ module.exports = async function(req, res) {
       var eps = t.earningsEstimate && t.earningsEstimate.avg && t.earningsEstimate.avg.raw;
       if (eps == null) return;
       var endRaw = t.endDate && t.endDate.raw;
-      // Yahoo는 연간 trend에 endDate를 제공하지 않음 → fyEndRaw + 1/2년으로 추정
-      if (!endRaw && fyEndRaw) {
-        var yOff = t.period === '0y' ? 1 : 2;
-        endRaw = fyEndRaw + yOff * 365 * 24 * 60 * 60;
-      }
       var growth = t.earningsEstimate && t.earningsEstimate.growth && t.earningsEstimate.growth.raw;
       var numAnalysts = t.earningsEstimate && t.earningsEstimate.numberOfAnalysts && t.earningsEstimate.numberOfAnalysts.raw;
       var fpe = (eps > 0 && currentPrice) ? r2(currentPrice / eps) : null;
@@ -276,10 +271,7 @@ module.exports = async function(req, res) {
       var fiscalYear = m <= fyEndMonth ? y : y + 1;
       var fyStartMonth = (fyEndMonth + 1) % 12;
       var qNum = Math.floor(((m - fyStartMonth + 12) % 12) / 3) + 1;
-      // Yahoo는 "월말"을 "다음달 1일"로 저장 → 1일이면 전월로 표시 보정
-      var dispM = d.getUTCDate() === 1 ? (m + 11) % 12 : m;
-      var dispY = (d.getUTCDate() === 1 && m === 0) ? y - 1 : y;
-      return 'FQ' + qNum + ' ' + fiscalYear + ' (' + MONTHS[dispM] + ' ' + dispY + ')';
+      return 'FQ' + qNum + ' ' + fiscalYear + ' (' + MONTHS[m] + ' ' + y + ')';
     }
 
     var epsHistory = [];
@@ -322,8 +314,6 @@ module.exports = async function(req, res) {
         qOffset++;
         var endRaw = (t.endDate && t.endDate.raw) ||
                      (fyEndRaw ? fyEndRaw + qOffset * Q91 : null);
-        // 이미 실제 실적이 보고된 분기는 건너뜀 (Yahoo 데이터가 stale한 경우)
-        if (endRaw && lastActualRaw && endRaw <= lastActualRaw) return;
         var label = (endRaw && fqLabel(endRaw)) || (endRaw ? qLabel(endRaw) : period);
         if (!epsHistory.find(function(e) { return e.year === label; })) {
           epsHistory.push({ year: label, eps: r2(t.earningsEstimate.avg.raw), type: 'estimate' });
@@ -337,16 +327,11 @@ module.exports = async function(req, res) {
     if (calEv && calEv.earningsDate && calEv.earningsDate.length) {
       // Yahoo는 보통 [최조기 예상, 최후기 예상] 2개 타임스탬프를 줌 → 첫 번째가 발표일 추정
       var d0 = new Date(calEv.earningsDate[0].raw * 1000);
-      // lastActualRaw 이후 첫 번째 미보고 분기를 찾음
-      var kq = 1;
-      if (fyEndRaw && lastActualRaw) {
-        while (fyEndRaw + kq * Q91 <= lastActualRaw) kq++;
-      }
-      var q0EndRaw = fyEndRaw ? fyEndRaw + kq * Q91 : null;
+      var q0EndRaw = fyEndRaw ? fyEndRaw + Q91 : null;
       var label0 = (q0EndRaw && fqLabel(q0EndRaw)) || (q0EndRaw ? qLabel(q0EndRaw) : null);
       if (label0) earningsDates.push({ period: '0q', label: label0, date: d0.toISOString().split('T')[0] });
       var d1 = new Date(d0.getTime() + 91 * 24 * 60 * 60 * 1000);
-      var q1EndRaw = fyEndRaw ? fyEndRaw + (kq + 1) * Q91 : null;
+      var q1EndRaw = fyEndRaw ? fyEndRaw + 2 * Q91 : null;
       var label1 = (q1EndRaw && fqLabel(q1EndRaw)) || (q1EndRaw ? qLabel(q1EndRaw) : null);
       if (label1) earningsDates.push({ period: '+1q', label: label1, date: d1.toISOString().split('T')[0], estimated: true });
     }
@@ -365,7 +350,7 @@ module.exports = async function(req, res) {
       epsHistory,
       annualEpsEstimates,
       earningsDates,
-      _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0, fyEndRaw, fyEndMonth, lastActualRaw },
+      _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0 },
     });
 
   } catch (e) {
