@@ -271,7 +271,10 @@ module.exports = async function(req, res) {
       var fiscalYear = m <= fyEndMonth ? y : y + 1;
       var fyStartMonth = (fyEndMonth + 1) % 12;
       var qNum = Math.floor(((m - fyStartMonth + 12) % 12) / 3) + 1;
-      return 'FQ' + qNum + ' ' + fiscalYear + ' (' + MONTHS[m] + ' ' + y + ')';
+      // Yahoo는 "월말"을 "다음달 1일"로 저장 → 1일이면 전월로 표시 보정
+      var dispM = d.getUTCDate() === 1 ? (m + 11) % 12 : m;
+      var dispY = (d.getUTCDate() === 1 && m === 0) ? y - 1 : y;
+      return 'FQ' + qNum + ' ' + fiscalYear + ' (' + MONTHS[dispM] + ' ' + dispY + ')';
     }
 
     var epsHistory = [];
