@@ -193,6 +193,8 @@ module.exports = async function(req, res) {
     var forwardEPS = (trend0y && trend0y.earningsEstimate && trend0y.earningsEstimate.avg && trend0y.earningsEstimate.avg.raw) ||
                     (ks && ks.forwardEps && ks.forwardEps.raw);
 
+    var shares = ks && ks.sharesOutstanding && ks.sharesOutstanding.raw;
+
     // 연간 EPS 예상치 (Seeking Alpha Annual Estimates와 동일 소스)
     function fmtFiscalEnd(raw) {
       if (!raw) return null;
@@ -227,8 +229,6 @@ module.exports = async function(req, res) {
                    : r2(sd && sd.forwardPE && sd.forwardPE.raw);
     var currency     = (pr && pr.currency) || 'USD';
     var companyName  = (pr && pr.shortName) || ticker;
-
-    var shares = ks && ks.sharesOutstanding && ks.sharesOutstanding.raw;
 
     var rsiData    = calcRSI(dailyPrices);
     var currentRSI = rsiData.length ? rsiData[rsiData.length - 1].rsi : null;
@@ -385,7 +385,7 @@ module.exports = async function(req, res) {
       pbr,
       annualEpsEstimates,
       earningsDates,
-      _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0, shares, trend0y_rev: trend0y && trend0y.revenueEstimate },
+      _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0 },
     });
 
   } catch (e) {
