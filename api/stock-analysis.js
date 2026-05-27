@@ -442,13 +442,6 @@ module.exports = async function(req, res) {
         priceYears: Object.keys(priceByYear),
         incomeCount: incomeHistory ? incomeHistory.length : 0,
         bsCount: bsHistory ? bsHistory.length : 0,
-        bsSample: bsHistory && bsHistory[0] ? Object.keys(bsHistory[0]) : null,
-        bsSummaryKeys: bsSummary ? Object.keys(bsSummary) : null,
-        bsACount: bsHistoryA ? bsHistoryA.length : 0,
-        bsQCount: bsHistoryQ ? bsHistoryQ.length : 0,
-        bsAKeys0: bsHistoryA && bsHistoryA[0] ? Object.keys(bsHistoryA[0]) : null,
-        bsQKeys0: bsHistoryQ && bsHistoryQ[0] ? Object.keys(bsHistoryQ[0]) : null,
-        sharesOutstanding: shares,
       },
     });
 
