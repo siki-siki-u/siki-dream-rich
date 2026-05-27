@@ -385,7 +385,7 @@ module.exports = async function(req, res) {
       pbr,
       annualEpsEstimates,
       earningsDates,
-      _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0 },
+      _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0, shares, trend0y_rev: trend0y && trend0y.revenueEstimate },
     });
 
   } catch (e) {
