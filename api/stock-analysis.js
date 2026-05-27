@@ -262,7 +262,14 @@ module.exports = async function(req, res) {
     // 회계연도 종료월 기준 FQ 라벨: "FQ2 2027 (Oct 2026)"
     var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     var fyEndRaw = ks && ks.lastFiscalYearEnd && ks.lastFiscalYearEnd.raw;
-    var fyEndMonth = fyEndRaw != null ? new Date(fyEndRaw * 1000).getUTCMonth() : null; // 0-11
+    // Yahoo는 "4월 말" 결산을 5월 1일 00:00 UTC로 저장 → date==1이면 전월로 보정
+    var fyEndMonth = null;
+    if (fyEndRaw != null) {
+      var fyD = new Date(fyEndRaw * 1000);
+      fyEndMonth = fyD.getUTCDate() <= 5
+        ? (fyD.getUTCMonth() + 11) % 12   // 전월 보정
+        : fyD.getUTCMonth();
+    }
     function fqLabel(endRaw) {
       if (fyEndMonth == null || !endRaw) return null;
       var d = new Date(endRaw * 1000);
@@ -275,13 +282,17 @@ module.exports = async function(req, res) {
 
     var epsHistory = [];
 
+    // 마지막 실제 실적 날짜 (추정치 endDate 계산용)
+    var lastActualRaw = null;
+
     // 1순위: earningsHistory — 주당 EPS 직접 제공, Yahoo가 4~6분기 반환
     if (earningsH && earningsH.length) {
       earningsH.slice().sort(function(a, b) {
         return (a.quarter && a.quarter.raw || 0) - (b.quarter && b.quarter.raw || 0);
       }).forEach(function(h) {
         if (!h.epsActual || h.epsActual.raw == null || !h.quarter || !h.quarter.raw) return;
-        epsHistory.push({ year: qLabel(h.quarter.raw), eps: r2(h.epsActual.raw), type: 'actual' });
+        epsHistory.push({ year: fqLabel(h.quarter.raw) || qLabel(h.quarter.raw), eps: r2(h.epsActual.raw), type: 'actual' });
+        lastActualRaw = h.quarter.raw;
       });
     }
 
@@ -293,22 +304,25 @@ module.exports = async function(req, res) {
         var ni = (stmt.netIncomeApplicableToCommonShares && stmt.netIncomeApplicableToCommonShares.raw) ||
                  (stmt.netIncome && stmt.netIncome.raw);
         if (!ni || !stmt.endDate || !stmt.endDate.raw) return;
-        epsHistory.push({ year: qLabel(stmt.endDate.raw), eps: r2(ni / shares), type: 'actual' });
+        epsHistory.push({ year: fqLabel(stmt.endDate.raw) || qLabel(stmt.endDate.raw), eps: r2(ni / shares), type: 'actual' });
+        lastActualRaw = stmt.endDate.raw;
       });
     }
 
-    // 증권사 추정치 — 미래 분기 3개가 차도록 0q~+3q 시도
+    // 증권사 추정치 (Yahoo Finance는 0q, +1q 2개만 제공)
+    // endDate 없으면 마지막 실제 실적일 + 분기 오프셋으로 계산
+    var Q91 = 91 * 24 * 60 * 60; // 91일(초)
     if (et && et.trend) {
-      var estimateCount = 0;
-      ['0q', '+1q', '+2q', '+3q'].forEach(function(period) {
-        if (estimateCount >= 3) return;
+      var qOffset = 0;
+      ['0q', '+1q'].forEach(function(period) {
         var t = et.trend.find(function(x) { return x.period === period; });
         if (!t || !t.earningsEstimate || !t.earningsEstimate.avg || !t.earningsEstimate.avg.raw) return;
-        var endRaw = t.endDate && t.endDate.raw;
+        qOffset++;
+        var endRaw = (t.endDate && t.endDate.raw) ||
+                     (lastActualRaw ? lastActualRaw + qOffset * Q91 : null);
         var label = (endRaw && fqLabel(endRaw)) || (endRaw ? qLabel(endRaw) : period);
         if (!epsHistory.find(function(e) { return e.year === label; })) {
           epsHistory.push({ year: label, eps: r2(t.earningsEstimate.avg.raw), type: 'estimate' });
-          estimateCount++;
         }
       });
     }
@@ -319,17 +333,14 @@ module.exports = async function(req, res) {
     if (calEv && calEv.earningsDate && calEv.earningsDate.length) {
       // Yahoo는 보통 [최조기 예상, 최후기 예상] 2개 타임스탬프를 줌 → 첫 번째가 발표일 추정
       var d0 = new Date(calEv.earningsDate[0].raw * 1000);
-      // 분기 종료일은 earningsTrend 0q endDate로 매칭, 없으면 발표일 ~45일 전 추정
-      var trend0q = et && et.trend && et.trend.find(function(x) { return x.period === '0q'; });
-      var q0EndRaw = trend0q && trend0q.endDate && trend0q.endDate.raw;
-      var label0 = (q0EndRaw && fqLabel(q0EndRaw)) || (q0EndRaw ? qLabel(q0EndRaw) : qLabel(calEv.earningsDate[0].raw));
-      earningsDates.push({ period: '0q', label: label0, date: d0.toISOString().split('T')[0] });
-      // +1q: earningsTrend +1q endDate 사용, 없으면 91일 후 추정
-      var trend1q = et && et.trend && et.trend.find(function(x) { return x.period === '+1q'; });
-      var q1EndRaw = trend1q && trend1q.endDate && trend1q.endDate.raw;
+      // 분기 종료일: lastActualRaw + 91일로 계산 (endDate 없을 때)
+      var q0EndRaw = lastActualRaw ? lastActualRaw + Q91 : null;
+      var label0 = (q0EndRaw && fqLabel(q0EndRaw)) || (q0EndRaw ? qLabel(q0EndRaw) : null);
+      if (label0) earningsDates.push({ period: '0q', label: label0, date: d0.toISOString().split('T')[0] });
       var d1 = new Date(d0.getTime() + 91 * 24 * 60 * 60 * 1000);
-      var label1 = (q1EndRaw && fqLabel(q1EndRaw)) || (q1EndRaw ? qLabel(q1EndRaw) : qLabel(d1.getTime() / 1000));
-      earningsDates.push({ period: '+1q', label: label1, date: d1.toISOString().split('T')[0], estimated: true });
+      var q1EndRaw = lastActualRaw ? lastActualRaw + 2 * Q91 : null;
+      var label1 = (q1EndRaw && fqLabel(q1EndRaw)) || (q1EndRaw ? qLabel(q1EndRaw) : null);
+      if (label1) earningsDates.push({ period: '+1q', label: label1, date: d1.toISOString().split('T')[0], estimated: true });
     }
 
     return res.json({
@@ -346,18 +357,7 @@ module.exports = async function(req, res) {
       epsHistory,
       annualEpsEstimates,
       earningsDates,
-      _dbg: {
-        priceYears: Object.keys(priceByYear),
-        incomeCount: incomeHistory ? incomeHistory.length : 0,
-        fyEndMonth: fyEndMonth,
-        fyEndRaw: fyEndRaw,
-        etPeriods: et && et.trend ? et.trend.map(function(t) {
-          return { period: t.period, endDateFmt: t.endDate && t.endDate.fmt, endDateRaw: t.endDate && t.endDate.raw, eps: t.earningsEstimate && t.earningsEstimate.avg && t.earningsEstimate.avg.raw };
-        }) : null,
-        earningsHLast: earningsH ? earningsH.slice(-3).map(function(h) {
-          return { qFmt: h.quarter && h.quarter.fmt, qRaw: h.quarter && h.quarter.raw, eps: h.epsActual && h.epsActual.raw };
-        }) : null,
-      },
+      _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0 },
     });
 
   } catch (e) {
