@@ -185,6 +185,10 @@ module.exports = async function(req, res) {
     var et = trendSummary && trendSummary.earningsTrend;
 
     var currentPrice = pr && pr.regularMarketPrice && pr.regularMarketPrice.raw;
+    // 배수 계산(PER/PSR/PEG)은 전일 종가 기준 — 금융 사이트 표준 (실시간 가격은 장중 계속 변해서 불일치)
+    var prevClose = (pr && pr.regularMarketPreviousClose && pr.regularMarketPreviousClose.raw) ||
+                   (sd && sd.previousClose && sd.previousClose.raw) ||
+                   currentPrice;
 
     // earningsTrend 0y = 현재 회계연도 컨센서스 EPS → Seeking Alpha Non-GAAP FWD PE와 일치
     // 국내 종목 등 earningsTrend 없는 경우 forwardEps 폴백
@@ -210,8 +214,8 @@ module.exports = async function(req, res) {
       var growth = t.earningsEstimate && t.earningsEstimate.growth && t.earningsEstimate.growth.raw;
       var numAnalysts = t.earningsEstimate && t.earningsEstimate.numberOfAnalysts && t.earningsEstimate.numberOfAnalysts.raw;
       var revEst = t.revenueEstimate && t.revenueEstimate.avg && t.revenueEstimate.avg.raw;
-      var fpe = (eps > 0 && currentPrice) ? r2(currentPrice / eps) : null;
-      var fpsr = (revEst && revEst > 0 && shares && currentPrice) ? r2(currentPrice * shares / revEst) : null;
+      var fpe = (eps > 0 && prevClose) ? r2(prevClose / eps) : null;
+      var fpsr = (revEst && revEst > 0 && shares && prevClose) ? r2(prevClose * shares / revEst) : null;
       var fpeg = (fpe && growth != null && growth > 0) ? r2(fpe / (growth * 100)) : null;
       annualEpsEstimates.push({
         period: t.period,
@@ -225,7 +229,7 @@ module.exports = async function(req, res) {
       });
     });
     var pbr = r2(ks && ks.priceToBook && ks.priceToBook.raw);
-    var forwardPE  = (forwardEPS && currentPrice && forwardEPS > 0) ? r2(currentPrice / forwardEPS)
+    var forwardPE  = (forwardEPS && prevClose && forwardEPS > 0) ? r2(prevClose / forwardEPS)
                    : r2(sd && sd.forwardPE && sd.forwardPE.raw);
     var currency     = (pr && pr.currency) || 'USD';
     var companyName  = (pr && pr.shortName) || ticker;
