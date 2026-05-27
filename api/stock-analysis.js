@@ -317,6 +317,8 @@ module.exports = async function(req, res) {
         qOffset++;
         var endRaw = (t.endDate && t.endDate.raw) ||
                      (fyEndRaw ? fyEndRaw + qOffset * Q91 : null);
+        // 이미 실제 실적이 보고된 분기는 건너뜀 (Yahoo 데이터가 stale한 경우)
+        if (endRaw && lastActualRaw && endRaw <= lastActualRaw) return;
         var label = (endRaw && fqLabel(endRaw)) || (endRaw ? qLabel(endRaw) : period);
         if (!epsHistory.find(function(e) { return e.year === label; })) {
           epsHistory.push({ year: label, eps: r2(t.earningsEstimate.avg.raw), type: 'estimate' });
