@@ -207,16 +207,22 @@ module.exports = async function(req, res) {
       var endRaw = t.endDate && t.endDate.raw;
       var growth = t.earningsEstimate && t.earningsEstimate.growth && t.earningsEstimate.growth.raw;
       var numAnalysts = t.earningsEstimate && t.earningsEstimate.numberOfAnalysts && t.earningsEstimate.numberOfAnalysts.raw;
+      var revEst = t.revenueEstimate && t.revenueEstimate.avg && t.revenueEstimate.avg.raw;
       var fpe = (eps > 0 && currentPrice) ? r2(currentPrice / eps) : null;
+      var fpsr = (revEst && revEst > 0 && shares && currentPrice) ? r2(currentPrice * shares / revEst) : null;
+      var fpeg = (fpe && growth != null && growth > 0) ? r2(fpe / (growth * 100)) : null;
       annualEpsEstimates.push({
         period: t.period,
         fiscalEnd: fmtFiscalEnd(endRaw),
         eps: r2(eps),
         growthPct: growth != null ? r2(growth * 100) : null,
         forwardPE: fpe,
+        forwardPSR: fpsr,
+        forwardPEG: fpeg,
         numAnalysts: numAnalysts || null,
       });
     });
+    var pbr = r2(ks && ks.priceToBook && ks.priceToBook.raw);
     var forwardPE  = (forwardEPS && currentPrice && forwardEPS > 0) ? r2(currentPrice / forwardEPS)
                    : r2(sd && sd.forwardPE && sd.forwardPE.raw);
     var currency     = (pr && pr.currency) || 'USD';
@@ -376,6 +382,7 @@ module.exports = async function(req, res) {
       rsiData,
       epsHistory,
       revenueHistory,
+      pbr,
       annualEpsEstimates,
       earningsDates,
       _dbg: { priceYears: Object.keys(priceByYear), incomeCount: incomeHistory ? incomeHistory.length : 0 },
