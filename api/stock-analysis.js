@@ -350,8 +350,12 @@ module.exports = async function(req, res) {
         priceYears: Object.keys(priceByYear),
         incomeCount: incomeHistory ? incomeHistory.length : 0,
         fyEndMonth: fyEndMonth,
+        fyEndRaw: fyEndRaw,
         etPeriods: et && et.trend ? et.trend.map(function(t) {
-          return { period: t.period, endDate: t.endDate && t.endDate.fmt, eps: t.earningsEstimate && t.earningsEstimate.avg && t.earningsEstimate.avg.raw };
+          return { period: t.period, endDateFmt: t.endDate && t.endDate.fmt, endDateRaw: t.endDate && t.endDate.raw, eps: t.earningsEstimate && t.earningsEstimate.avg && t.earningsEstimate.avg.raw };
+        }) : null,
+        earningsHLast: earningsH ? earningsH.slice(-3).map(function(h) {
+          return { qFmt: h.quarter && h.quarter.fmt, qRaw: h.quarter && h.quarter.raw, eps: h.epsActual && h.epsActual.raw };
         }) : null,
       },
     });
