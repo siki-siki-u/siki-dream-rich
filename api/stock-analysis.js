@@ -154,7 +154,7 @@ function calcAvgPE5Y(priceByYear, incomeHistory, shares) {
     var price = priceByYear[stmtYear] || priceByYear[stmtYear - 1] || priceByYear[stmtYear + 1];
     if (!price) return;
     var pe = price / eps;
-    if (pe > 0 && pe < 2000) peList.push(Math.round(pe * 100) / 100);
+    if (pe > 0 && pe < 200) peList.push(Math.round(pe * 100) / 100);
   });
   if (!peList.length) return null;
   return Math.round(peList.reduce(function(a, b) { return a + b; }, 0) / peList.length * 100) / 100;
@@ -440,6 +440,7 @@ module.exports = async function(req, res) {
         incomeCount: incomeHistory ? incomeHistory.length : 0,
         bsCount: bsHistory ? bsHistory.length : 0,
         bsSample: bsHistory && bsHistory[0] ? Object.keys(bsHistory[0]) : null,
+        bsSummaryKeys: bsSummary ? Object.keys(bsSummary) : null,
         sharesOutstanding: shares,
       },
     });
