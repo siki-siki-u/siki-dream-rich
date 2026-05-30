@@ -625,7 +625,10 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
           <span><span style="color:#f472b6;font-size:.85em">■</span> 지출</span>
         </div>
       </div>
-      <canvas id="dash-monthly-canvas" style="width:100%;height:170px;display:block"></canvas>
+      <div style="position:relative">
+        <canvas id="dash-monthly-canvas" style="width:100%;height:170px;display:block"></canvas>
+        <div id="dash-monthly-tooltip" style="display:none;position:absolute;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:.5rem .75rem;font-size:.75rem;pointer-events:none;white-space:nowrap;z-index:10;line-height:1.7;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
+      </div>
     </div>
 
     <!-- 결혼 이후 자산 성장 -->
@@ -5785,8 +5788,6 @@ function drawDashMonthlyChart() {
   var h = 170;
   canvas.width = w * dpr; canvas.height = h * dpr;
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
-  var ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
 
   var months = get6MonthsData();
   var pad = { top: 18, right: 12, bottom: 24, left: 46 };
@@ -5801,38 +5802,98 @@ function drawDashMonthlyChart() {
   function py(v) { return pad.top + ch - (v / vMax) * ch; }
   function cx0(i) { return pad.left + i * barGap + (barGap - barW * 2 - 4) / 2; }
 
-  // 가이드라인 + Y 라벨
-  for (var t = 1; t <= 4; t++) {
-    var v = vMax * (t / 4), yp = py(v);
-    ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(pad.left, yp); ctx.lineTo(pad.left + cw, yp); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,.28)';
-    ctx.font = '9px JetBrains Mono, monospace'; ctx.textAlign = 'right';
-    ctx.fillText(fmtChartWon(v), pad.left - 3, yp + 3);
+  function render(hoverIdx) {
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(dpr, dpr);
+
+    for (var t = 1; t <= 4; t++) {
+      var v = vMax * (t / 4), yp = py(v);
+      ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(pad.left, yp); ctx.lineTo(pad.left + cw, yp); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.28)';
+      ctx.font = '9px JetBrains Mono, monospace'; ctx.textAlign = 'right';
+      ctx.fillText(fmtChartWon(v), pad.left - 3, yp + 3);
+    }
+
+    months.forEach(function(m, i) {
+      var x0 = cx0(i);
+      var isHover = hoverIdx === i;
+      var alpha = (hoverIdx !== null && !isHover) ? '.35' : '.82';
+
+      if (m.income > 0) {
+        var ih = Math.max(2, py(0) - py(m.income));
+        ctx.fillStyle = 'rgba(96,165,250,' + alpha + ')';
+        ctx.fillRect(x0, py(m.income), barW, ih);
+        if (isHover) { ctx.strokeStyle = 'rgba(96,165,250,1)'; ctx.lineWidth = 1.5; ctx.strokeRect(x0, py(m.income), barW, ih); }
+      }
+
+      var totalExp = m.varExp + m.fixedExp;
+      if (totalExp > 0) {
+        var eh = Math.max(2, py(0) - py(totalExp));
+        var fh = m.fixedExp > 0 ? Math.round(eh * m.fixedExp / totalExp) : 0;
+        var vh = eh - fh;
+        if (vh > 0) {
+          ctx.fillStyle = 'rgba(244,114,182,' + alpha + ')';
+          ctx.fillRect(x0 + barW + 4, py(totalExp) + fh, barW, vh);
+        }
+        if (fh > 0) {
+          ctx.fillStyle = 'rgba(251,146,60,' + (hoverIdx !== null && !isHover ? '.25' : '.6') + ')';
+          ctx.fillRect(x0 + barW + 4, py(totalExp), barW, fh);
+        }
+        if (isHover) { ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1.5; ctx.strokeRect(x0 + barW + 4, py(totalExp), barW, eh); }
+      }
+
+      ctx.fillStyle = isHover ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.4)';
+      ctx.font = (isHover ? 'bold ' : '') + '9px Noto Sans KR, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(m.label, x0 + barW + 2, h - 5);
+    });
   }
 
-  months.forEach(function(m, i) {
-    var x0 = cx0(i);
-    // 수입
-    if (m.income > 0) {
-      var ih = Math.max(2, py(0) - py(m.income));
-      ctx.fillStyle = 'rgba(96,165,250,.82)';
-      ctx.fillRect(x0, py(m.income), barW, ih);
-    }
-    // 지출 (변동+고정 스택)
+  render(null);
+
+  var tooltip = document.getElementById('dash-monthly-tooltip');
+
+  function showTooltipAt(mx, my) {
+    var idx = Math.floor((mx - pad.left) / barGap);
+    idx = Math.max(0, Math.min(n - 1, idx));
+    render(idx);
+    if (!tooltip) return;
+    var m = months[idx];
     var totalExp = m.varExp + m.fixedExp;
-    if (totalExp > 0) {
-      var eh = Math.max(2, py(0) - py(totalExp));
-      var fh = m.fixedExp > 0 ? Math.round(eh * m.fixedExp / totalExp) : 0;
-      var vh = eh - fh;
-      if (vh > 0) { ctx.fillStyle = 'rgba(244,114,182,.82)'; ctx.fillRect(x0 + barW + 4, py(totalExp) + fh, barW, vh); }
-      if (fh > 0) { ctx.fillStyle = 'rgba(251,146,60,.6)'; ctx.fillRect(x0 + barW + 4, py(totalExp), barW, fh); }
-    }
-    // X 라벨
-    ctx.fillStyle = 'rgba(255,255,255,.4)';
-    ctx.font = '9px Noto Sans KR, sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(m.label, x0 + barW + 2, h - 5);
-  });
+    tooltip.innerHTML =
+      '<div style="font-weight:700;color:var(--text);margin-bottom:.2rem">' + m.label + '</div>' +
+      '<div style="color:#60a5fa">💵 수입&nbsp;&nbsp;<b>' + fmtMoney(m.income) + '</b></div>' +
+      '<div style="color:#f472b6">💳 변동 지출&nbsp;&nbsp;<b>' + fmtMoney(m.varExp) + '</b></div>' +
+      '<div style="color:#fb923c">🔒 고정비&nbsp;&nbsp;<b>' + fmtMoney(m.fixedExp) + '</b></div>' +
+      '<div style="color:var(--muted);border-top:1px solid var(--border);margin-top:.2rem;padding-top:.2rem">총 지출&nbsp;&nbsp;<b style="color:var(--text)">' + fmtMoney(totalExp) + '</b></div>';
+    var rect = canvas.getBoundingClientRect();
+    var ttW = 180;
+    var left = Math.min(mx + 10, w - ttW - 4);
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = Math.max(4, my - 90) + 'px';
+    tooltip.style.display = 'block';
+  }
+
+  canvas.onmousemove = function(e) {
+    var rect = canvas.getBoundingClientRect();
+    showTooltipAt(e.clientX - rect.left, e.clientY - rect.top);
+  };
+  canvas.onmouseleave = function() {
+    render(null);
+    if (tooltip) tooltip.style.display = 'none';
+  };
+  canvas.ontouchmove = function(e) {
+    e.preventDefault();
+    var rect = canvas.getBoundingClientRect();
+    var t = e.touches[0];
+    showTooltipAt(t.clientX - rect.left, t.clientY - rect.top);
+  };
+  canvas.ontouchend = function() {
+    render(null);
+    if (tooltip) tooltip.style.display = 'none';
+  };
 }
 
 function drawBudgetTrendChart() {
