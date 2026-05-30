@@ -601,19 +601,19 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
         <div class="stat-sub">가계부 기준</div>
       </div>
       <div class="stat-card pink">
-        <div class="stat-label">이번 달 지출</div>
+        <div class="stat-label">변동 지출</div>
         <div class="stat-value pink" id="dash-expense">₩0</div>
-        <div class="stat-sub">가계부 기준</div>
+        <div class="stat-sub">거래내역 합산</div>
+      </div>
+      <div class="stat-card orange" style="--accent-over:#fb923c">
+        <div class="stat-label" style="color:#fb923c">고정비</div>
+        <div class="stat-value" style="color:#fb923c" id="dash-fixed">₩0</div>
+        <div class="stat-sub">매월 고정 지출</div>
       </div>
       <div class="stat-card green">
         <div class="stat-label">이번 달 잔액</div>
         <div class="stat-value green" id="dash-balance">₩0</div>
-        <div class="stat-sub">수입 - 지출</div>
-      </div>
-      <div class="stat-card yellow">
-        <div class="stat-label">관심 종목</div>
-        <div class="stat-value yellow" id="dash-stocks">0개</div>
-        <div class="stat-sub">주식 공부 중</div>
+        <div class="stat-sub">수입 - 변동 - 고정</div>
       </div>
     </div>
     <!-- 📈 월별 수입/지출 추이 -->
@@ -3541,9 +3541,11 @@ function recalcBudget() {
   // 대시보드 연동
   const di = document.getElementById('dash-income');
   const de = document.getElementById('dash-expense');
+  const df2 = document.getElementById('dash-fixed');
   const db = document.getElementById('dash-balance');
   if(di) di.textContent = fmtMoney(totalIn);
-  if(de) de.textContent = fmtMoney(totalExp+fixedTotal);
+  if(de) de.textContent = fmtMoney(totalExp);
+  if(df2) df2.textContent = fmtMoney(fixedTotal);
   if(db) db.textContent = fmtMoney(investable);
 }
 
@@ -5892,12 +5894,12 @@ function refreshDashboard() {
 
   var di = document.getElementById('dash-income');
   var de = document.getElementById('dash-expense');
+  var df = document.getElementById('dash-fixed');
   var db = document.getElementById('dash-balance');
-  var ds = document.getElementById('dash-stocks');
   if(di) di.textContent = fmtMoney(totalIn);
-  if(de) de.textContent = fmtMoney(totalExp+fixedTotal);
+  if(de) de.textContent = fmtMoney(totalExp);
+  if(df) df.textContent = fmtMoney(fixedTotal);
   if(db) db.textContent = fmtMoney(totalIn-fixedTotal-totalExp);
-  if(ds) ds.textContent = (S.get('stocks')||[]).length+'개';
 
   // 최근 지출
   var rtEl = document.getElementById('dash-recent-tx');
