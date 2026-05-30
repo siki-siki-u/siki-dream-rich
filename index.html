@@ -616,6 +616,18 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
         <div class="stat-sub">주식 공부 중</div>
       </div>
     </div>
+    <!-- 📈 월별 수입/지출 추이 -->
+    <div class="card" style="margin-bottom:1.5rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem">
+        <div class="sec-title" style="margin:0">📈 최근 6개월 추이</div>
+        <div style="display:flex;gap:.9rem;font-size:.68rem;color:var(--muted)">
+          <span><span style="color:#60a5fa;font-size:.85em">■</span> 수입</span>
+          <span><span style="color:#f472b6;font-size:.85em">■</span> 지출</span>
+        </div>
+      </div>
+      <canvas id="dash-monthly-canvas" style="width:100%;height:170px;display:block"></canvas>
+    </div>
+
     <!-- 결혼 이후 자산 성장 -->
     <div class="card" style="margin-bottom:1.5rem;position:relative;overflow:hidden">
       <div style="position:absolute;right:-10px;top:-10px;font-size:4.5rem;opacity:.05;pointer-events:none">💍</div>
@@ -888,6 +900,15 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- 📊 6개월 지출 추이 -->
+    <div class="card" style="margin-bottom:1.5rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem">
+        <div class="sec-title" style="margin:0">📊 6개월 지출 추이</div>
+        <div style="font-size:.68rem;color:var(--muted)"><span style="color:#fb923c;font-size:.85em">■</span> 변동지출 &nbsp;<span style="color:#6366f1;font-size:.85em">■</span> 고정지출</div>
+      </div>
+      <canvas id="budget-trend-canvas" style="width:100%;height:120px;display:block"></canvas>
     </div>
 
     <div class="grid2" style="align-items:start">
@@ -3465,6 +3486,7 @@ function renderBudget() {
   recalcBudget();
   renderFixedCosts();
   renderTransactions();
+  requestAnimationFrame(drawBudgetTrendChart);
 }
 
 function onIncomeInput(el) {
@@ -3727,6 +3749,15 @@ function renderTransactions() {
   // 필터 적용 (카테고리 차트·집계는 필터 적용, 테이블도 필터 적용)
   const txs = currentCatFilter ? allTxs.filter(function(t){return t.source===currentCatFilter;}) : allTxs;
 
+  // 전월 카테고리 집계 (전월 대비 뱃지용)
+  var pm = budgetMonth - 1, py2 = budgetYear;
+  if (pm <= 0) { pm = 12; py2--; }
+  var prevKey = py2 + '-' + String(pm).padStart(2, '0');
+  var prevAllTxs = S.get('txs_' + prevKey) || [];
+  var prevTxs = currentCatFilter ? prevAllTxs.filter(function(t){return t.source===currentCatFilter;}) : prevAllTxs;
+  var prevCatMap = {};
+  prevTxs.forEach(function(t){ if(t.amount>0) prevCatMap[t.cat] = (prevCatMap[t.cat]||0)+t.amount; });
+
   // 카테고리 집계
   const catMap = {};
   txs.forEach(function(t){
@@ -3750,8 +3781,16 @@ function renderTransactions() {
         var pct = total>0 ? Math.round(e[1]/total*100) : 0;
         var barW = Math.min(pct, 100);
         var clr = catColors[e[0]]||'var(--muted)';
+        var prevAmt = prevCatMap[e[0]] || 0;
+        var diffBadge = '';
+        if (prevAmt > 0 && e[1] > 0) {
+          var diffPct = Math.round((e[1] - prevAmt) / prevAmt * 100);
+          var badgeClr = diffPct > 10 ? '#fb923c' : (diffPct < -10 ? 'var(--success)' : 'rgba(255,255,255,.35)');
+          diffBadge = '<span style="font-size:.62rem;color:'+badgeClr+';margin-left:.35rem;font-family:JetBrains Mono,monospace">'+
+            (diffPct > 0 ? '↑' : diffPct < 0 ? '↓' : '→')+Math.abs(diffPct)+'%</span>';
+        }
         return '<div style="margin-bottom:.8rem;cursor:pointer" onclick="showCatPopup(\''+e[0]+'\')">'+
-          '<div style="font-size:.82rem;color:var(--text);margin-bottom:.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+e[0]+'</div>'+
+          '<div style="font-size:.82rem;color:var(--text);margin-bottom:.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+e[0]+diffBadge+'</div>'+
           '<div style="display:flex;align-items:center;gap:.5rem">'+
             '<div style="flex:1;background:var(--border);border-radius:4px;height:6px;overflow:hidden;min-width:0">'+
               '<div style="background:'+clr+';width:'+barW+'%;height:100%;border-radius:4px;transition:width .5s"></div>'+
@@ -5711,6 +5750,137 @@ function _dashSkel(lines) {
   return '<div style="padding:.4rem 0">'+h+'</div>';
 }
 
+// ── 차트 공통 ──
+function fmtChartWon(v) {
+  if (!v) return '0';
+  var a = Math.abs(v);
+  if (a >= 100000000) return (v / 100000000).toFixed(1) + '억';
+  if (a >= 10000) return Math.round(v / 10000) + '만';
+  return v.toLocaleString();
+}
+
+function get6MonthsData() {
+  var result = [];
+  for (var i = 5; i >= 0; i--) {
+    var d = new Date(budgetYear, budgetMonth - 1 - i, 1);
+    var yr = d.getFullYear(), mo = d.getMonth() + 1;
+    var k = yr + '-' + String(mo).padStart(2, '0');
+    var income = S.get('income_' + k) || {};
+    var txs = S.get('txs_' + k) || [];
+    var totalIn = (income.yoonsik||0)+(income.yujin||0)+(income.bonusY||0)+(income.bonusU||0)+(income.etc||0);
+    var varExp = txs.reduce(function(s,t){return s+(t.amount>0?t.amount:0);},0);
+    var fixedExp = getFixedCostTotal();
+    result.push({ label: mo+'월', income: totalIn, varExp: varExp, fixedExp: fixedExp });
+  }
+  return result;
+}
+
+function drawDashMonthlyChart() {
+  var canvas = document.getElementById('dash-monthly-canvas');
+  if (!canvas) return;
+  var dpr = window.devicePixelRatio || 1;
+  var w = canvas.offsetWidth || canvas.parentElement.offsetWidth || 340;
+  var h = 170;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  var ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  var months = get6MonthsData();
+  var pad = { top: 18, right: 12, bottom: 24, left: 46 };
+  var cw = w - pad.left - pad.right, ch = h - pad.top - pad.bottom;
+  var n = months.length;
+  var barGap = cw / n;
+  var barW = Math.min(22, barGap * 0.32);
+
+  var maxVal = Math.max.apply(null, months.map(function(m){ return Math.max(m.income, m.varExp + m.fixedExp); }));
+  if (!maxVal) maxVal = 1;
+  var vMax = maxVal * 1.2;
+  function py(v) { return pad.top + ch - (v / vMax) * ch; }
+  function cx0(i) { return pad.left + i * barGap + (barGap - barW * 2 - 4) / 2; }
+
+  // 가이드라인 + Y 라벨
+  for (var t = 1; t <= 4; t++) {
+    var v = vMax * (t / 4), yp = py(v);
+    ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.left, yp); ctx.lineTo(pad.left + cw, yp); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.28)';
+    ctx.font = '9px JetBrains Mono, monospace'; ctx.textAlign = 'right';
+    ctx.fillText(fmtChartWon(v), pad.left - 3, yp + 3);
+  }
+
+  months.forEach(function(m, i) {
+    var x0 = cx0(i);
+    // 수입
+    if (m.income > 0) {
+      var ih = Math.max(2, py(0) - py(m.income));
+      ctx.fillStyle = 'rgba(96,165,250,.82)';
+      ctx.fillRect(x0, py(m.income), barW, ih);
+    }
+    // 지출 (변동+고정 스택)
+    var totalExp = m.varExp + m.fixedExp;
+    if (totalExp > 0) {
+      var eh = Math.max(2, py(0) - py(totalExp));
+      var fh = m.fixedExp > 0 ? Math.round(eh * m.fixedExp / totalExp) : 0;
+      var vh = eh - fh;
+      if (vh > 0) { ctx.fillStyle = 'rgba(244,114,182,.82)'; ctx.fillRect(x0 + barW + 4, py(totalExp) + fh, barW, vh); }
+      if (fh > 0) { ctx.fillStyle = 'rgba(251,146,60,.6)'; ctx.fillRect(x0 + barW + 4, py(totalExp), barW, fh); }
+    }
+    // X 라벨
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.font = '9px Noto Sans KR, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(m.label, x0 + barW + 2, h - 5);
+  });
+}
+
+function drawBudgetTrendChart() {
+  var canvas = document.getElementById('budget-trend-canvas');
+  if (!canvas) return;
+  var dpr = window.devicePixelRatio || 1;
+  var w = canvas.offsetWidth || canvas.parentElement.offsetWidth || 340;
+  var h = 120;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  var ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  var months = get6MonthsData();
+  var pad = { top: 14, right: 12, bottom: 22, left: 46 };
+  var cw = w - pad.left - pad.right, ch = h - pad.top - pad.bottom;
+  var n = months.length;
+  var barGap = cw / n;
+  var barW = Math.min(30, barGap * 0.55);
+
+  var maxVal = Math.max.apply(null, months.map(function(m){ return m.varExp + m.fixedExp; }));
+  if (!maxVal) maxVal = 1;
+  var vMax = maxVal * 1.18;
+  function py(v) { return pad.top + ch - (v / vMax) * ch; }
+  function bx(i) { return pad.left + i * barGap + (barGap - barW) / 2; }
+
+  for (var t = 1; t <= 3; t++) {
+    var v = vMax * (t / 3), yp = py(v);
+    ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.left, yp); ctx.lineTo(pad.left + cw, yp); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.28)';
+    ctx.font = '9px JetBrains Mono, monospace'; ctx.textAlign = 'right';
+    ctx.fillText(fmtChartWon(v), pad.left - 3, yp + 3);
+  }
+
+  months.forEach(function(m, i) {
+    var totalExp = m.varExp + m.fixedExp;
+    if (totalExp > 0) {
+      var eh = Math.max(2, py(0) - py(totalExp));
+      var fh = m.fixedExp > 0 ? Math.round(eh * m.fixedExp / totalExp) : 0;
+      var vh = eh - fh;
+      if (vh > 0) { ctx.fillStyle = 'rgba(251,146,60,.85)'; ctx.fillRect(bx(i), py(totalExp) + fh, barW, vh); }
+      if (fh > 0) { ctx.fillStyle = 'rgba(99,102,241,.7)'; ctx.fillRect(bx(i), py(totalExp), barW, fh); }
+    }
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.font = '9px Noto Sans KR, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(m.label, bx(i) + barW / 2, h - 4);
+  });
+}
+
 function refreshDashboard() {
   // 가계부: 현재 달 기준
   var key = budgetYear+'-'+String(budgetMonth).padStart(2,'0');
@@ -5740,6 +5910,9 @@ function refreshDashboard() {
       '</div>';
     }).join('') : '<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:1.5rem 0">지출 내역이 없어요</div>';
   }
+
+  // 월별 수입/지출 차트
+  requestAnimationFrame(drawDashMonthlyChart);
 
   // 결혼 이후 자산 성장
   renderMarriageGrowth();
