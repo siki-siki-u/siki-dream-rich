@@ -1654,6 +1654,42 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
         <div id="sa-fair-value" style="display:none"></div>
         <div id="sa-valuation-badge" style="display:none"></div>
         <div id="sa-valuation-detail" style="display:none"></div>
+        <!-- 주가 캔들스틱 차트 -->
+        <div style="margin-bottom:1.2rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
+            <div style="font-size:.88rem;font-weight:600;color:var(--text)">📊 주가 차트 (최근 3개월)</div>
+            <span id="sa-price-chg" style="font-size:.82rem;font-weight:700;font-family:JetBrains Mono,monospace"></span>
+          </div>
+          <div style="position:relative">
+            <canvas id="sa-price-canvas" style="width:100%;height:180px;display:block"></canvas>
+            <div id="sa-price-tooltip" style="display:none;position:fixed;pointer-events:none;z-index:9999;background:rgba(20,24,38,.95);border:1px solid rgba(108,138,255,.35);border-radius:8px;padding:.4rem .7rem;font-size:.76rem;font-family:JetBrains Mono,monospace;color:var(--text);white-space:nowrap"></div>
+          </div>
+          <div style="display:flex;gap:.9rem;margin-top:.3rem;font-size:.7rem;color:var(--muted)">
+            <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#52d9a3;margin-right:.3rem"></span>상승</span>
+            <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#ff7e7e;margin-right:.3rem"></span>하락</span>
+          </div>
+        </div>
+
+        <!-- 스토캐스틱 차트 -->
+        <div style="margin-bottom:1.2rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
+            <div style="font-size:.88rem;font-weight:600;color:var(--text)">🎯 스토캐스틱 (14, 3)</div>
+            <div style="display:flex;align-items:center;gap:.5rem">
+              <span id="sa-stoch-k" style="font-size:.85rem;font-weight:700;font-family:JetBrains Mono,monospace"></span>
+              <span id="sa-stoch-status" style="font-size:.75rem;font-weight:600;padding:.2rem .55rem;border-radius:10px"></span>
+            </div>
+          </div>
+          <div style="position:relative">
+            <canvas id="sa-stoch-canvas" style="width:100%;height:110px;display:block"></canvas>
+            <div id="sa-stoch-tooltip" style="display:none;position:fixed;pointer-events:none;z-index:9999;background:rgba(20,24,38,.95);border:1px solid rgba(82,217,163,.35);border-radius:8px;padding:.4rem .7rem;font-size:.76rem;font-family:JetBrains Mono,monospace;color:var(--text);white-space:nowrap"></div>
+          </div>
+          <div style="display:flex;gap:.9rem;margin-top:.3rem;font-size:.7rem;color:var(--muted)">
+            <span><span style="display:inline-block;width:18px;height:2px;background:#6c8aff;margin-right:.3rem;vertical-align:middle"></span>%K</span>
+            <span><span style="display:inline-block;width:18px;height:2px;background:#fb923c;margin-right:.3rem;vertical-align:middle;border-top:2px dashed #fb923c"></span>%D</span>
+          </div>
+        </div>
+
+        <!-- RSI -->
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
           <div style="font-size:.88rem;font-weight:600;color:var(--text)">📈 RSI (14일, 최근 3개월)</div>
           <div style="display:flex;align-items:center;gap:.5rem">
@@ -4576,7 +4612,21 @@ async function fetchStockAnalysis() {
     result.style.display = 'block';
 
     // 차트는 display:block 이후 레이아웃이 완성된 다음 프레임에 그려야 offsetWidth가 정확함
+    // 기간 등락 표시
+    if (d.priceData && d.priceData.length > 1) {
+      var first = d.priceData[0].close, last = d.priceData[d.priceData.length - 1].close;
+      var chgPct = ((last - first) / first * 100).toFixed(2);
+      var chgEl  = document.getElementById('sa-price-chg');
+      if (chgEl) {
+        var sym2 = d.currency === 'KRW' ? '₩' : '$';
+        chgEl.textContent = (chgPct >= 0 ? '▲' : '▼') + Math.abs(chgPct) + '%';
+        chgEl.style.color = chgPct >= 0 ? '#52d9a3' : '#ff7e7e';
+      }
+    }
+
     requestAnimationFrame(function() {
+      if (d.priceData && d.priceData.length > 1) drawPriceChart(d.priceData, d.currency);
+      if (d.stochData && d.stochData.length > 1) drawStochChart(d.stochData);
       if (d.rsiData && d.rsiData.length > 1) drawRsiChart(d.rsiData);
       if (d.revenueHistory && d.revenueHistory.length > 0) {
         document.getElementById('sa-revenue-wrap').style.display = 'block';
@@ -4592,6 +4642,242 @@ async function fetchStockAnalysis() {
     errEl.textContent = '⚠ 조회 실패: ' + e.message;
     errEl.style.display = 'block';
   }
+}
+
+function drawPriceChart(priceData, currency) {
+  var canvas = document.getElementById('sa-price-canvas');
+  if (!canvas || !priceData || !priceData.length) return;
+  var dpr = window.devicePixelRatio || 1;
+  var w = canvas.offsetWidth || canvas.parentElement.offsetWidth || 400;
+  var h = 190;
+  canvas.width  = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+
+  var pad = { top: 14, right: 14, bottom: 24, left: 60 };
+  var cw = w - pad.left - pad.right;
+  var ch = h - pad.top - pad.bottom;
+  var n = priceData.length;
+  var isCrw = currency === 'KRW';
+  var sym = isCrw ? '₩' : '$';
+
+  var allLo = priceData.map(function(d){ return d.low  != null ? d.low  : d.close; });
+  var allHi = priceData.map(function(d){ return d.high != null ? d.high : d.close; });
+  var vMin  = Math.min.apply(null, allLo) * 0.997;
+  var vMax  = Math.max.apply(null, allHi) * 1.003;
+  var vRng  = vMax - vMin;
+
+  var xStep = cw / n;
+  var barW  = Math.max(1.5, xStep * 0.7);
+
+  function bx(i) { return pad.left + i * xStep + xStep * 0.5; }
+  function py(v) { return pad.top + (1 - (v - vMin) / vRng) * ch; }
+  function pFmt(v) {
+    if (isCrw) return sym + Math.round(v).toLocaleString();
+    return v >= 1000 ? sym + Math.round(v).toLocaleString() : sym + v.toFixed(2);
+  }
+
+  function render(hoverIdx) {
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height); ctx.scale(dpr,dpr);
+
+    // 수평 가이드 4개
+    for (var gi = 0; gi <= 4; gi++) {
+      var gv = vMin + (vRng / 4) * gi;
+      var gy = py(gv);
+      ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.lineWidth = 1;
+      ctx.setLineDash([3,4]);
+      ctx.beginPath(); ctx.moveTo(pad.left, gy); ctx.lineTo(pad.left+cw, gy); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.font = '9px JetBrains Mono,monospace';
+      ctx.textAlign = 'right'; ctx.fillText(pFmt(gv), pad.left-4, gy+3);
+    }
+    ctx.textAlign = 'left';
+
+    // 캔들스틱
+    priceData.forEach(function(d, i) {
+      var op   = d.open  != null ? d.open  : d.close;
+      var hi2  = d.high  != null ? d.high  : Math.max(d.close, op);
+      var lo2  = d.low   != null ? d.low   : Math.min(d.close, op);
+      var isUp = d.close >= op;
+      var clr  = isUp ? '#52d9a3' : '#ff7e7e';
+      var cx   = bx(i);
+      var alpha = (hoverIdx != null && i !== hoverIdx) ? 0.45 : 1;
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = clr; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(cx, py(hi2)); ctx.lineTo(cx, py(lo2)); ctx.stroke();
+      var bt = py(Math.max(d.close, op));
+      var bh = Math.max(1.5, py(Math.min(d.close, op)) - bt);
+      ctx.fillStyle = clr; ctx.fillRect(cx - barW/2, bt, barW, bh);
+      ctx.globalAlpha = 1;
+    });
+
+    // x축 날짜
+    ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.font = '9px Noto Sans KR,sans-serif'; ctx.textAlign = 'center';
+    var ts = Math.floor(n/5); if(ts<1) ts=1;
+    for (var ti=0; ti<n; ti+=ts) ctx.fillText(priceData[ti].date.slice(5), bx(ti), h-5);
+    ctx.textAlign = 'left';
+
+    // 현재가 점선
+    var lc = priceData[n-1].close;
+    ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+    ctx.beginPath(); ctx.moveTo(pad.left,py(lc)); ctx.lineTo(pad.left+cw,py(lc)); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // hover 강조
+    if (hoverIdx != null && hoverIdx >= 0) {
+      var hd  = priceData[hoverIdx];
+      var hcx = bx(hoverIdx);
+      ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.lineWidth=1; ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(hcx,pad.top); ctx.lineTo(hcx,pad.top+ch); ctx.stroke();
+      ctx.setLineDash([]);
+      var hop = hd.open!=null ? hd.open : hd.close;
+      var hUp = hd.close >= hop;
+      ctx.save(); ctx.shadowColor = hUp?'#52d9a3':'#ff7e7e'; ctx.shadowBlur=10;
+      var hbt = py(Math.max(hd.close,hop));
+      var hbh = Math.max(2, py(Math.min(hd.close,hop))-hbt);
+      ctx.fillStyle = hUp?'#52d9a3':'#ff7e7e'; ctx.fillRect(hcx-barW/2,hbt,barW,hbh);
+      ctx.restore();
+    }
+  }
+
+  render(null);
+  var tooltip = document.getElementById('sa-price-tooltip');
+  function handleMove(mx, cx, cy) {
+    var idx = Math.max(0, Math.min(n-1, Math.floor((mx-pad.left)/xStep)));
+    render(idx);
+    if (tooltip) {
+      var d = priceData[idx];
+      var op = d.open!=null?d.open:d.close;
+      var isUp = d.close>=op;
+      tooltip.innerHTML = '<span style="color:var(--muted)">'+d.date+'</span>' +
+        '&nbsp;&nbsp;<b style="color:'+(isUp?'#52d9a3':'#ff7e7e')+'">C '+pFmt(d.close)+'</b>' +
+        (d.open!=null?'&nbsp;<span style="color:var(--muted)">O</span>&nbsp;<b>'+pFmt(d.open)+'</b>':'') +
+        (d.high!=null?'&nbsp;<span style="color:#52d9a3">H '+pFmt(d.high)+'</span>':'') +
+        (d.low !=null?'&nbsp;<span style="color:#ff7e7e">L '+pFmt(d.low) +'</span>':'');
+      tooltip.style.display='block';
+      if(cx!=null) { tooltip.style.left=(cx+16)+'px'; tooltip.style.top=(cy-36)+'px'; }
+    }
+  }
+  canvas.onmousemove = function(e) {
+    var rect=canvas.getBoundingClientRect();
+    handleMove(e.clientX-rect.left, e.clientX, e.clientY);
+  };
+  canvas.onmouseleave = function() { render(null); if(tooltip) tooltip.style.display='none'; };
+  canvas.ontouchmove = function(e) {
+    e.preventDefault();
+    var t=e.touches[0], rect=canvas.getBoundingClientRect();
+    handleMove(t.clientX-rect.left, null, null);
+  };
+  canvas.ontouchend = function() { render(null); if(tooltip) tooltip.style.display='none'; };
+}
+
+function drawStochChart(stochData) {
+  var canvas = document.getElementById('sa-stoch-canvas');
+  if (!canvas || !stochData || !stochData.length) return;
+  var dpr = window.devicePixelRatio || 1;
+  var w = canvas.offsetWidth || canvas.parentElement.offsetWidth || 400;
+  var h = 120;
+  canvas.width  = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+
+  var pad = { top: 10, right: 12, bottom: 22, left: 34 };
+  var cw = w - pad.left - pad.right;
+  var ch = h - pad.top - pad.bottom;
+  var n = stochData.length;
+  var xStep = n > 1 ? cw / (n - 1) : 0;
+
+  function ptX(i) { return pad.left + i * xStep; }
+  function ptY(v) { return pad.top + (1 - v / 100) * ch; }
+
+  // 현재 %K/%D 표시
+  var last = stochData[n - 1];
+  var kEl  = document.getElementById('sa-stoch-k');
+  var stEl = document.getElementById('sa-stoch-status');
+  if (kEl && last) {
+    kEl.innerHTML = '<span style="color:#6c8aff">%K '+last.k+'</span>'+(last.d!=null?'&nbsp;&nbsp;<span style="color:#fb923c">%D '+last.d+'</span>':'');
+    if (last.k >= 80) {
+      if(stEl){ stEl.textContent='과매수'; stEl.style.cssText='font-size:.75rem;font-weight:600;padding:.2rem .55rem;border-radius:10px;background:rgba(255,126,126,.18);color:#ff7e7e'; }
+    } else if (last.k <= 20) {
+      if(stEl){ stEl.textContent='과매도'; stEl.style.cssText='font-size:.75rem;font-weight:600;padding:.2rem .55rem;border-radius:10px;background:rgba(82,217,163,.18);color:#52d9a3'; }
+    } else {
+      if(stEl){ stEl.textContent='중립'; stEl.style.cssText='font-size:.75rem;font-weight:600;padding:.2rem .55rem;border-radius:10px;background:var(--surface2);color:var(--muted)'; }
+    }
+  }
+
+  function render(hoverIdx) {
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height); ctx.scale(dpr,dpr);
+
+    // 과매수/과매도 배경
+    ctx.fillStyle='rgba(255,126,126,.07)'; ctx.fillRect(pad.left,pad.top,cw,ptY(80)-pad.top);
+    ctx.fillStyle='rgba(82,217,163,.07)';  ctx.fillRect(pad.left,ptY(20),cw,h-pad.bottom-ptY(20));
+
+    // 수평 가이드 (20, 50, 80)
+    [20,50,80].forEach(function(lv) {
+      var y = ptY(lv);
+      ctx.strokeStyle='rgba(255,255,255,.1)'; ctx.lineWidth=1;
+      ctx.setLineDash(lv===50?[4,3]:[]);
+      ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(pad.left+cw,y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle='rgba(255,255,255,.3)'; ctx.font='9px JetBrains Mono,monospace';
+      ctx.textAlign='right'; ctx.fillText(lv,pad.left-3,y+3); ctx.textAlign='left';
+    });
+
+    // %K 라인
+    ctx.beginPath();
+    stochData.forEach(function(pt,i){ i===0?ctx.moveTo(ptX(i),ptY(pt.k)):ctx.lineTo(ptX(i),ptY(pt.k)); });
+    ctx.strokeStyle='#6c8aff'; ctx.lineWidth=1.8; ctx.stroke();
+
+    // %D 라인 (점선)
+    ctx.beginPath(); ctx.setLineDash([5,3]);
+    var started=false;
+    stochData.forEach(function(pt,i){
+      if(pt.d==null) return;
+      if(!started){ ctx.moveTo(ptX(i),ptY(pt.d)); started=true; } else ctx.lineTo(ptX(i),ptY(pt.d));
+    });
+    ctx.strokeStyle='#fb923c'; ctx.lineWidth=1.5; ctx.stroke(); ctx.setLineDash([]);
+
+    // x축 날짜
+    ctx.fillStyle='rgba(255,255,255,.3)'; ctx.font='9px Noto Sans KR,sans-serif'; ctx.textAlign='center';
+    var ts=Math.floor(n/4); if(ts<1)ts=1;
+    for(var i=0;i<n;i+=ts) ctx.fillText(stochData[i].date.slice(5),ptX(i),h-4);
+    ctx.textAlign='left';
+
+    // hover
+    if (hoverIdx!=null && hoverIdx>=0) {
+      var hpt=stochData[hoverIdx]; var hx=ptX(hoverIdx);
+      ctx.strokeStyle='rgba(255,255,255,.2)'; ctx.lineWidth=1; ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(hx,pad.top); ctx.lineTo(hx,pad.top+ch); ctx.stroke(); ctx.setLineDash([]);
+      ctx.save(); ctx.shadowColor='#6c8aff'; ctx.shadowBlur=10;
+      ctx.beginPath(); ctx.arc(hx,ptY(hpt.k),4.5,0,Math.PI*2); ctx.fillStyle='#6c8aff'; ctx.fill(); ctx.restore();
+      if(hpt.d!=null){
+        ctx.save(); ctx.shadowColor='#fb923c'; ctx.shadowBlur=8;
+        ctx.beginPath(); ctx.arc(hx,ptY(hpt.d),3.5,0,Math.PI*2); ctx.fillStyle='#fb923c'; ctx.fill(); ctx.restore();
+      }
+    }
+  }
+
+  render(null);
+  var tooltip = document.getElementById('sa-stoch-tooltip');
+  canvas.onmousemove = function(e) {
+    var rect=canvas.getBoundingClientRect();
+    var idx=Math.max(0,Math.min(n-1,Math.round((e.clientX-rect.left-pad.left)/xStep)));
+    render(idx);
+    if(tooltip){
+      var pt=stochData[idx];
+      tooltip.innerHTML='<span style="color:var(--muted)">'+pt.date+'</span>'+
+        '&nbsp;&nbsp;<b style="color:#6c8aff">%K '+pt.k+'</b>'+(pt.d!=null?'&nbsp;&nbsp;<b style="color:#fb923c">%D '+pt.d+'</b>':'');
+      tooltip.style.display='block'; tooltip.style.left=(e.clientX+16)+'px'; tooltip.style.top=(e.clientY-36)+'px';
+    }
+  };
+  canvas.onmouseleave = function() { render(null); if(tooltip) tooltip.style.display='none'; };
+  canvas.ontouchmove = function(e) {
+    e.preventDefault();
+    var t=e.touches[0], rect=canvas.getBoundingClientRect();
+    var idx=Math.max(0,Math.min(n-1,Math.round((t.clientX-rect.left-pad.left)/xStep)));
+    render(idx);
+  };
+  canvas.ontouchend = function() { render(null); if(tooltip) tooltip.style.display='none'; };
 }
 
 function drawRsiChart(rsiData) {

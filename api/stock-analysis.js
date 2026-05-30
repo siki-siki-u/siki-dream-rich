@@ -69,9 +69,15 @@ async function fetchChartPrices(ticker, interval, range, crumb, cookie) {
   var d = JSON.parse(r.body);
   var res = d.chart && d.chart.result && d.chart.result[0];
   if (!res || !res.timestamp) return [];
-  var closes = res.indicators.quote[0].close;
+  var q = res.indicators.quote[0];
   return res.timestamp.map(function(t, i) {
-    return { date: new Date(t * 1000).toISOString().split('T')[0], close: closes[i] };
+    return {
+      date:  new Date(t * 1000).toISOString().split('T')[0],
+      open:  q.open  ? q.open[i]  : null,
+      high:  q.high  ? q.high[i]  : null,
+      low:   q.low   ? q.low[i]   : null,
+      close: q.close ? q.close[i] : null,
+    };
   }).filter(function(p) { return p.close != null; });
 }
 
@@ -95,6 +101,33 @@ async function fetchAnnualPriceMap(ticker, crumb, cookie) {
     });
     return byYear;
   } catch (e) { return {}; }
+}
+
+// Stochastic %K/%D
+function calcStochastic(ohlcData, kPeriod, dPeriod) {
+  kPeriod = kPeriod || 14;
+  dPeriod = dPeriod || 3;
+  if (!ohlcData || ohlcData.length < kPeriod) return [];
+  var kArr = [];
+  for (var i = kPeriod - 1; i < ohlcData.length; i++) {
+    var win = ohlcData.slice(i - kPeriod + 1, i + 1);
+    var lo  = Math.min.apply(null, win.map(function(d) { return d.low  != null ? d.low  :  d.close; }));
+    var hi  = Math.max.apply(null, win.map(function(d) { return d.high != null ? d.high :  d.close; }));
+    var rng = hi - lo;
+    var k   = rng > 0 ? ((ohlcData[i].close - lo) / rng) * 100 : 50;
+    kArr.push({ date: ohlcData[i].date, k: Math.round(k * 100) / 100 });
+  }
+  var out = [];
+  for (var i = 0; i < kArr.length; i++) {
+    var dv = null;
+    if (i >= dPeriod - 1) {
+      var sum = 0;
+      for (var j = i - dPeriod + 1; j <= i; j++) sum += kArr[j].k;
+      dv = Math.round(sum / dPeriod * 100) / 100;
+    }
+    out.push({ date: kArr[i].date, k: kArr[i].k, d: dv });
+  }
+  return out.slice(-65);
 }
 
 // Wilder's smoothed RSI
@@ -262,6 +295,8 @@ module.exports = async function(req, res) {
 
     var rsiData    = calcRSI(dailyPrices);
     var currentRSI = rsiData.length ? rsiData[rsiData.length - 1].rsi : null;
+    var priceData  = dailyPrices.slice(-65);
+    var stochData  = calcStochastic(dailyPrices);
 
     var incomeHistory = incomeSummary &&
       incomeSummary.incomeStatementHistory &&
@@ -419,6 +454,8 @@ module.exports = async function(req, res) {
       valuationKR,
       currentRSI,
       rsiData,
+      priceData,
+      stochData,
       epsHistory,
       revenueHistory,
       pbr,
