@@ -551,6 +551,7 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
       <div class="nav-label">투자공부</div>
       <div class="nav-item" onclick="showPage('youtube',this);closeSidebar()"><span class="icon">▶️</span> 올랜도킴 분석</div>
       <div class="nav-item" onclick="showPage('stock-analysis',this);closeSidebar()"><span class="icon">🔍</span> 주식 가치 분석</div>
+      <div class="nav-item" onclick="showPage('stock-notes',this);closeSidebar()"><span class="icon">📌</span> 종목 분석 노트</div>
       <div class="nav-item" onclick="showPage('journal',this);closeSidebar()"><span class="icon">📝</span> 투자 일지</div>
       <div class="nav-item" onclick="showPage('mock-invest',this);closeSidebar()"><span class="icon">🎯</span> 모의 투자</div>
       <div class="nav-item" onclick="showPage('invest-terms',this);closeSidebar()"><span class="icon">📖</span> 투자 용어</div>
@@ -1822,6 +1823,29 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
     </div><!-- /jn-layout -->
   </div>
 
+  <!-- 종목 분석 노트 -->
+  <div class="page" id="page-stock-notes">
+    <div class="page-header">
+      <h2>📌 종목 분석 노트</h2>
+      <p>공부한 종목의 적정주가·매수목표가·내 의견을 기록</p>
+    </div>
+
+    <!-- 필터 + 추가 버튼 -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;gap:.5rem;flex-wrap:wrap">
+      <div style="display:flex;gap:.35rem;flex-wrap:wrap" id="sn-filter-row">
+        <button onclick="snSetFilter('all')"     id="snf-all"     class="btn btn-primary" style="font-size:.78rem;padding:.32rem .7rem">전체</button>
+        <button onclick="snSetFilter('watching')" id="snf-watching" class="btn btn-ghost"  style="font-size:.78rem;padding:.32rem .7rem">👀 관심중</button>
+        <button onclick="snSetFilter('ready')"   id="snf-ready"   class="btn btn-ghost"  style="font-size:.78rem;padding:.32rem .7rem">🛒 매수대기</button>
+        <button onclick="snSetFilter('holding')" id="snf-holding" class="btn btn-ghost"  style="font-size:.78rem;padding:.32rem .7rem">✅ 보유중</button>
+        <button onclick="snSetFilter('done')"    id="snf-done"    class="btn btn-ghost"  style="font-size:.78rem;padding:.32rem .7rem">📦 완료</button>
+      </div>
+      <button onclick="openStockNotePopup(null)" class="btn btn-primary owner-only" style="font-size:.83rem;padding:.38rem .9rem;white-space:nowrap">＋ 추가</button>
+    </div>
+
+    <!-- 노트 카드 목록 -->
+    <div id="sn-list" style="display:flex;flex-direction:column;gap:.85rem"></div>
+  </div>
+
   <!-- 부동산 관리 -->
   <div class="page" id="page-realty">
     <div class="page-header">
@@ -2382,6 +2406,9 @@ async function syncFromSupabase() {
     // invest_terms
     const { data: termsData } = await supa.from('invest_terms').select('*').order('created_at',{ascending:false});
     if(termsData && termsData.length > 0) S.set('invest_terms', termsData.map(function(t){ return {id:t.id,term:t.term,meaning:t.meaning,created_at:t.created_at}; }));
+    // stock_notes
+    const { data: snData } = await supa.from('stock_notes').select('*').order('updated_at',{ascending:false});
+    if(snData && snData.length > 0) S.set('stock_notes', snData.map(function(n){ return {id:n.id,ticker:n.ticker,name:n.name||'',market:n.market||'US',status:n.status||'watching',fairValue:n.fair_value||null,targetBuyPrice:n.target_buy_price||null,opinion:n.opinion||'',updatedAt:n.updated_at}; }));
     // settings (고정비, 사용자 설정 등)
     // forEach 전에 로컬 원본 캡처 (forEach가 덮어쓰기 전)
     var _preLocalHoldings  = S.get('portfolio_holdings')  || [];
@@ -2660,6 +2687,7 @@ function showPage(id, el) {
   if(id==='mock-invest') { syncAndRenderMockInvest(); }
   if(id==='invest-terms') { renderInvestTerms(); }
   if(id==='stock-analysis') { loadInvestmentPrinciples(); }
+  if(id==='stock-notes') { renderStockNotes(); }
 }
 
 // ── DATE HELPERS ──
@@ -9583,6 +9611,14 @@ if ('serviceWorker' in navigator) {
         }
       });
     })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_notes' }, function() {
+      supa.from('stock_notes').select('*').order('updated_at',{ascending:false}).then(function(res) {
+        if (res.data) {
+          S.set('stock_notes', res.data.map(function(n){ return {id:n.id,ticker:n.ticker,name:n.name||'',market:n.market||'US',status:n.status||'watching',fairValue:n.fair_value||null,targetBuyPrice:n.target_buy_price||null,opinion:n.opinion||'',updatedAt:n.updated_at}; }));
+          try { renderStockNotes(); } catch(e) {}
+        }
+      });
+    })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, function(payload) {
       try {
         var row = payload.new;
@@ -10013,6 +10049,249 @@ async function saveEditTerm(id) {
   showToast('수정됐어요','success');
   renderInvestTerms();
 }
+
+// ── 종목 분석 노트 ──
+var _snFilter = 'all';
+var SN_STATUS = {
+  watching: {label:'👀 관심중',   bg:'rgba(108,138,255,.14)', clr:'#6c8aff'},
+  ready:    {label:'🛒 매수대기', bg:'rgba(251,146,60,.14)',  clr:'#fb923c'},
+  holding:  {label:'✅ 보유중',   bg:'rgba(52,211,153,.14)',  clr:'#34d399'},
+  done:     {label:'📦 완료',     bg:'rgba(148,163,184,.14)', clr:'#94a3b8'},
+};
+
+function getStockNotes() { return S.get('stock_notes') || []; }
+
+function snFmtPrice(val, market) {
+  if(val === null || val === undefined || val === '') return '—';
+  var v = parseFloat(val);
+  if(isNaN(v)) return '—';
+  return market === 'KR' ? '₩'+Math.round(v).toLocaleString() : '$'+v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+function snSetFilter(f) {
+  _snFilter = f;
+  ['all','watching','ready','holding','done'].forEach(function(k){
+    var b = document.getElementById('snf-'+k);
+    if(!b) return;
+    b.className = k===f ? 'btn btn-primary' : 'btn btn-ghost';
+    b.style.fontSize = '.78rem'; b.style.padding = '.32rem .7rem';
+  });
+  renderStockNotes();
+}
+
+function renderStockNotes() {
+  var el = document.getElementById('sn-list');
+  if(!el) return;
+  var list = getStockNotes();
+  if(_snFilter !== 'all') list = list.filter(function(n){ return n.status === _snFilter; });
+  if(!list.length) {
+    el.innerHTML = '<div class="card" style="text-align:center;padding:2.5rem;color:var(--muted);font-size:.88rem">'+
+      (_snFilter==='all' ? '아직 저장된 종목이 없어요<br><span style="font-size:.78rem;display:block;margin-top:.4rem">＋ 추가 버튼을 눌러 종목을 기록해보세요 📌</span>' : '해당 상태의 종목이 없어요')+
+    '</div>';
+    return;
+  }
+  el.innerHTML = list.map(function(n){
+    var st = SN_STATUS[n.status] || SN_STATUS.watching;
+    var mktFlag = n.market==='KR' ? '🇰🇷' : '🇺🇸';
+    var fairStr = snFmtPrice(n.fairValue, n.market);
+    var buyStr  = snFmtPrice(n.targetBuyPrice, n.market);
+    var opinionHtml = n.opinion
+      ? '<div style="font-size:.82rem;color:var(--muted);line-height:1.6;margin-top:.6rem;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">💭 '+pEsc(n.opinion)+'</div>'
+      : '';
+    var dateStr = n.updatedAt ? n.updatedAt.slice(0,10) : '';
+    return '<div class="card" style="cursor:pointer;transition:background .15s" onclick="openStockNotePopup(\''+n.id+'\')" onmouseover="this.style.background=\'rgba(108,138,255,.05)\'" onmouseout="this.style.background=\'\'">'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem">'+
+        '<div style="min-width:0">'+
+          '<div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">'+
+            '<span style="font-size:1rem;font-weight:800;color:var(--text)">'+mktFlag+' '+pEsc(n.ticker)+'</span>'+
+            (n.name?'<span style="font-size:.82rem;color:var(--muted)">'+pEsc(n.name)+'</span>':'')+
+          '</div>'+
+        '</div>'+
+        '<span style="font-size:.73rem;font-weight:700;padding:.2rem .6rem;border-radius:20px;background:'+st.bg+';color:'+st.clr+';white-space:nowrap;flex-shrink:0">'+st.label+'</span>'+
+      '</div>'+
+      '<div style="display:flex;gap:1.2rem;margin-top:.65rem;font-size:.83rem">'+
+        '<div>'+
+          '<div style="color:var(--muted);font-size:.7rem;margin-bottom:.1rem">🎯 적정주가</div>'+
+          '<div style="font-weight:700;color:var(--text);font-family:JetBrains Mono,monospace">'+fairStr+'</div>'+
+        '</div>'+
+        '<div>'+
+          '<div style="color:var(--muted);font-size:.7rem;margin-bottom:.1rem">🛒 매수목표가</div>'+
+          '<div style="font-weight:700;color:#fb923c;font-family:JetBrains Mono,monospace">'+buyStr+'</div>'+
+        '</div>'+
+        '<div id="sn-price-'+n.id+'" style="cursor:pointer" onclick="event.stopPropagation();snFetchPrice(\''+n.id+'\')">'+
+          '<div style="color:var(--muted);font-size:.7rem;margin-bottom:.1rem">💹 현재가</div>'+
+          '<div style="font-size:.75rem;color:var(--muted);text-decoration:underline;text-underline-offset:2px">조회</div>'+
+        '</div>'+
+      '</div>'+
+      opinionHtml+
+      '<div style="text-align:right;font-size:.7rem;color:rgba(148,163,184,.5);margin-top:.5rem">'+dateStr+'</div>'+
+    '</div>';
+  }).join('');
+}
+
+function closeStockNotePopup() {
+  var el = document.getElementById('sn-overlay');
+  if(el) el.remove();
+}
+
+function openStockNotePopup(id) {
+  closeStockNotePopup();
+  var isNew = !id;
+  var note = isNew
+    ? {id:null,ticker:'',name:'',market:'US',status:'watching',fairValue:null,targetBuyPrice:null,opinion:''}
+    : (getStockNotes().find(function(n){return n.id===id;}) || null);
+  if(!note) return;
+
+  var stOpts = Object.keys(SN_STATUS).map(function(k){
+    var s = SN_STATUS[k];
+    var isAct = note.status===k;
+    var baseStyle='flex:1;padding:.38rem .2rem;border-radius:8px;font-size:.75rem;font-weight:600;cursor:pointer;border:2px solid transparent;transition:all .15s;';
+    return '<button id="sns-'+k+'" onclick="snSelectStatus(\''+k+'\')" style="'+baseStyle+(isAct?'background:'+s.bg+';color:'+s.clr+';border-color:'+s.clr:'background:rgba(255,255,255,.04);color:var(--muted)')+'" >'+s.label+'</button>';
+  }).join('');
+
+  var overlay = document.createElement('div');
+  overlay.id = 'sn-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+  overlay.onclick = function(e){ if(e.target===overlay) closeStockNotePopup(); };
+  overlay.innerHTML =
+    '<div style="background:var(--surface);border-radius:16px;padding:1.5rem;width:100%;max-width:380px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)" onclick="event.stopPropagation()">'+
+      '<div style="font-size:1rem;font-weight:700;color:var(--text);margin-bottom:1.2rem">'+(isNew?'📌 종목 추가':'📌 종목 수정')+'</div>'+
+      '<div style="display:flex;flex-direction:column;gap:.85rem">'+
+        '<div style="display:flex;gap:.5rem">'+
+          '<div style="flex:2">'+
+            '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">티커</div>'+
+            '<input id="sn-p-ticker" type="text" value="'+pEsc(note.ticker)+'" placeholder="AAPL" style="width:100%;box-sizing:border-box;font-size:.9rem;padding:.5rem .7rem;border-radius:8px;font-weight:700;text-transform:uppercase"/>'+
+          '</div>'+
+          '<div style="flex:1">'+
+            '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">시장</div>'+
+            '<div style="display:flex;gap:.3rem">'+
+              '<button id="snm-US" onclick="snSelectMarket(\'US\')" style="flex:1;padding:.48rem .2rem;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer;border:2px solid transparent;'+(note.market==='US'?'background:rgba(108,138,255,.15);color:#6c8aff;border-color:#6c8aff':'background:rgba(255,255,255,.04);color:var(--muted)')+'">🇺🇸</button>'+
+              '<button id="snm-KR" onclick="snSelectMarket(\'KR\')" style="flex:1;padding:.48rem .2rem;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer;border:2px solid transparent;'+(note.market==='KR'?'background:rgba(108,138,255,.15);color:#6c8aff;border-color:#6c8aff':'background:rgba(255,255,255,.04);color:var(--muted)')+'">🇰🇷</button>'+
+            '</div>'+
+          '</div>'+
+        '</div>'+
+        '<div>'+
+          '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">종목명</div>'+
+          '<input id="sn-p-name" type="text" value="'+pEsc(note.name)+'" placeholder="Apple Inc." style="width:100%;box-sizing:border-box;font-size:.88rem;padding:.5rem .7rem;border-radius:8px"/>'+
+        '</div>'+
+        '<div>'+
+          '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.3rem">상태</div>'+
+          '<div style="display:flex;gap:.35rem">'+stOpts+'</div>'+
+        '</div>'+
+        '<div style="display:flex;gap:.5rem">'+
+          '<div style="flex:1">'+
+            '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">🎯 적정주가</div>'+
+            '<input id="sn-p-fair" type="number" value="'+(note.fairValue!=null?note.fairValue:'')+'" placeholder="200" style="width:100%;box-sizing:border-box;font-size:.88rem;padding:.5rem .7rem;border-radius:8px;font-family:JetBrains Mono,monospace"/>'+
+          '</div>'+
+          '<div style="flex:1">'+
+            '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">🛒 매수목표가</div>'+
+            '<input id="sn-p-buy" type="number" value="'+(note.targetBuyPrice!=null?note.targetBuyPrice:'')+'" placeholder="180" style="width:100%;box-sizing:border-box;font-size:.88rem;padding:.5rem .7rem;border-radius:8px;font-family:JetBrains Mono,monospace"/>'+
+          '</div>'+
+        '</div>'+
+        '<div>'+
+          '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">💭 내 의견 / 분석 메모</div>'+
+          '<textarea id="sn-p-opinion" rows="5" placeholder="왜 이 종목에 관심을 갖게 됐는지, 핵심 투자 포인트, 리스크 등 자유롭게 기록하세요" style="width:100%;box-sizing:border-box;font-size:.83rem;padding:.55rem .7rem;border-radius:8px;resize:vertical;line-height:1.65;font-family:\'Noto Sans KR\',sans-serif;background:var(--surface2);border:1px solid var(--border);color:var(--text);outline:none">'+pEsc(note.opinion)+'</textarea>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:flex;gap:.6rem;margin-top:1.3rem">'+
+        '<button onclick="saveStockNotePopup(\''+id+'\')" style="flex:1;padding:.6rem;border-radius:8px;background:var(--accent);color:#fff;border:none;font-weight:700;cursor:pointer;font-size:.88rem">저장</button>'+
+        (!isNew?'<button onclick="deleteStockNote(\''+id+'\')" style="padding:.6rem .9rem;border-radius:8px;background:rgba(255,92,122,.12);color:var(--danger);border:1px solid rgba(255,92,122,.2);cursor:pointer;font-size:.88rem">삭제</button>':'')+
+      '</div>'+
+    '</div>';
+
+  // market/status state for popup
+  overlay._snMarket = note.market || 'US';
+  overlay._snStatus = note.status || 'watching';
+  document.body.appendChild(overlay);
+  setTimeout(function(){
+    var t = document.getElementById('sn-p-ticker');
+    if(t){ t.focus(); t.oninput = function(){ t.value = t.value.toUpperCase(); }; }
+  }, 50);
+}
+
+function snSelectStatus(st) {
+  var overlay = document.getElementById('sn-overlay');
+  if(overlay) overlay._snStatus = st;
+  Object.keys(SN_STATUS).forEach(function(k){
+    var btn = document.getElementById('sns-'+k);
+    if(!btn) return;
+    var s = SN_STATUS[k];
+    if(k===st) { btn.style.background=s.bg; btn.style.color=s.clr; btn.style.borderColor=s.clr; }
+    else        { btn.style.background='rgba(255,255,255,.04)'; btn.style.color='var(--muted)'; btn.style.borderColor='transparent'; }
+  });
+}
+
+function snSelectMarket(m) {
+  var overlay = document.getElementById('sn-overlay');
+  if(overlay) overlay._snMarket = m;
+  ['US','KR'].forEach(function(k){
+    var btn = document.getElementById('snm-'+k);
+    if(!btn) return;
+    if(k===m){ btn.style.background='rgba(108,138,255,.15)'; btn.style.color='#6c8aff'; btn.style.borderColor='#6c8aff'; }
+    else     { btn.style.background='rgba(255,255,255,.04)'; btn.style.color='var(--muted)'; btn.style.borderColor='transparent'; }
+  });
+}
+
+async function saveStockNotePopup(id) {
+  var overlay = document.getElementById('sn-overlay');
+  var ticker = (document.getElementById('sn-p-ticker').value||'').trim().toUpperCase();
+  if(!ticker) { showToast('티커를 입력해주세요','error'); return; }
+  var name    = (document.getElementById('sn-p-name').value||'').trim();
+  var market  = (overlay && overlay._snMarket) || 'US';
+  var status  = (overlay && overlay._snStatus) || 'watching';
+  var fair    = parseFloat(document.getElementById('sn-p-fair').value)||null;
+  var buy     = parseFloat(document.getElementById('sn-p-buy').value)||null;
+  var opinion = (document.getElementById('sn-p-opinion').value||'').trim();
+
+  var isNew = !id || id === 'null';
+  var noteId = isNew ? String(Date.now()) : id;
+  var now = new Date().toISOString();
+
+  var note = {id:noteId, ticker:ticker, name:name, market:market, status:status, fairValue:fair, targetBuyPrice:buy, opinion:opinion, updatedAt:now};
+  var list = getStockNotes().filter(function(n){ return n.id !== noteId; });
+  list.unshift(note);
+  S.set('stock_notes', list);
+
+  await dbUpsert('stock_notes', {id:noteId, ticker:ticker, name:name, market:market, status:status, fair_value:fair, target_buy_price:buy, opinion:opinion, updated_at:now});
+
+  closeStockNotePopup();
+  renderStockNotes();
+  showToast(isNew ? '종목을 추가했어요 📌' : '수정됐어요', 'success');
+}
+
+async function deleteStockNote(id) {
+  if(!confirm('이 종목 노트를 삭제할까요?')) return;
+  closeStockNotePopup();
+  S.set('stock_notes', getStockNotes().filter(function(n){ return n.id !== id; }));
+  await dbDelete('stock_notes', id);
+  renderStockNotes();
+  showToast('삭제됐어요');
+}
+
+async function snFetchPrice(id) {
+  var note = getStockNotes().find(function(n){ return n.id===id; });
+  if(!note) return;
+  var el = document.getElementById('sn-price-'+id);
+  if(!el) return;
+  el.innerHTML = '<div style="color:var(--muted);font-size:.7rem;margin-bottom:.1rem">💹 현재가</div><div style="font-size:.75rem;color:var(--muted)">조회중...</div>';
+  try {
+    var res = await fetch('/api/stock-analysis?ticker='+encodeURIComponent(note.ticker)+'&market='+note.market);
+    var data = await res.json();
+    var price = data && data.currentPrice;
+    if(!price) { el.innerHTML='<div style="color:var(--muted);font-size:.7rem;margin-bottom:.1rem">💹 현재가</div><div style="font-size:.75rem;color:var(--danger)">조회 실패</div>'; return; }
+    var priceStr = note.market==='KR' ? '₩'+Math.round(price).toLocaleString() : '$'+price.toFixed(2);
+    var diffHtml = '';
+    if(note.targetBuyPrice) {
+      var diff = ((price - note.targetBuyPrice) / note.targetBuyPrice * 100).toFixed(1);
+      var clr = diff < 0 ? '#34d399' : '#fb7185';
+      diffHtml = '<div style="font-size:.68rem;color:'+clr+';margin-top:.1rem">'+(diff>0?'▲':'▼')+Math.abs(diff)+'% vs 목표가</div>';
+    }
+    el.innerHTML='<div style="color:var(--muted);font-size:.7rem;margin-bottom:.1rem">💹 현재가</div><div style="font-weight:700;color:var(--text);font-family:JetBrains Mono,monospace;font-size:.82rem">'+priceStr+'</div>'+diffHtml;
+  } catch(e) {
+    el.innerHTML='<div style="color:var(--muted);font-size:.7rem;margin-bottom:.1rem">💹 현재가</div><div style="font-size:.75rem;color:var(--danger)">오류</div>';
+  }
+}
+// ── END 종목 분석 노트 ──
 
 function renderInvestTerms() {
   var listEl=document.getElementById('terms-list');

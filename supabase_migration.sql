@@ -60,8 +60,23 @@ create table if not exists invest_terms (
   created_at timestamptz default now()
 );
 
+-- 5. stock_notes (종목 분석 노트)
+create table if not exists stock_notes (
+  id               text primary key,
+  ticker           text not null default '',
+  name             text not null default '',
+  market           text not null default 'US',
+  status           text not null default 'watching',
+  fair_value       numeric,
+  target_buy_price numeric,
+  opinion          text not null default '',
+  created_at       timestamptz default now(),
+  updated_at       timestamptz default now()
+);
+
 -- RLS (Row Level Security) 비활성화 — 퍼블릭 접근 허용
 alter table portfolio_holdings  disable row level security;
 alter table portfolio_snapshots disable row level security;
 alter table mock_investments     disable row level security;
 alter table invest_terms         disable row level security;
+alter table stock_notes          disable row level security;
