@@ -606,9 +606,9 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
         <div class="stat-sub">거래내역 합산</div>
       </div>
       <div class="stat-card orange" style="--accent-over:#fb923c">
-        <div class="stat-label" style="color:#fb923c">고정비</div>
+        <div class="stat-label" style="color:#fb923c">고정비 (소비)</div>
         <div class="stat-value" style="color:#fb923c" id="dash-fixed">₩0</div>
-        <div class="stat-sub">매월 고정 지출</div>
+        <div class="stat-sub">💰 저축 <span id="dash-saving" style="color:#34d399;font-weight:600">₩0</span></div>
       </div>
       <div class="stat-card green">
         <div class="stat-label">이번 달 잔액</div>
@@ -3317,24 +3317,26 @@ try { document.getElementById('ev-date').value = today(); } catch(e){}
 
 // ── BUDGET (새 가계부) ──
 var DEFAULT_FIXED_COSTS = [
-  {id:1, label:'윤식 용돈',    amount:1100000},
-  {id:2, label:'윤식 교통비',  amount:80000},
-  {id:3, label:'윤식 보험비',  amount:80000},
-  {id:14,label:'윤식 퇴직연금',amount:200000},
-  {id:4, label:'유진 용돈',    amount:1100000},
-  {id:5, label:'유진 교통비',  amount:80000},
-  {id:6, label:'유진 보험비',  amount:80000},
-  {id:7, label:'유진 퇴직연금',amount:200000},
-  {id:8, label:'공용생활비',   amount:500000},
-  {id:9, label:'여분통장',     amount:100000},
-  {id:10,label:'관리비',       amount:430000},
-  {id:11,label:'경조사',       amount:300000},
-  {id:12,label:'여행비',     amount:300000},
-  {id:13,label:'가족 선물/지원',amount:300000},
+  {id:1, label:'윤식 용돈(현금)',  amount:300000,  type:'expense'},
+  {id:15,label:'윤식 복지포인트', amount:500000,  type:'benefit'},
+  {id:2, label:'윤식 교통비',     amount:80000,   type:'expense'},
+  {id:3, label:'윤식 보험비',     amount:80000,   type:'expense'},
+  {id:14,label:'윤식 퇴직연금',   amount:200000,  type:'saving'},
+  {id:4, label:'유진 용돈',       amount:1100000, type:'expense'},
+  {id:5, label:'유진 교통비',     amount:80000,   type:'expense'},
+  {id:6, label:'유진 보험비',     amount:80000,   type:'expense'},
+  {id:7, label:'유진 퇴직연금',   amount:200000,  type:'saving'},
+  {id:8, label:'공용생활비',      amount:500000,  type:'expense'},
+  {id:9, label:'여분통장',        amount:100000,  type:'expense'},
+  {id:10,label:'관리비',          amount:430000,  type:'expense'},
+  {id:11,label:'경조사',          amount:300000,  type:'expense'},
+  {id:12,label:'여행비',          amount:300000,  type:'expense'},
+  {id:13,label:'가족 선물/지원',  amount:300000,  type:'expense'},
 ];
 
 function getFixedCosts() {
-  return S.get('fixed_costs') || DEFAULT_FIXED_COSTS;
+  var list = S.get('fixed_costs') || DEFAULT_FIXED_COSTS;
+  return list.map(function(c){ return Object.assign({type:'expense'}, c); });
 }
 function saveFixedCosts(list) {
   S.set('fixed_costs', list);
@@ -3344,23 +3346,40 @@ var BUDGET_ACCOUNTS = ['공용생활비','여분통장','관리비','경조사',
 function getFixedCostTotal() {
   return getFixedCosts().reduce(function(s,c){return s+(c.amount||0);},0);
 }
-// 예산 통장 6개 제외 — 실제 고정 지출만 (용돈/교통비/보험/퇴직연금 등)
+// 예산 통장 6개 + 저축/혜택 제외 — 실제 고정 소비 지출만
 function getRealFixedTotal() {
-  return getFixedCosts().filter(function(c){ return !BUDGET_ACCOUNTS.includes(c.label); })
+  return getFixedCosts().filter(function(c){ return !BUDGET_ACCOUNTS.includes(c.label) && c.type==='expense'; })
+                        .reduce(function(s,c){return s+(c.amount||0);},0);
+}
+// 저축 항목 합계 (퇴직연금 등)
+function getRealSavingTotal() {
+  return getFixedCosts().filter(function(c){ return c.type==='saving'; })
+                        .reduce(function(s,c){return s+(c.amount||0);},0);
+}
+// 혜택 항목 합계 (복지포인트 등)
+function getRealBenefitTotal() {
+  return getFixedCosts().filter(function(c){ return c.type==='benefit'; })
                         .reduce(function(s,c){return s+(c.amount||0);},0);
 }
 
+var FC_TYPE_META = {
+  expense: {emoji:'💸', color:'#fb7185', bg:'rgba(251,113,133,.12)'},
+  saving:  {emoji:'💰', color:'#34d399', bg:'rgba(52,211,153,.12)'},
+  benefit: {emoji:'🎁', color:'#a78bfa', bg:'rgba(167,139,250,.12)'},
+};
 function renderFixedCosts() {
   var list = getFixedCosts();
   var el = document.getElementById('fixed-cost-list');
   if(!el) return;
-  var BUDGET_ACCS = ['공용생활비','여분통장','관리비','경조사','여행비','가족 선물/지원'];
   el.innerHTML = list.map(function(c){
-    var isBudget = BUDGET_ACCS.includes(c.label);
-    var lblClr = isBudget ? '#7dd3fc' : 'var(--muted)';
+    var isBudget = BUDGET_ACCOUNTS.includes(c.label);
+    var tm = FC_TYPE_META[c.type] || FC_TYPE_META.expense;
+    var badge = isBudget
+      ? '<span style="font-size:.65rem;padding:.1rem .35rem;border-radius:5px;background:rgba(125,211,252,.12);color:#7dd3fc;margin-right:.4rem">💳 예산</span>'
+      : '<span style="font-size:.65rem;padding:.1rem .35rem;border-radius:5px;background:'+tm.bg+';color:'+tm.color+';margin-right:.4rem">'+tm.emoji+' '+({expense:'소비',saving:'저축',benefit:'혜택'}[c.type]||'소비')+'</span>';
     return '<div onclick="openFixedCostPopup('+c.id+')" style="display:flex;justify-content:space-between;align-items:center;padding:.35rem .5rem;border-radius:7px;cursor:pointer;transition:background .15s" '+
       'onmouseover="this.style.background=\'rgba(255,255,255,.05)\'" onmouseout="this.style.background=\'\'">'+
-      '<span style="color:'+lblClr+'">'+(isBudget?'💳 ':'')+c.label+'</span>'+
+      '<span style="display:flex;align-items:center">'+badge+'<span style="color:var(--muted)">'+c.label+'</span></span>'+
       '<span style="font-family:JetBrains Mono,monospace;color:var(--text)">'+fmtMoney(c.amount)+'</span>'+
     '</div>';
   }).join('');
@@ -3387,6 +3406,22 @@ function openFixedCostPopup(id) {
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
   overlay.onclick = function(e){ if(e.target===overlay) closeFixedCostPopup(); };
 
+  var curType = item.type || 'expense';
+  _fcPopupType = curType;
+  var typeOpts = [
+    {v:'expense', label:'💸 소비', bg:'rgba(251,113,133,.15)', clr:'#fb7185'},
+    {v:'saving',  label:'💰 저축', bg:'rgba(52,211,153,.15)',  clr:'#34d399'},
+    {v:'benefit', label:'🎁 혜택', bg:'rgba(167,139,250,.15)', clr:'#a78bfa'},
+  ];
+  var typeBtns = typeOpts.map(function(o){
+    var isActive = curType === o.v;
+    var baseStyle = 'flex:1;padding:.45rem .3rem;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer;border:2px solid transparent;transition:all .15s;';
+    var style = isActive
+      ? baseStyle+'background:'+o.bg+';color:'+o.clr+';border-color:'+o.clr
+      : baseStyle+'background:rgba(255,255,255,.04);color:var(--muted);border-color:transparent';
+    return '<button id="fct-'+o.v+'" onclick="fcSelectType(\''+o.v+'\','+id+')" style="'+style+'">'+o.label+'</button>';
+  }).join('');
+
   overlay.innerHTML =
     '<div style="background:var(--surface);border-radius:16px;padding:1.5rem;width:100%;max-width:340px;box-shadow:0 20px 60px rgba(0,0,0,.5)" onclick="event.stopPropagation()">'+
       '<div style="font-size:1rem;font-weight:700;color:var(--text);margin-bottom:1.2rem">고정비 수정</div>'+
@@ -3398,6 +3433,10 @@ function openFixedCostPopup(id) {
         '<div>'+
           '<div style="font-size:.75rem;color:var(--muted);margin-bottom:.3rem">금액 (원)</div>'+
           '<input id="fc-popup-amount" type="number" value="'+item.amount+'" style="width:100%;box-sizing:border-box;font-size:.9rem;padding:.55rem .7rem;border-radius:8px;font-family:JetBrains Mono,monospace"/>'+
+        '</div>'+
+        '<div>'+
+          '<div style="font-size:.75rem;color:var(--muted);margin-bottom:.4rem">타입</div>'+
+          '<div style="display:flex;gap:.4rem">'+typeBtns+'</div>'+
         '</div>'+
       '</div>'+
       '<div style="display:flex;gap:.6rem;margin-top:1.4rem">'+
@@ -3414,6 +3453,29 @@ function openFixedCostPopup(id) {
   document.getElementById('fc-popup-amount').onkeydown = function(e){ if(e.key==='Enter') saveFixedCostPopup(id); };
 }
 
+var _fcPopupType = 'expense';
+function fcSelectType(type, id) {
+  _fcPopupType = type;
+  var typeOpts = [
+    {v:'expense', bg:'rgba(251,113,133,.15)', clr:'#fb7185'},
+    {v:'saving',  bg:'rgba(52,211,153,.15)',  clr:'#34d399'},
+    {v:'benefit', bg:'rgba(167,139,250,.15)', clr:'#a78bfa'},
+  ];
+  typeOpts.forEach(function(o){
+    var btn = document.getElementById('fct-'+o.v);
+    if(!btn) return;
+    if(o.v === type) {
+      btn.style.background = o.bg;
+      btn.style.color = o.clr;
+      btn.style.borderColor = o.clr;
+    } else {
+      btn.style.background = 'rgba(255,255,255,.04)';
+      btn.style.color = 'var(--muted)';
+      btn.style.borderColor = 'transparent';
+    }
+  });
+}
+
 function saveFixedCostPopup(id) {
   var labelEl  = document.getElementById('fc-popup-label');
   var amountEl = document.getElementById('fc-popup-amount');
@@ -3423,6 +3485,7 @@ function saveFixedCostPopup(id) {
   if(!item) return;
   item.label  = labelEl.value.trim() || item.label;
   item.amount = parseFloat(amountEl.value)||0;
+  item.type   = _fcPopupType || item.type || 'expense';
   saveFixedCosts(list);
   closeFixedCostPopup();
   renderFixedCosts();
@@ -3432,7 +3495,7 @@ function saveFixedCostPopup(id) {
 function addFixedCostRow() {
   var list = getFixedCosts();
   var newId = Date.now();
-  list.push({id:newId, label:'새 항목', amount:0});
+  list.push({id:newId, label:'새 항목', amount:0, type:'expense'});
   saveFixedCosts(list);
   renderFixedCosts();
   openFixedCostPopup(newId);
@@ -3522,10 +3585,11 @@ function recalcBudget() {
   const totalIn = yoonsik+yujin+bonusY+bonusU+etc;
 
   const fixedTotal = getRealFixedTotal();
+  const savingTotal2 = getRealSavingTotal();
   const key = budgetKey();
   const txs = S.get('txs_'+key) || [];
   const totalExp = txs.reduce(function(s,t){return s+(t.amount>0?t.amount:0);},0);
-  const investable = totalIn - fixedTotal - totalExp;
+  const investable = totalIn - fixedTotal - savingTotal2 - totalExp;
 
   // 초과 금액 계산 — 6개 통장만 비교
   var srcExpMap = {};
@@ -3554,6 +3618,8 @@ function recalcBudget() {
   if(di) di.textContent = fmtMoney(totalIn);
   if(de) de.textContent = fmtMoney(totalExp);
   if(df2) df2.textContent = fmtMoney(fixedTotal);
+  var dSaving2 = document.getElementById('dash-saving');
+  if(dSaving2) dSaving2.textContent = fmtMoney(savingTotal2);
   if(db) db.textContent = fmtMoney(investable);
 }
 
@@ -5961,10 +6027,13 @@ function refreshDashboard() {
   var de = document.getElementById('dash-expense');
   var df = document.getElementById('dash-fixed');
   var db = document.getElementById('dash-balance');
+  var savingTotal = getRealSavingTotal();
   if(di) di.textContent = fmtMoney(totalIn);
   if(de) de.textContent = fmtMoney(totalExp);
   if(df) df.textContent = fmtMoney(fixedTotal);
-  if(db) db.textContent = fmtMoney(totalIn-fixedTotal-totalExp);
+  var dSaving = document.getElementById('dash-saving');
+  if(dSaving) dSaving.textContent = fmtMoney(savingTotal);
+  if(db) db.textContent = fmtMoney(totalIn-fixedTotal-savingTotal-totalExp);
 
   // 최근 지출
   var rtEl = document.getElementById('dash-recent-tx');
