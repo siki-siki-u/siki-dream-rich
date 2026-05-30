@@ -4644,6 +4644,21 @@ async function fetchStockAnalysis() {
   }
 }
 
+function placeTooltip(el, cx, cy) {
+  el.style.display = 'block';
+  var tw = el.offsetWidth || 220;
+  var th = el.offsetHeight || 36;
+  var vw = window.innerWidth;
+  var vh = window.innerHeight;
+  var left = cx + 16;
+  if (left + tw + 8 > vw) left = cx - tw - 10;
+  if (left < 4) left = 4;
+  var top = cy - th - 8;
+  if (top < 4) top = cy + 16;
+  el.style.left = left + 'px';
+  el.style.top  = top  + 'px';
+}
+
 function drawPriceChart(priceData, currency) {
   var canvas = document.getElementById('sa-price-canvas');
   if (!canvas || !priceData || !priceData.length) return;
@@ -4754,8 +4769,7 @@ function drawPriceChart(priceData, currency) {
         (d.open!=null?'&nbsp;<span style="color:var(--muted)">O</span>&nbsp;<b>'+pFmt(d.open)+'</b>':'') +
         (d.high!=null?'&nbsp;<span style="color:#52d9a3">H '+pFmt(d.high)+'</span>':'') +
         (d.low !=null?'&nbsp;<span style="color:#ff7e7e">L '+pFmt(d.low) +'</span>':'');
-      tooltip.style.display='block';
-      if(cx!=null) { tooltip.style.left=(cx+16)+'px'; tooltip.style.top=(cy-36)+'px'; }
+      if(cx!=null) placeTooltip(tooltip, cx, cy);
     }
   }
   canvas.onmousemove = function(e) {
@@ -4867,7 +4881,7 @@ function drawStochChart(stochData) {
       var pt=stochData[idx];
       tooltip.innerHTML='<span style="color:var(--muted)">'+pt.date+'</span>'+
         '&nbsp;&nbsp;<b style="color:#6c8aff">%K '+pt.k+'</b>'+(pt.d!=null?'&nbsp;&nbsp;<b style="color:#fb923c">%D '+pt.d+'</b>':'');
-      tooltip.style.display='block'; tooltip.style.left=(e.clientX+16)+'px'; tooltip.style.top=(e.clientY-36)+'px';
+      placeTooltip(tooltip, e.clientX, e.clientY);
     }
   };
   canvas.onmouseleave = function() { render(null); if(tooltip) tooltip.style.display='none'; };
@@ -5032,8 +5046,7 @@ function drawRsiChart(rsiData) {
         '&nbsp;<span style="color:var(--muted)">RSI</span>' +
         (pt.close ? '&nbsp;&nbsp;<b>' + sym2 + pt.close.toFixed(2) + '</b>' : '');
       tooltip.style.display = 'block';
-      tooltip.style.left = (e.clientX + 16) + 'px';
-      tooltip.style.top  = (e.clientY - 36) + 'px';
+      placeTooltip(tooltip, e.clientX, e.clientY);
     }
   };
   canvas.onmouseleave = function() {
@@ -5160,9 +5173,7 @@ function drawRevenueChart(revData, currency) {
       tooltip.innerHTML = '<span style="color:var(--muted)">' + d.year + '</span>' +
         '&nbsp;&nbsp;<b>' + fmtRevenue(d.revenue, currency) + '</b>' +
         '&nbsp;<span style="color:var(--muted)">' + (d.type === 'estimate' ? '증권사 추정치' : '실제 매출') + '</span>';
-      tooltip.style.display = 'block';
-      tooltip.style.left = (e.clientX + 16) + 'px';
-      tooltip.style.top  = (e.clientY - 36) + 'px';
+      placeTooltip(tooltip, e.clientX, e.clientY);
     }
   };
   canvas.onmouseleave = function() {
@@ -5295,9 +5306,7 @@ function drawEpsChart(epsData, currency) {
       tooltip.innerHTML = '<span style="color:var(--muted)">' + d.year + '</span>' +
         '&nbsp;&nbsp;<b>' + sym + d.eps + '</b>' +
         '&nbsp;<span style="color:var(--muted)">' + (d.type === 'estimate' ? '증권사 추정치' : 'GAAP 실적') + '</span>';
-      tooltip.style.display = 'block';
-      tooltip.style.left = (e.clientX + 16) + 'px';
-      tooltip.style.top  = (e.clientY - 36) + 'px';
+      placeTooltip(tooltip, e.clientX, e.clientY);
     }
   };
   canvas.onmouseleave = function() {
