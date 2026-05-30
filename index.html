@@ -2755,7 +2755,7 @@ function renderGoalWidget() {
     var totalIn = (inc.yoonsik||0)+(inc.yujin||0)+(inc.bonusY||0)+(inc.bonusU||0)+(inc.etc||0);
     var txs = S.get('txs_'+mk) || [];
     var totalExp = txs.reduce(function(s,t){return s+(t.amount>0?t.amount:0);},0);
-    if(totalIn > 0) { monthlySaving += (totalIn - getFixedCostTotal() - totalExp) / 10000; sampleMonths++; }
+    if(totalIn > 0) { monthlySaving += (totalIn - getRealFixedTotal() - totalExp) / 10000; sampleMonths++; }
   });
   if(sampleMonths > 0) monthlySaving = monthlySaving / sampleMonths;
 
@@ -3340,8 +3340,14 @@ function saveFixedCosts(list) {
   S.set('fixed_costs', list);
   dbUpsert('settings', {key: 'fixed_costs', value: JSON.stringify(list)});
 }
+var BUDGET_ACCOUNTS = ['공용생활비','여분통장','관리비','경조사','여행비','가족 선물/지원'];
 function getFixedCostTotal() {
   return getFixedCosts().reduce(function(s,c){return s+(c.amount||0);},0);
+}
+// 예산 통장 6개 제외 — 실제 고정 지출만 (용돈/교통비/보험/퇴직연금 등)
+function getRealFixedTotal() {
+  return getFixedCosts().filter(function(c){ return !BUDGET_ACCOUNTS.includes(c.label); })
+                        .reduce(function(s,c){return s+(c.amount||0);},0);
 }
 
 function renderFixedCosts() {
@@ -3515,14 +3521,13 @@ function recalcBudget() {
   const etc     = parseIncome('b-in-etc');
   const totalIn = yoonsik+yujin+bonusY+bonusU+etc;
 
-  const fixedTotal = getFixedCostTotal();
+  const fixedTotal = getRealFixedTotal();
   const key = budgetKey();
   const txs = S.get('txs_'+key) || [];
   const totalExp = txs.reduce(function(s,t){return s+(t.amount>0?t.amount:0);},0);
   const investable = totalIn - fixedTotal - totalExp;
 
   // 초과 금액 계산 — 6개 통장만 비교
-  var BUDGET_ACCOUNTS = ['공용생활비','여분통장','관리비','경조사','여행비','가족 선물/지원'];
   var srcExpMap = {};
   txs.forEach(function(t){ if(t.amount>0 && t.source) srcExpMap[t.source] = (srcExpMap[t.source]||0)+t.amount; });
   var fixedList = getFixedCosts();
@@ -3710,11 +3715,10 @@ function showOverPopup() {
   var txs = S.get('txs_'+key) || [];
   var srcMap = {};
   txs.forEach(function(t){ if(t.amount>0 && t.source) srcMap[t.source] = (srcMap[t.source]||0)+t.amount; });
-  var BUDGET_ACCOUNTS2 = ['공용생활비','여분통장','관리비','경조사','여행비','가족 선물/지원'];
   var fixedList = getFixedCosts();
   var fixedMap = {};
   fixedList.forEach(function(fc){ fixedMap[fc.label] = fc.amount; });
-  var overItems = BUDGET_ACCOUNTS2.map(function(label){
+  var overItems = BUDGET_ACCOUNTS.map(function(label){
     var budget = fixedMap[label] || 0;
     var spent = srcMap[label] || 0;
     return {label:label, budget:budget, spent:spent, over:spent-budget};
@@ -5774,7 +5778,7 @@ function get6MonthsData() {
     var txs = S.get('txs_' + k) || [];
     var totalIn = (income.yoonsik||0)+(income.yujin||0)+(income.bonusY||0)+(income.bonusU||0)+(income.etc||0);
     var varExp = txs.reduce(function(s,t){return s+(t.amount>0?t.amount:0);},0);
-    var fixedExp = getFixedCostTotal();
+    var fixedExp = getRealFixedTotal();
     result.push({ label: mo+'월', income: totalIn, varExp: varExp, fixedExp: fixedExp });
   }
   return result;
@@ -5947,11 +5951,11 @@ function drawBudgetTrendChart() {
 function refreshDashboard() {
   // 가계부: 현재 달 기준
   var key = budgetYear+'-'+String(budgetMonth).padStart(2,'0');
-  var fixedTotal = getFixedCostTotal();
+  var fixedTotal = getRealFixedTotal();
   var income = S.get('income_'+key) || {};
   var totalIn = (income.yoonsik||0)+(income.yujin||0)+(income.bonusY||0)+(income.bonusU||0)+(income.etc||0);
   var txs = S.get('txs_'+key) || [];
-  var totalExp = txs.reduce(function(s,t){return s+t.amount;},0);
+  var totalExp = txs.reduce(function(s,t){return s+(t.amount>0?t.amount:0);},0);
 
   var di = document.getElementById('dash-income');
   var de = document.getElementById('dash-expense');
