@@ -1160,9 +1160,10 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
         <div class="sec-title" style="margin:0">📊 자산 추이</div>
-        <div style="display:flex;gap:.4rem">
+        <div style="display:flex;gap:.35rem;flex-wrap:wrap">
+          <button class="btn owner-only" style="font-size:.73rem;padding:.3rem .7rem;background:rgba(251,146,60,.12);border:1px solid rgba(251,146,60,.25);color:#fb923c" onclick="openRealizedProfitPopup(null)">💰 익절 기록</button>
           <button class="btn" style="font-size:.73rem;padding:.3rem .7rem;background:var(--surface2);border:1px solid var(--border);color:var(--muted)" onclick="showPortChanges()">🔍 변화 보기</button>
-<button class="btn btn-primary owner-only" style="font-size:.73rem;padding:.3rem .7rem" onclick="savePortSnapshot()">💾 오늘 저장</button>
+          <button class="btn btn-primary owner-only" style="font-size:.73rem;padding:.3rem .7rem" onclick="savePortSnapshot()">💾 오늘 저장</button>
         </div>
       </div>
 
@@ -1197,12 +1198,24 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
       </div>
 
       <!-- 전체 합계 차트 -->
-      <div style="border-top:1px solid var(--border);padding-top:.8rem">
+      <div style="border-top:1px solid var(--border);padding-top:.8rem;margin-bottom:1rem">
         <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem">
           <span style="width:8px;height:8px;border-radius:2px;background:#6c8aff;display:inline-block;flex-shrink:0"></span>
           <span style="font-size:.74rem;color:var(--muted);font-weight:600;letter-spacing:.03em">전체 합계 추이</span>
         </div>
         <div id="port-monthly-chart" style="min-height:160px"></div>
+      </div>
+
+      <!-- 익절금액 추이 -->
+      <div style="border-top:1px solid var(--border);padding-top:.8rem">
+        <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem">
+          <span style="width:8px;height:8px;border-radius:2px;background:#fb923c;display:inline-block;flex-shrink:0"></span>
+          <span style="font-size:.74rem;color:var(--muted);font-weight:600;letter-spacing:.03em">익절금액 추이</span>
+          <span style="font-size:.67rem;color:var(--muted);opacity:.6">월별 실현 수익</span>
+        </div>
+        <div id="port-chart-profit" style="min-height:120px"></div>
+        <!-- 익절 기록 목록 -->
+        <div id="port-profit-list" style="margin-top:.6rem;max-height:220px;overflow-y:auto"></div>
       </div>
     </div>
 
@@ -2442,6 +2455,9 @@ async function syncFromSupabase() {
     // invest_terms
     const { data: termsData } = await supa.from('invest_terms').select('*').order('created_at',{ascending:false});
     if(termsData && termsData.length > 0) S.set('invest_terms', termsData.map(function(t){ return {id:t.id,term:t.term,meaning:t.meaning,created_at:t.created_at}; }));
+    // realized_profits
+    const { data: rpData } = await supa.from('realized_profits').select('*').order('date',{ascending:false});
+    if(rpData && rpData.length > 0) S.set('realized_profits', rpData.map(function(r){ return {id:r.id,date:r.date,amount:r.amount,ticker:r.ticker||'',note:r.note||''}; }));
     // stock_notes
     const { data: snData } = await supa.from('stock_notes').select('*').order('updated_at',{ascending:false});
     if(snData && snData.length > 0) S.set('stock_notes', snData.map(function(n){ return {id:n.id,ticker:n.ticker,name:n.name||'',market:n.market||'US',status:n.status||'watching',fairValue:n.fair_value||null,targetBuyPrice:n.target_buy_price||null,opinion:n.opinion||'',updatedAt:n.updated_at}; }));
@@ -9048,54 +9064,19 @@ function renderPortHoldings(){
     var sellOpen=!!_portSellOpen[h.id];
     var avgCost=h.qty>0?Math.round((h.investedKRW||0)/h.qty):0;
     var actionForm='';
-    if(buyOpen){
-      if(h.isDirect){
-        actionForm='<div style="margin-top:.45rem;padding:.5rem .6rem;background:rgba(108,138,255,.08);border:1px solid rgba(108,138,255,.2);border-radius:7px;display:grid;grid-template-columns:1fr 1fr auto;gap:.35rem;align-items:end">'+
-          '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">현재 평가금액(₩)</div>'+
-            '<input id="port-buy-qty-'+h.id+'" type="text" class="input" placeholder="0" '+
-            'value="'+Math.round(h.currentKRW||0).toLocaleString()+'" '+
-            'oninput="this.value=this.value.replace(/[^0-9]/g,\'\').replace(/\\B(?=(\\d{3})+(?!\\d))/g,\',\')" '+
-            'style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
-          '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">투자 원금(₩)</div>'+
-            '<input id="port-buy-inv-'+h.id+'" type="text" class="input" placeholder="0" '+
-            'value="'+Math.round(h.investedKRW||0).toLocaleString()+'" '+
-            'oninput="this.value=this.value.replace(/[^0-9]/g,\'\').replace(/\\B(?=(\\d{3})+(?!\\d))/g,\',\')" '+
-            'style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
-          '<button class="btn btn-primary" onclick="confirmPortBuy('+h.id+')" style="font-size:.75rem;padding:.28rem .55rem">저장</button>'+
-        '</div>';
-      } else {
-        var calcFn='calcPortBuyTotal('+h.id+')';
-        actionForm='<div style="margin-top:.45rem;padding:.55rem .65rem;background:rgba(108,138,255,.08);border:1px solid rgba(108,138,255,.2);border-radius:7px">'+
-          '<div style="font-size:.67rem;color:var(--accent);margin-bottom:.4rem;font-weight:600">📈 추가매수</div>'+
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-bottom:.35rem">'+
-            '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">추가 수량</div>'+
-              '<input id="port-buy-qty-'+h.id+'" type="number" class="input" placeholder="0" min="0" step="any" oninput="'+calcFn+'" style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
-            '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">매수 단가 (₩)</div>'+
-              '<input id="port-buy-price-'+h.id+'" type="number" class="input" placeholder="0" min="0" step="any" oninput="'+calcFn+'" style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
-          '</div>'+
-          '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface);border-radius:6px;padding:.3rem .5rem;margin-bottom:.35rem">'+
-            '<span style="font-size:.7rem;color:var(--muted)">투자 원금</span>'+
-            '<span id="port-buy-total-'+h.id+'" style="font-size:.78rem;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--accent)">–</span>'+
-          '</div>'+
-          '<button class="btn btn-primary" onclick="confirmPortBuy('+h.id+')" style="width:100%;font-size:.78rem;padding:.32rem">확인</button>'+
-        '</div>';
-      }
-    } else if(sellOpen && !h.isDirect){
-      var isUsdS=(h.type==='US');
-      var calcFnS='calcPortSellTotal('+h.id+','+avgCost+')';
-      actionForm='<div style="margin-top:.45rem;padding:.55rem .65rem;background:rgba(255,107,107,.07);border:1px solid rgba(255,107,107,.2);border-radius:7px">'+
-        '<div style="font-size:.67rem;color:var(--danger);margin-bottom:.4rem;font-weight:600">📉 매도 &nbsp;·&nbsp; 보유 '+h.qty+'주 &nbsp;·&nbsp; 평단 ₩'+avgCost.toLocaleString()+'</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-bottom:.35rem">'+
-          '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">매도 수량</div>'+
-            '<input id="port-sell-qty-'+h.id+'" type="number" class="input" placeholder="0" min="0.00000001" max="'+h.qty+'" step="any" oninput="'+calcFnS+'" style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
-          '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">매도 단가 (₩)</div>'+
-            '<input id="port-sell-price-'+h.id+'" type="number" class="input" placeholder="0" min="0" step="any" oninput="'+calcFnS+'" style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
-        '</div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface);border-radius:6px;padding:.3rem .5rem;margin-bottom:.35rem">'+
-          '<span style="font-size:.7rem;color:var(--muted)">매도금액 / 예상 손익</span>'+
-          '<span id="port-sell-total-'+h.id+'" style="font-size:.78rem;font-weight:700;font-family:JetBrains Mono,monospace">–</span>'+
-        '</div>'+
-        '<button onclick="confirmPortSell('+h.id+')" style="width:100%;padding:.32rem;border-radius:6px;border:none;background:var(--danger);color:#fff;font-size:.78rem;cursor:pointer;font-weight:600">확인</button>'+
+    if(buyOpen && h.isDirect){
+      actionForm='<div style="margin-top:.45rem;padding:.5rem .6rem;background:rgba(108,138,255,.08);border:1px solid rgba(108,138,255,.2);border-radius:7px;display:grid;grid-template-columns:1fr 1fr auto;gap:.35rem;align-items:end">'+
+        '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">현재 평가금액(₩)</div>'+
+          '<input id="port-buy-qty-'+h.id+'" type="text" class="input" placeholder="0" '+
+          'value="'+Math.round(h.currentKRW||0).toLocaleString()+'" '+
+          'oninput="this.value=this.value.replace(/[^0-9]/g,\'\').replace(/\\B(?=(\\d{3})+(?!\\d))/g,\',\')" '+
+          'style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
+        '<div><div style="font-size:.67rem;color:var(--muted);margin-bottom:.1rem">투자 원금(₩)</div>'+
+          '<input id="port-buy-inv-'+h.id+'" type="text" class="input" placeholder="0" '+
+          'value="'+Math.round(h.investedKRW||0).toLocaleString()+'" '+
+          'oninput="this.value=this.value.replace(/[^0-9]/g,\'\').replace(/\\B(?=(\\d{3})+(?!\\d))/g,\',\')" '+
+          'style="width:100%;box-sizing:border-box;font-size:.78rem;padding:.28rem .4rem"/></div>'+
+        '<button class="btn btn-primary" onclick="confirmPortBuy('+h.id+')" style="font-size:.75rem;padding:.28rem .55rem">저장</button>'+
       '</div>';
     }
     var infoRow=h.isDirect?
@@ -9117,12 +9098,8 @@ function renderPortHoldings(){
         '</div>'+
         '<div style="display:flex;gap:.25rem;align-items:center;flex-shrink:0">'+
           (h.isDirect
-            ? '<button onclick="togglePortBuy('+h.id+')" style="background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--accent);font-size:.67rem;padding:.1rem .38rem;line-height:1.4">'+(buyOpen?'✕':'✏️수정')+'</button>'
-            : (buyOpen||sellOpen)
-              ? '<button onclick="'+(buyOpen?'togglePortBuy':'togglePortSell')+'('+h.id+')" style="background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--muted);font-size:.67rem;padding:.1rem .38rem;line-height:1.4">✕ 닫기</button>'
-              : '<button onclick="togglePortBuy('+h.id+')" style="background:none;border:1px solid rgba(108,138,255,.4);border-radius:4px;cursor:pointer;color:var(--accent);font-size:.67rem;padding:.1rem .38rem;line-height:1.4">＋매수</button>'+
-                '<button onclick="togglePortSell('+h.id+')" style="background:none;border:1px solid rgba(255,107,107,.4);border-radius:4px;cursor:pointer;color:var(--danger);font-size:.67rem;padding:.1rem .38rem;line-height:1.4">−매도</button>'+
-                '<button onclick="openPortDirectEditPopup('+h.id+')" style="background:none;border:1px solid rgba(148,163,184,.3);border-radius:4px;cursor:pointer;color:var(--muted);font-size:.67rem;padding:.1rem .38rem;line-height:1.4">✏️직접수정</button>'
+            ? '<button onclick="togglePortBuy('+h.id+')" style="background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--accent);font-size:.67rem;padding:.1rem .38rem;line-height:1.4">'+(buyOpen?'✕ 닫기':'✏️수정')+'</button>'
+            : '<button onclick="openPortDirectEditPopup('+h.id+')" style="background:none;border:1px solid rgba(148,163,184,.3);border-radius:4px;cursor:pointer;color:var(--muted);font-size:.67rem;padding:.1rem .38rem;line-height:1.4">✏️직접수정</button>'
           )+
           '<button onclick="openPortAliasPopup('+h.id+')" title="별칭 설정" style="background:none;border:none;cursor:pointer;font-size:.78rem;padding:0 .15rem;line-height:1;opacity:'+(h.alias?'1':'.45')+'" >🏷️</button>'+
           '<button onclick="deletePortHolding('+h.id+')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:.82rem;padding:0;line-height:1">✕</button>'+
@@ -9419,6 +9396,159 @@ function renderPortMonthlyChart(){
   _renderPortBarChart(document.getElementById('port-chart-locked'),   lockedSnaps,   '#6c8aff', 220, false);
   _renderPortBarChart(document.getElementById('port-chart-fixed'),    fixedSnaps,    '#6c8aff', 220, false);
   _renderPortBarChart(elTotal, snaps, '#6c8aff', 220, true);
+  renderRealizedProfits();
+}
+
+// ── 익절 기록 ──
+function getRealizedProfits() { return S.get('realized_profits') || []; }
+
+function renderRealizedProfits() {
+  var profits = getRealizedProfits();
+  _renderProfitBarChart(document.getElementById('port-chart-profit'), profits);
+  _renderProfitList(document.getElementById('port-profit-list'), profits);
+}
+
+function _renderProfitBarChart(el, profits) {
+  if(!el) return;
+  if(!profits || !profits.length) {
+    el.innerHTML='<div style="text-align:center;padding:1.2rem;color:var(--muted);font-size:.8rem">익절 기록이 없어요<br><span style="font-size:.72rem">💰 익절 기록 버튼으로 추가하세요</span></div>';
+    return;
+  }
+  var monthly = {};
+  profits.forEach(function(p){
+    var m = (p.date||'').slice(0,7);
+    if(!m) return;
+    if(!monthly[m]) monthly[m] = {month:m, total:0, count:0};
+    monthly[m].total += p.amount||0;
+    monthly[m].count++;
+  });
+  var data = Object.values(monthly).sort(function(a,b){ return a.month.localeCompare(b.month); });
+  if(!data.length) { el.innerHTML=''; return; }
+
+  var H=140, padL=6, padR=6, padT=38, padB=42;
+  var barW=32, gap=10, n=data.length;
+  var maxVal = Math.max.apply(null, data.map(function(d){ return d.total; }));
+  if(!maxVal) { el.innerHTML=''; return; }
+  var chartH = H-padT-padB;
+  var totalW = padL+padR+n*(barW+gap);
+  var containerW = Math.max(el.clientWidth||320, 280);
+  var W = Math.max(totalW, containerW);
+
+  var bars = data.map(function(d,i){
+    var bH = Math.max(3, Math.round(d.total/maxVal*chartH));
+    var x = padL+gap/2+i*(barW+gap);
+    var bY = H-padB;
+    var amtStr = d.total>=100000000?(d.total/100000000).toFixed(1)+'억':(d.total/10000).toFixed(0)+'만';
+    var parts = d.month.split('-');
+    var lbl = (parts[0]||'').slice(2)+'/'+(parts[1]||'').replace(/^0/,'');
+    var ttEv = 'onmouseover="showChartTooltip(event,\''+lbl+' 익절\',\'₩'+d.total.toLocaleString()+'\',\''+d.count+'건\',\'#fb923c\')" onmousemove="moveChartTooltip(event)" onmouseout="hideChartTooltip()"';
+    return '<rect x="'+x+'" y="'+(bY-bH)+'" width="'+barW+'" height="'+bH+'" fill="#fb923c" rx="3" style="cursor:pointer" '+ttEv+'></rect>'+
+      '<text x="'+(x+barW/2)+'" y="'+(H-padB+14)+'" text-anchor="middle" fill="#aaa" font-size="10">'+lbl+'</text>'+
+      '<text x="'+(x+barW/2)+'" y="'+(bY-bH-5)+'" text-anchor="middle" fill="#fb923c" font-size="9" font-weight="bold">'+amtStr+'</text>';
+  }).join('');
+
+  var scrollNeeded = totalW > containerW;
+  el.innerHTML = (scrollNeeded?'<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding-top:2px">':'')+
+    '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block;overflow:visible">'+bars+'</svg>'+
+    (scrollNeeded?'</div>':'');
+}
+
+function _renderProfitList(el, profits) {
+  if(!el) return;
+  if(!profits || !profits.length) { el.innerHTML=''; return; }
+  var sorted = profits.slice().sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
+  var total = profits.reduce(function(s,p){ return s+(p.amount||0); }, 0);
+  el.innerHTML =
+    '<div style="font-size:.7rem;color:var(--muted);margin-bottom:.45rem;display:flex;justify-content:space-between">'+
+      '<span>총 '+profits.length+'건</span>'+
+      '<span style="color:#fb923c;font-weight:700">합계 ₩'+total.toLocaleString()+'</span>'+
+    '</div>'+
+    sorted.map(function(p){
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.28rem .4rem;border-radius:6px;font-size:.78rem;cursor:pointer;transition:background .15s" '+
+        'onclick="openRealizedProfitPopup(\''+p.id+'\')" onmouseover="this.style.background=\'rgba(251,146,60,.07)\'" onmouseout="this.style.background=\'\'">'+
+        '<span style="color:var(--muted)">'+(p.date||'')+' '+(p.ticker?'<b style="color:var(--text)">'+pEsc(p.ticker)+'</b>':'')+
+          (p.note?'<span style="color:rgba(148,163,184,.6);font-size:.72rem"> · '+pEsc(p.note)+'</span>':'')+'</span>'+
+        '<span style="font-family:JetBrains Mono,monospace;font-weight:700;color:#fb923c">+₩'+(p.amount||0).toLocaleString()+'</span>'+
+      '</div>';
+    }).join('');
+}
+
+function openRealizedProfitPopup(id) {
+  var ex = document.getElementById('rp-overlay');
+  if(ex) ex.remove();
+  var profits = getRealizedProfits();
+  var entry = id ? profits.find(function(p){ return p.id===id; }) : null;
+  var isNew = !entry;
+
+  var overlay = document.createElement('div');
+  overlay.id = 'rp-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+  overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
+  overlay.innerHTML =
+    '<div style="background:var(--surface);border-radius:16px;padding:1.5rem;width:100%;max-width:320px;box-shadow:0 20px 60px rgba(0,0,0,.5)" onclick="event.stopPropagation()">'+
+      '<div style="font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:1.1rem">💰 익절 기록 '+(isNew?'추가':'수정')+'</div>'+
+      '<div style="display:flex;flex-direction:column;gap:.75rem">'+
+        '<div>'+
+          '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">날짜</div>'+
+          '<input id="rp-date" type="date" value="'+(isNew?today():(entry.date||today()))+'" style="width:100%;box-sizing:border-box;font-size:.9rem;padding:.52rem .7rem;border-radius:8px"/>'+
+        '</div>'+
+        '<div>'+
+          '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">익절 금액 (원)</div>'+
+          '<input id="rp-amount" type="number" value="'+(isNew?'':(entry.amount||''))+'" placeholder="예: 1500000" style="width:100%;box-sizing:border-box;font-size:.95rem;padding:.52rem .7rem;border-radius:8px;font-family:JetBrains Mono,monospace;font-weight:700"/>'+
+        '</div>'+
+        '<div style="display:flex;gap:.5rem">'+
+          '<div style="flex:1">'+
+            '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">종목 (선택)</div>'+
+            '<input id="rp-ticker" type="text" value="'+(isNew?'':(entry.ticker||''))+'" placeholder="AAPL, 삼성전자..." style="width:100%;box-sizing:border-box;font-size:.88rem;padding:.48rem .7rem;border-radius:8px"/>'+
+          '</div>'+
+          '<div style="flex:1">'+
+            '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">메모 (선택)</div>'+
+            '<input id="rp-note" type="text" value="'+(isNew?'':(entry.note||''))+'" placeholder="분할매도 1차..." style="width:100%;box-sizing:border-box;font-size:.88rem;padding:.48rem .7rem;border-radius:8px"/>'+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:flex;gap:.5rem;margin-top:1.2rem">'+
+        '<button onclick="saveRealizedProfit(\''+(id||'')+'\',\''+isNew+'\')" style="flex:1;padding:.58rem;border-radius:8px;background:#fb923c;color:#fff;border:none;font-weight:700;cursor:pointer;font-size:.88rem">저장</button>'+
+        (!isNew?'<button onclick="deleteRealizedProfit(\''+id+'\')" style="padding:.58rem .9rem;border-radius:8px;background:rgba(255,92,122,.12);color:var(--danger);border:1px solid rgba(255,92,122,.2);cursor:pointer;font-size:.88rem">삭제</button>':'')+
+        '<button onclick="document.getElementById(\'rp-overlay\').remove()" style="padding:.58rem .8rem;border-radius:8px;background:rgba(255,255,255,.06);color:var(--muted);border:1px solid var(--border);cursor:pointer;font-size:.88rem">취소</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(overlay);
+  setTimeout(function(){
+    var a = document.getElementById('rp-amount');
+    if(a){ a.focus(); a.select(); }
+    a.onkeydown = function(e){ if(e.key==='Enter') saveRealizedProfit(id||'', isNew?'true':'false'); };
+  }, 30);
+}
+
+async function saveRealizedProfit(id, isNewStr) {
+  var isNew = isNewStr === 'true' || !id;
+  var date   = (document.getElementById('rp-date').value||'').trim();
+  var amount = parseInt(document.getElementById('rp-amount').value)||0;
+  var ticker = (document.getElementById('rp-ticker').value||'').trim().toUpperCase();
+  var note   = (document.getElementById('rp-note').value||'').trim();
+  if(!date || !amount) { showToast('날짜와 금액을 입력해주세요','error'); return; }
+
+  var entryId = isNew ? String(Date.now()) : id;
+  var entry = {id:entryId, date:date, amount:amount, ticker:ticker, note:note};
+  var profits = getRealizedProfits().filter(function(p){ return p.id !== entryId; });
+  profits.push(entry);
+  S.set('realized_profits', profits);
+  await dbUpsert('realized_profits', entry);
+  var ov = document.getElementById('rp-overlay');
+  if(ov) ov.remove();
+  renderRealizedProfits();
+  showToast(isNew ? '익절 기록됐어요 💰' : '수정됐어요', 'success');
+}
+
+async function deleteRealizedProfit(id) {
+  if(!confirm('이 익절 기록을 삭제할까요?')) return;
+  var ov = document.getElementById('rp-overlay');
+  if(ov) ov.remove();
+  S.set('realized_profits', getRealizedProfits().filter(function(p){ return p.id!==id; }));
+  await dbDelete('realized_profits', id);
+  renderRealizedProfits();
+  showToast('삭제됐어요');
 }
 
 async function initPortfolio(){
@@ -9435,6 +9565,7 @@ async function initPortfolio(){
   renderPortHoldings();
   renderPortSummary();
   renderPortMonthlyChart();
+  renderRealizedProfits();
   renderPortHistory();
   fetchPortUsdKrw();
   var holdings=S.get('portfolio_holdings')||[];
@@ -10054,6 +10185,14 @@ if ('serviceWorker' in navigator) {
         if (res.data) {
           S.set('invest_terms', res.data.map(function(t){ return {id:t.id,term:t.term,meaning:t.meaning,created_at:t.created_at}; }));
           try { renderInvestTerms(); } catch(e) {}
+        }
+      });
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'realized_profits' }, function() {
+      supa.from('realized_profits').select('*').order('date',{ascending:false}).then(function(res) {
+        if (res.data) {
+          S.set('realized_profits', res.data.map(function(r){ return {id:r.id,date:r.date,amount:r.amount,ticker:r.ticker||'',note:r.note||''}; }));
+          try { renderRealizedProfits(); } catch(e) {}
         }
       });
     })

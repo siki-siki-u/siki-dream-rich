@@ -74,9 +74,20 @@ create table if not exists stock_notes (
   updated_at       timestamptz default now()
 );
 
+-- 6. realized_profits (익절 기록)
+create table if not exists realized_profits (
+  id          text primary key,
+  date        text not null,
+  amount      bigint not null default 0,
+  ticker      text not null default '',
+  note        text not null default '',
+  created_at  timestamptz default now()
+);
+
 -- RLS (Row Level Security) 비활성화 — 퍼블릭 접근 허용
 alter table portfolio_holdings  disable row level security;
 alter table portfolio_snapshots disable row level security;
 alter table mock_investments     disable row level security;
 alter table invest_terms         disable row level security;
 alter table stock_notes          disable row level security;
+alter table realized_profits     disable row level security;
