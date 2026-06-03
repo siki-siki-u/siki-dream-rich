@@ -2406,12 +2406,12 @@ async function syncFromSupabase() {
         byKey[t.budget_key].push({id:t.id, date:t.date, cat:t.cat, amount:t.amount, desc:t.descr||'', source:t.source||''});
       });
       // 로컬 txs_* 전체 삭제 → DB 데이터로만 재구성 (phantom 데이터 완전 제거)
-      Object.keys(localStorage).filter(function(k){ return k.startsWith('txs_'); }).forEach(function(k){ localStorage.removeItem(k); });
+      Object.keys(_sc).filter(function(k){ return k.startsWith('txs_'); }).forEach(function(k){ delete _sc[k]; });
       Object.keys(byKey).forEach(function(k){ S.set('txs_'+k, byKey[k]); });
     }
     // ── income: 동일하게 DB 단방향 ──
     const { data: incomes } = await supa.from('income').select('*');
-    Object.keys(localStorage).filter(function(k){ return k.startsWith('income_'); }).forEach(function(k){ localStorage.removeItem(k); });
+    Object.keys(_sc).filter(function(k){ return k.startsWith('income_'); }).forEach(function(k){ delete _sc[k]; });
     if(incomes && incomes.length > 0) incomes.forEach(function(i){ S.set('income_'+i.budget_key, {yoonsik:i.yoonsik||0, yujin:i.yujin||0, bonusY:i.bonus_y||0, bonusU:i.bonus_u||0, etc:i.etc||0}); });
     // realty
     const { data: realty } = await supa.from('realty').select('*');
@@ -2429,10 +2429,6 @@ async function syncFromSupabase() {
     const { data: snData } = await supa.from('stock_notes').select('*').order('updated_at',{ascending:false});
     if(snData && snData.length > 0) S.set('stock_notes', snData.map(function(n){ return {id:n.id,ticker:n.ticker,name:n.name||'',market:n.market||'US',status:n.status||'watching',fairValue:n.fair_value||null,targetBuyPrice:n.target_buy_price||null,opinion:n.opinion||'',updatedAt:n.updated_at}; }));
     // settings (고정비, 사용자 설정 등)
-    // forEach 전에 로컬 원본 캡처 (forEach가 덮어쓰기 전)
-    var _preLocalHoldings  = S.get('portfolio_holdings')  || [];
-    var _preLocalSnapshots = S.get('portfolio_snapshots') || [];
-    var _preLocalHomeGoal  = S.get('home_goal_price')     || 0;
     const { data: settings } = await supa.from('settings').select('*');
     if(settings && settings.length > 0) settings.forEach(function(s){
       if(s.key === 'fixed_costs') { try {
@@ -2474,48 +2470,18 @@ async function syncFromSupabase() {
         var _dbSRow    = (settings||[]).find(function(s){return s.key==='portfolio_snapshots';});
         var _dbGoalRow = (settings||[]).find(function(s){return s.key==='home_goal_price';});
 
-        // holdings: DB 우선 (단일 진실 소스)
+        // holdings: DB가 항상 단일 소스
         var _dbH = [];
         try { if(_dbHRow) _dbH = JSON.parse(_dbHRow.value)||[]; } catch(e){}
         if(_dbH.length > 0) {
-          // 로컬 총 (investedKRW+qty 합산) vs DB 비교 → 더 큰 쪽이 추가매수 반영된 최신
-          var _localInv=_preLocalHoldings.reduce(function(s,h){return s+(h.investedKRW||0)+(h.qty||0);},0);
-          var _dbInv=_dbH.reduce(function(s,h){return s+(h.investedKRW||0)+(h.qty||0);},0);
-          if(_preLocalHoldings.length > _dbH.length || (_preLocalHoldings.length===_dbH.length && _localInv>_dbInv)) {
-            // 로컬이 더 최신 → DB에 push
-            S.set('portfolio_holdings', _preLocalHoldings);
-            _holdings = _preLocalHoldings;
-            supa.from('settings').upsert({key:'portfolio_holdings', value:JSON.stringify(_preLocalHoldings)},{onConflict:'key'}).then(function(r){ if(r&&r.error) console.error('[sync holdings push]', r.error); });
-          } else {
-            S.set('portfolio_holdings', _dbH);
-            _holdings = _dbH;
-          }
-        } else if(_preLocalHoldings.length > 0) {
-          // DB 비어있고 로컬에 있으면 DB로 seed
-          S.set('portfolio_holdings', _preLocalHoldings);
-          _holdings = _preLocalHoldings;
-          supa.from('settings').upsert({key:'portfolio_holdings', value:JSON.stringify(_preLocalHoldings)},{onConflict:'key'}).then(function(r){ if(r&&r.error) console.error('[sync holdings seed]', r.error); });
+          S.set('portfolio_holdings', _dbH);
+          _holdings = _dbH;
         }
 
-        // snapshots: 동일 패턴
+        // snapshots: DB 우선
         var _dbS = [];
         try { if(_dbSRow) _dbS = JSON.parse(_dbSRow.value)||[]; } catch(e){}
-        if(_dbS.length > 0) {
-          S.set('portfolio_snapshots', _dbS);
-          if(_preLocalSnapshots.length > _dbS.length) {
-            S.set('portfolio_snapshots', _preLocalSnapshots);
-            supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(_preLocalSnapshots)},{onConflict:'key'}).then(function(r){ if(r&&r.error) console.error('[sync snapshots push]', r.error); });
-          }
-        } else if(_preLocalSnapshots.length > 0) {
-          S.set('portfolio_snapshots', _preLocalSnapshots);
-          supa.from('settings').upsert({key:'portfolio_snapshots', value:JSON.stringify(_preLocalSnapshots)},{onConflict:'key'}).then(function(r){ if(r&&r.error) console.error('[sync snapshots seed]', r.error); });
-        }
-
-        // home_goal_price: 로컬에만 있고 DB에 없으면 seed
-        if(_preLocalHomeGoal > 0 && !_dbGoalRow) {
-          _homeGoalPrice = _preLocalHomeGoal;
-          supa.from('settings').upsert({key:'home_goal_price', value:String(_preLocalHomeGoal)},{onConflict:'key'}).then(function(){});
-        }
+        if(_dbS.length > 0) { S.set('portfolio_snapshots', _dbS); }
       } catch(e) { console.warn('[portfolio sync]', e.message); }
     })();
     // asset_shots — DB 기준 양방향 sync (삭제 전파)
@@ -2568,12 +2534,15 @@ async function syncFromSupabase() {
     // events — Supabase 단일 진실 소스 (localStorage 완전 제거)
     const { data: dbEvents } = await supa.from('events').select('*').order('date', {ascending:true});
     // 한 번만: localStorage에 남아있는 이전 events를 Supabase로 마이그레이션
-    var legacyEvents = JSON.parse(localStorage.getItem('events')||'[]');
-    if(legacyEvents.length > 0) {
-      var dbEvIdSet = new Set((dbEvents||[]).map(function(e){return e.id;}));
-      legacyEvents.forEach(function(e){ if(!dbEvIdSet.has(e.id)) dbUpsert('events', e); });
-      localStorage.removeItem('events');
-    }
+    // legacy localStorage events 마이그레이션 (1회)
+    try {
+      var legacyEvents = JSON.parse(window.localStorage.getItem('events')||'[]');
+      if(legacyEvents.length > 0) {
+        var dbEvIdSet = new Set((dbEvents||[]).map(function(e){return e.id;}));
+        legacyEvents.forEach(function(e){ if(!dbEvIdSet.has(e.id)) dbUpsert('events', e); });
+        window.localStorage.removeItem('events');
+      }
+    } catch(_) {}
     _events = (dbEvents||[]).map(function(e){ return {id:e.id, date:e.date, title:e.title, color:e.color||'blue'}; });
     // yt_summaries — 양방향 sync
     const { data: dbYt } = await supa.from('yt_summaries').select('*').order('saved_at', {ascending:false}).limit(50);
@@ -2626,15 +2595,19 @@ async function syncFromSupabase() {
   try { updateDday(); renderGoalWidget(); } catch(e){}
   try { renderJournal(); renderRealty(); } catch(e){}
   try { renderCalendar(); renderEventList(); renderYtLibrary(); } catch(e){}
+  try { renderStockNotes(); } catch(e){}
+  try { renderRealizedProfits(); } catch(e){}
+  try { renderInvestTerms(); } catch(e){}
   try { initPortfolio(); } catch(e){}
   showSyncBadge('✅ 동기화 완료', 'rgba(82,217,163,.18)');
   setTimeout(hideSyncBadge, 2500);
 }
 
-// ── STORAGE HELPERS ──
+// ── STORAGE HELPERS (in-memory only — localStorage 완전 제거, Supabase가 단일 소스) ──
+var _sc = {};
 const S = {
-  get: k => { try { return JSON.parse(localStorage.getItem(k)) } catch { return null } },
-  set: (k,v) => localStorage.setItem(k, JSON.stringify(v)),
+  get: function(k) { return _sc.hasOwnProperty(k) ? _sc[k] : null; },
+  set: function(k, v) { _sc[k] = v; },
 };
 
 
@@ -2643,14 +2616,14 @@ var _events = [];  // populated by syncFromSupabase; written directly to Supabas
 
 // ── PORTFOLIO HOLDINGS IN-MEMORY (single source of truth after sync) ──
 // 페이지 로드 즉시 localStorage 캐시로 초기화 → sync 완료 후 DB 값으로 덮어씀
-var _holdings      = S.get('portfolio_holdings') || [];
-var _portHistory   = S.get('portfolio_history')  || [];
+var _holdings      = [];
+var _portHistory   = [];
 var _phFilter      = 'all';
 var _phTickerFilter = null;
-var _homeGoalPrice = S.get('home_goal_price')    || 0;
-var _homeLoanAmount = S.get('home_loan_amount')  || 0;
-var _homeLoanRate   = S.get('home_loan_rate')    || 3.5;
-var _homeLoanYears  = S.get('home_loan_years')   || 30;
+var _homeGoalPrice  = 0;
+var _homeLoanAmount = 0;
+var _homeLoanRate   = 3.5;
+var _homeLoanYears  = 30;
 
 // ── PORTFOLIO DB ROW HELPERS ──
 function _holdingToDbRow(h) {
@@ -8175,7 +8148,7 @@ function deleteJournal(id){
 }
 
 // ── 포트폴리오 관리 ──
-var _portType='US', _portOwner='윤식', _portSelTicker=null, _portPrices=S.get('port_prices_cache')||{}, _portUsdKrw=S.get('port_usdkrw')||1380, _portSearchTimer=null;
+var _portType='US', _portOwner='윤식', _portSelTicker=null, _portPrices={}, _portUsdKrw=1380, _portSearchTimer=null;
 var _portDirectTypes={'GOLD':true,'PENSION':true,'FUND':true,'ETC':true};
 var _VOLATILE_TYPES=['US','KR','CRYPTO','GOLD','FUND'];
 var _LOCKED_TYPES=['PENSION','HOUSING']; // HOUSING: 레거시 호환
@@ -8659,7 +8632,7 @@ function renderPortSummary(){
 }
 
 var _portBuyOpen={}, _portSellOpen={};
-var _portRealized=S.get('portfolio_realized')||{total:0,count:0,history:[]};
+var _portRealized={total:0,count:0,history:[]};
 var _portHoldingsSort='default', _portHoldingsOwner='all', _portHoldingsCat='all';
 
 function setPortHoldingsOwner(v){
@@ -9669,7 +9642,7 @@ async function deleteRealizedProfit(id) {
 }
 
 async function initPortfolio(){
-  _portUsdKrw=S.get('port_usdkrw')||1380;
+  _portUsdKrw = S.get('port_usdkrw') || 1380;
   var uEl=document.getElementById('port-usdkrw');
   if(uEl) uEl.textContent=_portUsdKrw.toLocaleString();
   // 기존 owner 없는 종목 → 윤식 계좌로 마이그레이션
