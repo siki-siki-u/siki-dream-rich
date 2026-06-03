@@ -2383,8 +2383,34 @@ function hideSyncBadge() {
   if(b) b.style.display = 'none';
 }
 
+// localStorage 데이터 Supabase로 복구 (RLS 해제 후 1회)
+async function recoverFromLocalStorage() {
+  if(!supa || isGuest()) return;
+  var tables = [
+    { key:'realized_profits', map: function(p){ return {id:p.id,date:p.date||'2026-05',amount:p.amount||0,ticker:p.ticker||'',note:p.note||''}; } },
+    { key:'stock_notes',      map: function(n){ return {id:n.id,ticker:n.ticker||'',name:n.name||'',market:n.market||'US',status:n.status||'watching',fair_value:n.fairValue||null,target_buy_price:n.targetBuyPrice||null,opinion:n.opinion||'',updated_at:n.updatedAt||new Date().toISOString()}; } },
+  ];
+  var recovered = 0;
+  for(var i=0;i<tables.length;i++){
+    try {
+      var raw = window.localStorage.getItem(tables[i].key);
+      if(!raw) continue;
+      var entries = JSON.parse(raw);
+      if(!entries||!entries.length) continue;
+      for(var j=0;j<entries.length;j++){
+        var row = tables[i].map(entries[j]);
+        if(row.id) { await dbUpsert(tables[i].key, row); recovered++; }
+      }
+      window.localStorage.removeItem(tables[i].key);
+      console.log('[복구] '+tables[i].key+': '+entries.length+'건 Supabase로 이전');
+    } catch(e){ console.warn('[복구 실패]', tables[i].key, e); }
+  }
+  if(recovered > 0) showToast('💾 '+recovered+'건 데이터 복구 완료! 새로고침 하면 보여요', 'success');
+}
+
 async function syncFromSupabase() {
   if(!supa) return;
+  await recoverFromLocalStorage();
   showSyncBadge('🔄 동기화 중...');
   try {
     // stocks
