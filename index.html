@@ -9339,13 +9339,13 @@ function _renderPortBarChart(el, snaps, barColor, H, showDelete){
     (scrollNeeded?'</div>':'')+legend;
 }
 
-function _renderPortLineChart(el, points, lineColor, H) {
+function _renderPortLineChart(el, points, lineColor, H, showDelete) {
   if(!el) return;
   if(!points || points.length < 1) {
     el.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:.8rem">데이터 없음<br><span style="font-size:.72rem">저장 후 표시됩니다</span></div>';
     return;
   }
-  var padL=10, padR=12, padT=28, padB=36;
+  var padL=10, padR=12, padT=28, padB=showDelete?48:36;
   var containerW = Math.max(el.clientWidth||320, 280);
   var W = containerW;
   var chartW = W - padL - padR;
@@ -9385,10 +9385,16 @@ function _renderPortLineChart(el, points, lineColor, H) {
     var parts = (p.date||'').split('-');
     var lbl = (parts[1]||'').replace(/^0/,'')+'/'+(parts[2]||'').replace(/^0/,'');
     var ttEv = 'onmouseover="showChartTooltip(event,\''+lbl+'\',\'₩'+v.toLocaleString()+'\',\''+(chgStr||'첫 기록')+'\',\''+lineColor+'\')" onmousemove="moveChartTooltip(event)" onmouseout="hideChartTooltip()"';
+    var delBtn = showDelete
+      ? '<text x="'+cx+'" y="'+(padT+chartH+28)+'" text-anchor="middle" fill="#555" font-size="14" style="cursor:pointer" '+
+        'onmouseover="this.setAttribute(\'fill\',\'#f87171\')" onmouseout="this.setAttribute(\'fill\',\'#555\')" '+
+        'onclick="deletePortSnapshot(\''+p.date+'\')">×</text>'
+      : '';
     return '<circle cx="'+cx+'" cy="'+cy+'" r="4" fill="'+lineColor+'" stroke="#1a1f35" stroke-width="2" style="cursor:pointer" '+ttEv+'></circle>'+
       (n<=12?'<text x="'+cx+'" y="'+(padT+chartH+14)+'" text-anchor="middle" fill="#888" font-size="9">'+lbl+'</text>':'')+
       (chgStr&&n<=12?'<text x="'+cx+'" y="'+(cy-10)+'" text-anchor="middle" fill="'+chgClr+'" font-size="9" font-weight="bold">'+chgStr+'</text>':'')+
-      (i===n-1?'<text x="'+cx+'" y="'+(cy-10)+'" text-anchor="'+(cx>W*0.7?'end':'middle')+'" fill="'+lineColor+'" font-size="10" font-weight="bold">'+amtStr+'</text>':'');
+      (i===n-1?'<text x="'+cx+'" y="'+(cy-10)+'" text-anchor="'+(cx>W*0.7?'end':'middle')+'" fill="'+lineColor+'" font-size="10" font-weight="bold">'+amtStr+'</text>':'')+
+      delBtn;
   }).join('');
 
   el.innerHTML =
@@ -9440,8 +9446,8 @@ function renderPortMonthlyChart(){
     if(vInv>0||vVal>0) volatileSnaps.push({date:s.date,investedKRW:vInv,valueKRW:vVal});
   });
 
-  _renderPortLineChart(elTotal, snaps, '#6c8aff', 170);
-  _renderPortLineChart(document.getElementById('port-chart-volatile'), volatileSnaps, '#22d3ee', 140);
+  _renderPortLineChart(elTotal, snaps, '#6c8aff', 180, true);
+  _renderPortLineChart(document.getElementById('port-chart-volatile'), volatileSnaps, '#22d3ee', 140, false);
   renderRealizedProfits();
 }
 
