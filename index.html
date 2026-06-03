@@ -8457,12 +8457,19 @@ async function refreshPortPrices(){
   var btn=document.getElementById('port-refresh-btn');
   if(btn){btn.textContent='⏳ 갱신 중...';btn.disabled=true;}
   await fetchPortUsdKrw();
-  await Promise.all(holdings.map(async function(h){
+  var results = await Promise.allSettled(holdings.map(async function(h){
     var pd=await fetchPortPrice(h.ticker,h.type);
     if(pd) _portPrices[h.ticker]=pd;
   }));
+  S.set('port_prices_cache', _portPrices);
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
-  if(btn){btn.textContent='🔄 시세 갱신';btn.disabled=false;}
+  var failCount = results.filter(function(r){ return r.status==='rejected'; }).length;
+  if(btn){
+    btn.textContent='🔄 시세 갱신';
+    btn.disabled=false;
+    if(failCount>0) showToast(failCount+'개 종목 시세 조회 실패', 'error');
+    else showToast('시세 갱신 완료', 'success');
+  }
 }
 
 function renderPortSummary(){
