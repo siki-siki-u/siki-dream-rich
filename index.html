@@ -8451,6 +8451,55 @@ function deletePortHolding(id){
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
 }
 
+function openPortAliasPopup(id) {
+  var existing = document.getElementById('port-alias-overlay');
+  if(existing) existing.remove();
+  var holdings = S.get('portfolio_holdings') || [];
+  var h = holdings.find(function(x){ return x.id===id; });
+  if(!h) return;
+
+  var overlay = document.createElement('div');
+  overlay.id = 'port-alias-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+  overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
+  overlay.innerHTML =
+    '<div style="background:var(--surface);border-radius:14px;padding:1.4rem;width:100%;max-width:300px;box-shadow:0 20px 60px rgba(0,0,0,.5)" onclick="event.stopPropagation()">'+
+      '<div style="font-size:.93rem;font-weight:700;color:var(--text);margin-bottom:.25rem">🏷️ 별칭 설정</div>'+
+      '<div style="font-size:.75rem;color:var(--muted);margin-bottom:.9rem">'+pEsc(h.name)+'</div>'+
+      '<input id="port-alias-input" type="text" value="'+pEsc(h.alias||'')+'" placeholder="예: QQQ → 나스닥100" maxlength="20"'+
+        ' style="width:100%;box-sizing:border-box;font-size:.92rem;padding:.55rem .7rem;border-radius:8px;font-weight:600"/>'+
+      '<div style="font-size:.7rem;color:var(--muted);margin-top:.4rem;margin-bottom:1rem">비워두면 별칭 제거</div>'+
+      '<div style="display:flex;gap:.5rem">'+
+        '<button onclick="savePortAlias('+id+')" style="flex:1;padding:.55rem;border-radius:8px;background:var(--accent);color:#fff;border:none;font-weight:700;cursor:pointer;font-size:.88rem">저장</button>'+
+        '<button onclick="document.getElementById(\'port-alias-overlay\').remove()" style="padding:.55rem .9rem;border-radius:8px;background:rgba(255,255,255,.06);color:var(--muted);border:1px solid var(--border);cursor:pointer;font-size:.88rem">취소</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(overlay);
+  setTimeout(function(){
+    var inp = document.getElementById('port-alias-input');
+    if(inp){ inp.focus(); inp.select(); }
+    inp.onkeydown = function(e){ if(e.key==='Enter') savePortAlias(id); if(e.key==='Escape') overlay.remove(); };
+  }, 30);
+}
+
+function savePortAlias(id) {
+  var inp = document.getElementById('port-alias-input');
+  if(!inp) return;
+  var alias = inp.value.trim();
+  var holdings = S.get('portfolio_holdings') || [];
+  var h = holdings.find(function(x){ return x.id===id; });
+  if(!h) return;
+  if(alias) h.alias = alias;
+  else delete h.alias;
+  S.set('portfolio_holdings', holdings);
+  _holdings = holdings;
+  dbUpsert('settings', {key:'portfolio_holdings', value:JSON.stringify(holdings)});
+  var overlay = document.getElementById('port-alias-overlay');
+  if(overlay) overlay.remove();
+  renderPortHoldings();
+  showToast(alias ? '"'+alias+'" 별칭 설정됨 🏷️' : '별칭 제거됨', 'success');
+}
+
 async function refreshPortPrices(){
   var holdings=S.get('portfolio_holdings')||[];
   if(!holdings.length) return;
@@ -8969,7 +9018,11 @@ function renderPortHoldings(){
     return '<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid '+borderClr+';border-radius:9px;padding:.5rem .75rem;margin-bottom:.35rem">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem">'+
         '<div style="min-width:0;flex:1;overflow:hidden">'+
-          '<span style="font-weight:700;color:var(--text);font-size:.84rem">'+pEsc(h.name)+'</span>'+
+          (h.alias
+            ? '<span style="font-weight:800;color:var(--accent4);font-size:.88rem">'+pEsc(h.alias)+'</span>'+
+              '<span style="color:var(--muted);font-size:.72rem;margin-left:.35rem">'+pEsc(h.name)+'</span>'
+            : '<span style="font-weight:700;color:var(--text);font-size:.84rem">'+pEsc(h.name)+'</span>'
+          )+
           '<span style="font-size:.63rem;margin-left:.2rem">'+typeTag+'</span>'+
           ownerTag+catTag+
         '</div>'+
@@ -8981,6 +9034,7 @@ function renderPortHoldings(){
               : '<button onclick="togglePortBuy('+h.id+')" style="background:none;border:1px solid rgba(108,138,255,.4);border-radius:4px;cursor:pointer;color:var(--accent);font-size:.67rem;padding:.1rem .38rem;line-height:1.4">＋매수</button>'+
                 '<button onclick="togglePortSell('+h.id+')" style="background:none;border:1px solid rgba(255,107,107,.4);border-radius:4px;cursor:pointer;color:var(--danger);font-size:.67rem;padding:.1rem .38rem;line-height:1.4">−매도</button>'
           )+
+          '<button onclick="openPortAliasPopup('+h.id+')" title="별칭 설정" style="background:none;border:none;cursor:pointer;font-size:.78rem;padding:0 .15rem;line-height:1;opacity:'+(h.alias?'1':'.45')+'" >🏷️</button>'+
           '<button onclick="deletePortHolding('+h.id+')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:.82rem;padding:0;line-height:1">✕</button>'+
         '</div>'+
       '</div>'+
