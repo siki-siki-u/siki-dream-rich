@@ -9457,8 +9457,8 @@ function renderPortMonthlyChart(){
     if(vInv>0||vVal>0) volatileSnaps.push({date:s.date,investedKRW:vInv,valueKRW:vVal});
   });
 
-  _renderPortLineChart(elTotal, snaps, '#6c8aff', 180, true);
-  _renderPortLineChart(document.getElementById('port-chart-volatile'), volatileSnaps, '#22d3ee', 140, false);
+  _renderPortBarChart(elTotal, snaps, '#6c8aff', 220, true);
+  _renderPortBarChart(document.getElementById('port-chart-volatile'), volatileSnaps, '#22d3ee', 180, false);
   renderRealizedProfits();
 }
 
