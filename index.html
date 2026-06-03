@@ -9129,6 +9129,18 @@ async function forcePortCloudSync() {
   }
 }
 
+function rpDefaultMonth() {
+  var d = new Date();
+  var day = d.getDate();
+  var y = d.getFullYear();
+  var m = d.getMonth() + 1; // 1-indexed
+  if (day < 25) {
+    m--;
+    if (m < 1) { m = 12; y--; }
+  }
+  return y + '-' + String(m).padStart(2, '0');
+}
+
 function savePortSnapshot(){
   var holdings=(_holdings&&_holdings.length)?_holdings:(S.get('portfolio_holdings')||[]);
   var totInv=0,totVal=0,vInv=0,vVal=0,lInv=0,lVal=0,fInv=0,fVal=0;
@@ -9595,7 +9607,7 @@ function openRealizedProfitPopup(id) {
       '<div style="display:flex;flex-direction:column;gap:.75rem">'+
         '<div>'+
           '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">날짜</div>'+
-          '<input id="rp-date" type="date" value="'+(isNew?today():(entry.date||today()))+'" style="width:100%;box-sizing:border-box;font-size:.9rem;padding:.52rem .7rem;border-radius:8px"/>'+
+          '<input id="rp-date" type="month" value="'+(isNew?rpDefaultMonth():(entry.date||'').slice(0,7))+'" style="width:100%;box-sizing:border-box;font-size:.9rem;padding:.52rem .7rem;border-radius:8px"/>'+
         '</div>'+
         '<div>'+
           '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">익절 금액 (원)</div>'+
@@ -9672,12 +9684,31 @@ async function initPortfolio(){
     var existing = S.get('realized_profits')||[];
     var hasApr = existing.some(function(p){ return (p.date||'').startsWith('2025-04'); });
     if(hasApr) { old._migrated=true; S.set('portfolio_realized',old); return; }
-    var newEntry = {id:'migrated_apr_2025', date:'2025-04-30', amount:Math.round(old.total), ticker:'', note:'(이관) 4월 익절 합계'};
+    var newEntry = {id:'migrated_apr_2025', date:'2025-04', amount:Math.round(old.total), ticker:'', note:'(이관) 4월 익절 합계'};
     existing.push(newEntry);
     S.set('realized_profits', existing);
     old._migrated = true;
     S.set('portfolio_realized', old);
     dbUpsert('realized_profits', newEntry);
+  })();
+
+  // 기존 항목 날짜 형식 정규화: YYYY-MM-DD → YYYY-MM, 4월 이관 외 항목 → 2026-05
+  (function normalizeRpDates(){
+    var list = S.get('realized_profits')||[];
+    var changed = false;
+    list = list.map(function(p){
+      var isApr = p.id === 'migrated_apr_2025';
+      var date = (p.date||'');
+      // 풀 날짜(YYYY-MM-DD)면 년월만 추출
+      var ym = date.length > 7 ? date.slice(0,7) : date;
+      // 4월 이관 항목이 아닌데 2026-05가 아니면 2026-05로 변경
+      var newYm = isApr ? (ym || '2025-04') : '2026-05';
+      if(p.date !== newYm){ changed=true; return Object.assign({},p,{date:newYm}); }
+      return p;
+    });
+    if(!changed) return;
+    S.set('realized_profits', list);
+    list.forEach(function(p){ dbUpsert('realized_profits', p); });
   })();
 
   setPortOwner('윤식');
