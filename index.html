@@ -6156,11 +6156,19 @@ function get6MonthsData() {
   return result;
 }
 
+function _canvasW(canvas) {
+  var r = canvas.getBoundingClientRect();
+  if (r.width > 10) return Math.floor(r.width);
+  var p = canvas.parentElement;
+  while (p) { var pr = p.getBoundingClientRect(); if (pr.width > 10) return Math.floor(pr.width); p = p.parentElement; }
+  return 340;
+}
+
 function drawDashMonthlyChart() {
   var canvas = document.getElementById('dash-monthly-canvas');
   if (!canvas) return;
   var dpr = window.devicePixelRatio || 1;
-  var w = canvas.offsetWidth || canvas.parentElement.offsetWidth || 340;
+  var w = _canvasW(canvas);
   var h = 170;
   canvas.width = w * dpr; canvas.height = h * dpr;
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
@@ -6276,7 +6284,7 @@ function drawBudgetTrendChart() {
   var canvas = document.getElementById('budget-trend-canvas');
   if (!canvas) return;
   var dpr = window.devicePixelRatio || 1;
-  var w = canvas.offsetWidth || canvas.parentElement.offsetWidth || 340;
+  var w = _canvasW(canvas);
   var h = 120;
   canvas.width = w * dpr; canvas.height = h * dpr;
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
@@ -6382,6 +6390,27 @@ function refreshDashboard() {
   }
 }
 try { refreshDashboard(); } catch(e){}
+
+// 차트 크기 자동 재조정 — 사이드바 토글·화면 회전 등 레이아웃 변경 시
+(function(){
+  var _chartRedrawTimer = null;
+  function _scheduleChartRedraw() {
+    clearTimeout(_chartRedrawTimer);
+    _chartRedrawTimer = setTimeout(function(){
+      try { drawDashMonthlyChart(); } catch(e){}
+      try { drawBudgetTrendChart(); } catch(e){}
+    }, 120);
+  }
+  window.addEventListener('resize', _scheduleChartRedraw);
+  if (window.ResizeObserver) {
+    var ro = new ResizeObserver(_scheduleChartRedraw);
+    ['dash-monthly-canvas','budget-trend-canvas'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el && el.parentElement) ro.observe(el.parentElement);
+    });
+  }
+})();
+
 // ── YOUTUBE 올랜도킴 분석 ──
 var YT_CHANNEL_ID = 'UCwSSqi-s0wcH6pJbH3YPZqQ';
 var ytVideos = [];
