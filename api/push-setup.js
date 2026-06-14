@@ -1,16 +1,16 @@
 // VAPID 키 최초 생성 후 Supabase settings에 저장, 이후엔 기존 키 반환
-const webpush = require('web-push');
-const https   = require('https');
+// Node.js 내장 crypto 사용 (외부 패키지 의존 없음)
+const crypto = require('crypto');
+const https  = require('https');
 
 const SUPA_URL = 'https://boyhppqnwtxedicxbfpz.supabase.co';
 const SUPA_KEY = 'sb_publishable_Uh-YK_wDgAgQMO_CZwnyRw_SrRyQ-Tq';
 
 function supaRest(method, path, body) {
   return new Promise(function(resolve, reject) {
-    var u    = new URL(SUPA_URL);
     var data = body ? JSON.stringify(body) : null;
     var opts = {
-      hostname: u.hostname,
+      hostname: new URL(SUPA_URL).hostname,
       path: path,
       method: method,
       headers: {
@@ -42,6 +42,27 @@ async function setSetting(key, value) {
   await supaRest('POST', '/rest/v1/settings', { key, value });
 }
 
+// ECDH prime256v1 키쌍 생성 → VAPID 호환 URL-safe Base64 변환
+function generateVapidKeys() {
+  var { privateKey, publicKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+
+  // Public key: SPKI DER에서 65바이트 비압축 포인트 추출 (offset 27)
+  var pubDer  = publicKey.export({ type: 'spki', format: 'der' });
+  var pubBytes = pubDer.slice(27); // 04 || x || y (65 bytes)
+
+  // Private key: PKCS8 DER에서 32바이트 raw 추출
+  var privDer   = privateKey.export({ type: 'pkcs8', format: 'der' });
+  // prime256v1 PKCS8에서 private key는 offset 36 ~ 36+32
+  var privBytes = privDer.slice(36, 68);
+
+  var toB64 = function(buf) {
+    return Buffer.from(buf).toString('base64')
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  };
+
+  return { publicKey: toB64(pubBytes), privateKey: toB64(privBytes) };
+}
+
 module.exports = async function(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -51,8 +72,7 @@ module.exports = async function(req, res) {
     var pub = await getSetting('vapid_public_key');
 
     if (!pub) {
-      // 최초 1회: VAPID 키 쌍 생성 후 Supabase에 저장
-      var keys = webpush.generateVAPIDKeys();
+      var keys = generateVapidKeys();
       await setSetting('vapid_public_key',  keys.publicKey);
       await setSetting('vapid_private_key', keys.privateKey);
       pub = keys.publicKey;
