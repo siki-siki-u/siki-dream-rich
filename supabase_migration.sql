@@ -84,6 +84,15 @@ create table if not exists realized_profits (
   created_at  timestamptz default now()
 );
 
+-- 7. push_subscriptions (Web Push 구독 정보)
+create table if not exists push_subscriptions (
+  id         uuid primary key default gen_random_uuid(),
+  endpoint   text not null unique,
+  p256dh     text not null,
+  auth       text not null,
+  created_at timestamptz default now()
+);
+
 -- RLS (Row Level Security) 비활성화 — 퍼블릭 접근 허용
 alter table portfolio_holdings  disable row level security;
 alter table portfolio_snapshots disable row level security;
@@ -91,3 +100,4 @@ alter table mock_investments     disable row level security;
 alter table invest_terms         disable row level security;
 alter table stock_notes          disable row level security;
 alter table realized_profits     disable row level security;
+alter table push_subscriptions   disable row level security;

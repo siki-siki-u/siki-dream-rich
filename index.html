@@ -1505,25 +1505,30 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
       </div>
     </div>
 
-    <!-- 경제 캘린더 -->
+    <!-- 경제 캘린더 (커스텀: ForexFactory + 알림 기능) -->
     <div class="card" style="padding:0;overflow:hidden">
-      <div style="padding:1rem 1.2rem .5rem;background:var(--surface)">
-        <div style="font-size:.95rem;font-weight:700;color:var(--text)">📅 경제 캘린더</div>
-        <div style="font-size:.78rem;color:var(--muted);margin-top:.2rem">FOMC · CPI · 고용지표 등 주요 일정</div>
+      <div style="padding:1rem 1.2rem .75rem;background:var(--surface);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+        <div>
+          <div style="font-size:.95rem;font-weight:700;color:var(--text)">📅 경제 캘린더</div>
+          <div style="font-size:.78rem;color:var(--muted);margin-top:.2rem">FOMC · CPI · 금리 결정 등 주요 지표 · 한국시간(KST) 기준</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+          <select id="econ-impact" onchange="loadEconCalendar()" style="font-size:.78rem;padding:.3rem .5rem;border-radius:7px">
+            <option value="all">전체</option>
+            <option value="high">🔴 높음만</option>
+            <option value="medium">🟡 중간 이상</option>
+          </select>
+          <select id="econ-period" onchange="loadEconCalendar()" style="font-size:.78rem;padding:.3rem .5rem;border-radius:7px">
+            <option value="thisweek">이번 주</option>
+            <option value="nextweek">다음 주</option>
+          </select>
+          <button id="econ-notify-btn" onclick="toggleEconNotify()" style="display:none;padding:.3rem .75rem;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:.78rem;cursor:pointer;white-space:nowrap;font-family:inherit;transition:all .2s">
+            🔔 알림 켜기
+          </button>
+        </div>
       </div>
-      <div class="tradingview-widget-container" style="height:450px">
-        <div class="tradingview-widget-container__widget" style="height:100%"></div>
-        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-events.js" async>
-        {
-          "colorTheme": "dark",
-          "isTransparent": true,
-          "width": "100%",
-          "height": "450",
-          "locale": "kr",
-          "importanceFilter": "0,1",
-          "countryFilter": "us,kr"
-        }
-        </script>
+      <div id="econ-calendar-body" style="padding:.25rem .5rem 1rem">
+        <div style="text-align:center;padding:2.5rem;color:var(--muted);font-size:.85rem">로딩 중...</div>
       </div>
     </div>
   </div>
@@ -2701,7 +2706,7 @@ function showPage(id, el) {
   if(id==='realty')  { renderRealty(); initCheongak(); }
   if(id==='gifts')       { renderGiftList(); }
   if(id==='condolences') { renderCondolenceList(); }
-  if(id==='market')  { loadVix('1mo'); loadYen('3mo'); }
+  if(id==='market')  { loadVix('1mo'); loadYen('3mo'); loadEconCalendar(); }
   if(id==='mock-invest') { syncAndRenderMockInvest(); }
   if(id==='invest-terms') { renderInvestTerms(); }
   if(id==='stock-analysis') { loadInvestmentPrinciples(); }
@@ -10293,14 +10298,128 @@ function hideChartTooltip(){
 </div>
 
 <script>
-// ── Service Worker: 모든 등록 해제 + 캐시 전부 삭제 (stale HTML 문제 영구 해결) ──
+// ── Service Worker 등록 (Push 알림 전용 — 캐시 없음) ──
+var _vapidPublicKey = null;
+var _swRegistration = null;
+
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(function(regs) {
-    regs.forEach(function(r) { r.unregister(); });
+  navigator.serviceWorker.register('/sw.js').then(function(reg) {
+    _swRegistration = reg;
+    // PWA(앱) 모드일 때만 알림 버튼 노출 + 구독 상태 확인
+    if (isPwa()) {
+      initPushNotify(reg);
+    }
+  }).catch(function(e) {
+    console.warn('SW 등록 실패:', e.message);
   });
-  caches.keys().then(function(names) {
-    names.forEach(function(n) { caches.delete(n); });
-  });
+}
+
+function isPwa() {
+  return window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true;
+}
+
+// VAPID public key 로드 (최초 1회)
+async function loadVapidKey() {
+  if (_vapidPublicKey) return _vapidPublicKey;
+  try {
+    var r = await fetch('/api/push-setup');
+    var d = await r.json();
+    _vapidPublicKey = d.publicKey || null;
+  } catch(_) {}
+  return _vapidPublicKey;
+}
+
+// URL-safe Base64 → Uint8Array (VAPID applicationServerKey 변환)
+function urlB64ToUint8Array(b64) {
+  var pad = '='.repeat((4 - b64.length % 4) % 4);
+  var raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  var arr = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+// 알림 버튼 상태 업데이트
+function updateNotifyBtn(isOn) {
+  var btn = document.getElementById('econ-notify-btn');
+  if (!btn) return;
+  btn.style.display = '';
+  if (isOn) {
+    btn.textContent = '🔔 알림 켜짐';
+    btn.style.color        = 'var(--accent3)';
+    btn.style.borderColor  = 'var(--accent3)';
+    btn.style.background   = 'rgba(52,211,153,.08)';
+  } else {
+    btn.textContent = '🔕 알림 꺼짐';
+    btn.style.color        = 'var(--muted)';
+    btn.style.borderColor  = 'var(--border)';
+    btn.style.background   = 'var(--surface2)';
+  }
+}
+
+// PWA 진입 시 기존 구독 확인
+async function initPushNotify(reg) {
+  try {
+    var sub = await reg.pushManager.getSubscription();
+    updateNotifyBtn(!!sub);
+  } catch(_) {}
+}
+
+// 알림 토글 (켜기/끄기)
+async function toggleEconNotify() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return showToast('이 브라우저는 Push 알림을 지원하지 않아요', 'error');
+  }
+  if (!isPwa()) {
+    return showToast('홈 화면에 앱을 추가한 후 알림을 켤 수 있어요 📱', 'error');
+  }
+
+  try {
+    var reg = _swRegistration || await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.getSubscription();
+
+    if (sub) {
+      // ── 알림 끄기 ──
+      await sub.unsubscribe();
+      await fetch('/api/push-subscribe', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: sub.endpoint }),
+      });
+      updateNotifyBtn(false);
+      showToast('🔕 경제 지표 알림을 껐어요');
+
+    } else {
+      // ── 알림 켜기 ──
+      var perm = await Notification.requestPermission();
+      if (perm !== 'granted') return showToast('알림 권한이 거부됐어요. 설정에서 허용해주세요', 'error');
+
+      var key = await loadVapidKey();
+      if (!key) return showToast('알림 서버 초기화 중이에요. 잠시 후 다시 시도해주세요', 'error');
+
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8Array(key),
+      });
+
+      var rawP256dh = sub.getKey('p256dh');
+      var rawAuth   = sub.getKey('auth');
+      await fetch('/api/push-subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: sub.endpoint,
+          p256dh:   btoa(String.fromCharCode.apply(null, new Uint8Array(rawP256dh))),
+          auth:     btoa(String.fromCharCode.apply(null, new Uint8Array(rawAuth))),
+        }),
+      });
+
+      updateNotifyBtn(true);
+      showToast('🔔 경제 지표 알림을 켰어요! 발표 1일 전 · 1시간 전에 알려드릴게요', 'success');
+    }
+  } catch(e) {
+    showToast('알림 설정 오류: ' + e.message, 'error');
+  }
 }
 
 // ── Supabase Realtime 구독 ──

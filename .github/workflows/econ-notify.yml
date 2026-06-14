@@ -1,0 +1,22 @@
+name: Economic Calendar Push Notifications
+
+on:
+  schedule:
+    # 매 시간 정각 실행 (UTC) — 한국시간 기준 모든 시간대 커버
+    - cron: '0 * * * *'
+  workflow_dispatch: # 수동 테스트용
+
+jobs:
+  send-notifications:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: 경제 지표 알림 발송
+        run: |
+          RESPONSE=$(curl -sf -w "\n%{http_code}" -X POST \
+            "https://siki-dream-rich.vercel.app/api/push-send" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 30 || echo '{"error":"curl failed"}\n000')
+          echo "Response: $RESPONSE"
