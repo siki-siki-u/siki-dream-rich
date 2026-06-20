@@ -7145,7 +7145,7 @@ async function addEarnings() {
     if (d.error) throw new Error(d.error);
     toggleEarningsAddForm();
     showToast('✅ ' + (d.company_name || ticker) + ' 추가!', 'success');
-    if (market === 'US') { await syncEarnings(); }
+    if (market === 'US') { await syncEarnings(true); }
     else loadEarningsCalendar();
   } catch(e) { showToast('추가 실패: ' + e.message, 'error'); }
 }
@@ -7160,12 +7160,15 @@ async function removeEarnings(ticker) {
     loadEarningsCalendar();
   } catch(e) { showToast('삭제 실패: ' + e.message, 'error'); }
 }
-async function syncEarnings() {
+async function syncEarnings(silent) {
   try {
     var r = await fetch('/api/economic-calendar?action=earnings-sync', { method: 'POST' });
     var d = await r.json();
     if (d.error) throw new Error(d.error);
-    showToast('🔄 ' + (d.synced || 0) + '건 업데이트 완료', 'success');
+    if (!silent) {
+      if (d.found === 0) showToast('📭 Finnhub에 아직 실적 날짜가 없어요 (확정 전)', 'info');
+      else showToast('🔄 ' + d.synced + '건 날짜 업데이트 완료', 'success');
+    }
     loadEarningsCalendar();
   } catch(e) { showToast('동기화 실패: ' + e.message, 'error'); }
 }
@@ -7192,8 +7195,15 @@ async function loadEarningsCalendar() {
         else if (diff === 0) { dateLabel = '오늘 발표!'; dateBadgeColor = 'var(--danger)'; daysLeft = '🔴'; }
         else if (diff === 1) { dateLabel = '내일 발표'; dateBadgeColor = 'var(--accent4)'; daysLeft = '🟡'; }
         else { dateLabel = ev.report_date.slice(5).replace('-','/') + ' (' + diff + '일 후)'; daysLeft = diff <= 7 ? '🟢' : ''; }
-        if (ev.report_time) dateLabel += '  · ' + ev.report_time;
-        if (ev.eps_estimate) dateLabel += '  · EPS 예상 $' + ev.eps_estimate;
+        // KST 시간 변환: BMO=당일 22시 이전, AMC=익일 새벽 5시경
+        var kstTime = '';
+        if (ev.report_time) {
+          if (ev.report_time.includes('BMO')) kstTime = '당일 밤 10시 이전 (KST)';
+          else if (ev.report_time.includes('AMC')) kstTime = '익일 새벽 5-6시 (KST)';
+          else kstTime = ev.report_time;
+        }
+        if (kstTime) dateLabel += ' · ' + kstTime;
+        if (ev.eps_estimate) dateLabel += ' · EPS 예상 $' + ev.eps_estimate;
       }
       var mktBadge = item.market === 'KR'
         ? '<span style="font-size:.68rem;background:rgba(255,99,99,.12);color:var(--danger);padding:.1rem .4rem;border-radius:4px;margin-left:.35rem">KR</span>'
