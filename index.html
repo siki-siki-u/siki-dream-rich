@@ -7190,20 +7190,23 @@ async function loadEarningsCalendar() {
       var ev = item.event;
       var dateLabel = '—', daysLeft = '', dateBadgeColor = 'var(--muted)';
       if (ev && ev.report_date) {
-        var diff = Math.round((new Date(ev.report_date) - new Date(today)) / 86400000);
+        var isAMC = ev.report_time && ev.report_time.includes('AMC');
+        var isBMO = ev.report_time && ev.report_time.includes('BMO');
+        // KST 기준 날짜: AMC는 미국 날짜 +1일이 한국 날짜
+        var kstDate = new Date(ev.report_date + 'T00:00:00Z');
+        if (isAMC) kstDate = new Date(kstDate.getTime() + 86400000);
+        var kstDateStr = kstDate.toISOString().slice(0,10);
+        var diff = Math.round((new Date(kstDateStr) - new Date(today)) / 86400000);
+        var kstMM = (kstDate.getUTCMonth()+1) + '/' + kstDate.getUTCDate();
+        var timeStr = isAMC ? '새벽 5-6시' : isBMO ? '밤 10-11시' : '';
         if (diff < 0) dateLabel = '발표 완료';
-        else if (diff === 0) { dateLabel = '오늘 발표!'; dateBadgeColor = 'var(--danger)'; daysLeft = '🔴'; }
-        else if (diff === 1) { dateLabel = '내일 발표'; dateBadgeColor = 'var(--accent4)'; daysLeft = '🟡'; }
-        else { dateLabel = ev.report_date.slice(5).replace('-','/') + ' (' + diff + '일 후)'; daysLeft = diff <= 7 ? '🟢' : ''; }
-        // KST 시간 변환: BMO=당일 22시 이전, AMC=익일 새벽 5시경
-        var kstTime = '';
-        if (ev.report_time) {
-          if (ev.report_time.includes('BMO')) kstTime = '당일 밤 10시 이전 (KST)';
-          else if (ev.report_time.includes('AMC')) kstTime = '익일 새벽 5-6시 (KST)';
-          else kstTime = ev.report_time;
+        else if (diff === 0) { dateLabel = '오늘 ' + timeStr + ' (KST)'; dateBadgeColor = 'var(--danger)'; daysLeft = '🔴'; }
+        else if (diff === 1) { dateLabel = '내일 ' + timeStr + ' (KST)'; dateBadgeColor = 'var(--accent4)'; daysLeft = '🟡'; }
+        else {
+          dateLabel = kstMM + ' ' + timeStr + ' (KST)  ·  ' + diff + '일 후';
+          daysLeft = diff <= 7 ? '🟢' : '';
         }
-        if (kstTime) dateLabel += ' · ' + kstTime;
-        if (ev.eps_estimate) dateLabel += ' · EPS 예상 $' + ev.eps_estimate;
+        if (ev.eps_estimate) dateLabel += '  ·  EPS 예상 $' + ev.eps_estimate;
       }
       var mktBadge = item.market === 'KR'
         ? '<span style="font-size:.68rem;background:rgba(255,99,99,.12);color:var(--danger);padding:.1rem .4rem;border-radius:4px;margin-left:.35rem">KR</span>'
