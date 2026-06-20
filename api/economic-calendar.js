@@ -214,7 +214,7 @@ async function setSetting(key,value){ await supaRest('POST','/rest/v1/settings',
 const crypto = require('crypto');
 function generateVapidKeys() {
   var {privateKey,publicKey} = crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'});
-  var pubDer=publicKey.export({type:'spki',format:'der'}), pubBytes=pubDer.slice(27);
+  var pubDer=publicKey.export({type:'spki',format:'der'}), pubBytes=pubDer.slice(26);
   var privDer=privateKey.export({type:'pkcs8',format:'der'}), privBytes=privDer.slice(36,68);
   var toB64=function(buf){return Buffer.from(buf).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');};
   return {publicKey:toB64(pubBytes),privateKey:toB64(privBytes)};
