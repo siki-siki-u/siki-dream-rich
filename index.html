@@ -7175,6 +7175,7 @@ async function loadEarningsCalendar() {
   try {
     var r = await fetch('/api/economic-calendar?action=earnings-list');
     var d = await r.json();
+    if (d.error) throw new Error(d.error);
     var items = d.items || [];
     if (!items.length) {
       body.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--muted);font-size:.85rem">+ 종목 추가 버튼으로 관심 종목을 등록해보세요</div>';

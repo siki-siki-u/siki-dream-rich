@@ -377,22 +377,35 @@ async function handlePushSend(req,res){
   res.json({sent,errors,events:toNotify.length,subs:subs.length});
 }
 
-// ── Finnhub 헬퍼 ──
+// ── Finnhub 헬퍼 (직접 HTTPS — ForexFactory 헤더 오염 방지) ──
 function finnhubGet(path) {
   var key = process.env.FINNHUB_KEY || '';
   var sep = path.includes('?') ? '&' : '?';
-  return get('https://finnhub.io/api/v1' + path + sep + 'token=' + key);
+  var fullPath = '/api/v1' + path + sep + 'token=' + encodeURIComponent(key);
+  return new Promise(function(resolve, reject) {
+    var req2 = https.request({ hostname:'finnhub.io', path:fullPath, method:'GET',
+      headers:{ 'Accept':'application/json','User-Agent':'Mozilla/5.0' }, timeout:10000,
+    }, function(resp) {
+      var c=[]; resp.on('data',function(x){c.push(x);}); resp.on('end',function(){ resolve({status:resp.statusCode,body:Buffer.concat(c).toString('utf8')}); });
+    });
+    req2.on('error',reject); req2.on('timeout',function(){req2.destroy();reject(new Error('timeout'));}); req2.end();
+  });
 }
 
 // ── 실적 캘린더 핸들러 ──
 async function handleEarningsList(req, res) {
   var wRes = await supaRest('GET', '/rest/v1/earnings_watchlist?select=*&order=ticker.asc', null);
-  var watchlist = []; try { watchlist = JSON.parse(wRes.body) || []; } catch(_) {}
+  var watchlist = [];
+  try {
+    var parsed = JSON.parse(wRes.body);
+    watchlist = Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed) && parsed && parsed.message) return res.status(500).json({ error: 'DB 오류: ' + parsed.message });
+  } catch(_) {}
 
   var today = new Date().toISOString().slice(0,10);
   var future = new Date(Date.now() + 90*86400000).toISOString().slice(0,10);
   var eRes = await supaRest('GET', '/rest/v1/earnings_events?select=*&report_date=gte.'+today+'&report_date=lte.'+future+'&order=report_date.asc', null);
-  var events = []; try { events = JSON.parse(eRes.body) || []; } catch(_) {}
+  var events = []; try { var ep = JSON.parse(eRes.body); events = Array.isArray(ep) ? ep : []; } catch(_) {}
 
   var eventMap = {};
   events.forEach(function(e) { if (!eventMap[e.ticker]) eventMap[e.ticker] = e; });
@@ -405,7 +418,7 @@ async function handleEarningsAdd(req, res) {
     var ticker = (body.ticker || '').toUpperCase();
     if (!ticker) return res.status(400).json({ error: 'ticker 필요' });
     await supaRest('DELETE', '/rest/v1/earnings_watchlist?ticker=eq.'+encodeURIComponent(ticker), null);
-    await supaRest('DELETE', '/rest/v1/earnings_events?ticker=eq.'+encodeURIComponent(ticker)+'&is_manual=eq.false', null);
+    await supaRest('DELETE', '/rest/v1/earnings_events?ticker=eq.'+encodeURIComponent(ticker), null);
     return res.json({ ok: true });
   }
   if (req.method === 'POST') {
@@ -420,9 +433,14 @@ async function handleEarningsAdd(req, res) {
       } catch(_) {}
     }
     if (!name) name = ticker;
-    await supaRest('POST', '/rest/v1/earnings_watchlist', { ticker, company_name: name, market, notify: true });
+    // on_conflict=ticker 로 upsert 명시
+    var insertRes = await supaRest('POST', '/rest/v1/earnings_watchlist?on_conflict=ticker', { ticker, company_name: name, market, notify: true });
+    if (insertRes.status >= 300) {
+      var errBody = ''; try { errBody = JSON.parse(insertRes.body).message || insertRes.body; } catch(_) { errBody = insertRes.body; }
+      return res.status(500).json({ error: 'DB 저장 실패: ' + errBody });
+    }
     if (market === 'KR' && body.report_date) {
-      await supaRest('POST', '/rest/v1/earnings_events', { ticker, report_date: body.report_date, report_time: body.report_time || null, is_manual: true });
+      await supaRest('POST', '/rest/v1/earnings_events?on_conflict=ticker,report_date', { ticker, report_date: body.report_date, report_time: body.report_time || null, is_manual: true });
     }
     return res.json({ ok: true, company_name: name });
   }
