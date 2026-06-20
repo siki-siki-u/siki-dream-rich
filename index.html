@@ -7208,11 +7208,14 @@ async function loadEarningsCalendar() {
         }
         if (ev.eps_estimate) dateLabel += '  ·  EPS 예상 $' + ev.eps_estimate;
 
-        // 알림 전송 예정 시간 계산
-        var notifyDayBefore = new Date(kstDate.getTime() - 86400000);
-        var notifyMM = function(d) { return (d.getUTCMonth()+1) + '/' + d.getUTCDate(); };
-        var notifyStr = notifyMM(notifyDayBefore) + ' 중 · ' + notifyMM(kstDate) + ' 07-08시';
-        ev._notifyStr = notifyStr;
+        // 알림 전송 예정 시간 (1시간 전 · 하루 전)
+        var mm = function(d) { return (d.getUTCMonth()+1) + '/' + d.getUTCDate(); };
+        var kstDayBefore = new Date(kstDate.getTime() - 86400000);
+        var h1, hDay;
+        if (isAMC)       { h1 = '04:00'; hDay = mm(kstDayBefore) + ' 05:00'; }
+        else if (isBMO)  { h1 = '21:00'; hDay = mm(kstDayBefore) + ' 22:00'; }
+        else             { h1 = '09:00'; hDay = mm(kstDayBefore) + ' 09:00'; }
+        ev._notifyStr = mm(kstDate) + ' ' + h1 + ' (1시간 전) · ' + hDay + ' (하루 전)';
       }
       var mktBadge = item.market === 'KR'
         ? '<span style="font-size:.68rem;background:rgba(255,99,99,.12);color:var(--danger);padding:.1rem .4rem;border-radius:4px;margin-left:.35rem">KR</span>'

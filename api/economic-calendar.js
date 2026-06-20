@@ -347,37 +347,41 @@ async function handlePushSend(req,res){
     var eeRes = await supaRest('GET', '/rest/v1/earnings_events?select=*&ticker=in.('+inList+')', null);
     var ee = []; try { ee = JSON.parse(eeRes.body) || []; } catch(_) {}
 
-    var earningsToNotify = ee.filter(function(e) {
-      // AMC: KST 기준 발표일 = report_date + 1일 (미국 장 마감 후 = 한국 익일 새벽 5시)
-      // BMO: KST 기준 발표일 = report_date (미국 장 시작 전 = 한국 당일 밤 10시)
+    var earningsToNotify = [];
+    ee.forEach(function(e) {
       var isAMC = e.report_time && e.report_time.includes('AMC');
+      var isBMO = e.report_time && e.report_time.includes('BMO');
       var kstEventDate = isAMC
         ? new Date(new Date(e.report_date+'T00:00:00Z').getTime()+86400000).toISOString().slice(0,10)
         : e.report_date;
       var kstDayBefore = new Date(new Date(kstEventDate+'T00:00:00Z').getTime()-86400000).toISOString().slice(0,10);
-      // 하루 전: 발표 전날 중 아무 크론
-      if (kstToday === kstDayBefore) return true;
-      // 당일 오전 7-8시 알림 (AMC면 결과 확인, BMO면 당일 발표 예정)
-      if (kstToday === kstEventDate && kstH >= 7 && kstH < 9) return true;
-      return false;
+      // AMC: 새벽 5시 발표 → 4시(1시간 전), 전날 5시(하루 전)
+      if (isAMC) {
+        if (kstToday === kstEventDate && kstH === 4)  earningsToNotify.push({e, type:'1hour'});
+        if (kstToday === kstDayBefore  && kstH === 5)  earningsToNotify.push({e, type:'1day'});
+      // BMO: 밤 22시 발표 → 21시(1시간 전), 전날 22시(하루 전)
+      } else if (isBMO) {
+        if (kstToday === kstEventDate && kstH === 21) earningsToNotify.push({e, type:'1hour'});
+        if (kstToday === kstDayBefore  && kstH === 22) earningsToNotify.push({e, type:'1day'});
+      // 시간 미정: 당일/전날 오전 9시
+      } else {
+        if (kstToday === kstEventDate && kstH === 9) earningsToNotify.push({e, type:'1hour'});
+        if (kstToday === kstDayBefore  && kstH === 9) earningsToNotify.push({e, type:'1day'});
+      }
     });
 
-    for (var ev of earningsToNotify) {
+    for (var {e: ev, type: notifType} of earningsToNotify) {
       var evIsAMC = ev.report_time && ev.report_time.includes('AMC');
-      var kstEvDate = evIsAMC
-        ? new Date(new Date(ev.report_date+'T00:00:00Z').getTime()+86400000).toISOString().slice(0,10)
-        : ev.report_date;
-      var isDayOf = kstToday === kstEvDate;
       var companyName = tMap[ev.ticker] || ev.ticker;
       var epsTxt = ev.eps_estimate ? ' · EPS 예상 $'+ev.eps_estimate : '';
-      var timeLabel = evIsAMC ? '새벽 5-6시 (KST)' : '밤 10-11시 (KST)';
-      var title = isDayOf
-        ? (evIsAMC ? '📊 실적 발표 결과 확인!' : '📊 오늘 밤 실적 발표!')
-        : (evIsAMC ? '📊 내일 새벽 실적 발표 예정' : '📊 내일 밤 실적 발표 예정');
+      var timeLabel = evIsAMC ? '새벽 5시경 (KST)' : '밤 10시경 (KST)';
+      var title = notifType === '1hour'
+        ? '⏰ 1시간 후 실적 발표! 📊'
+        : '📅 내일 ' + (evIsAMC ? '새벽' : '밤') + ' 실적 발표 예정';
       var payload = {
         title,
         body: companyName+' ('+ev.ticker+')\n⏱ '+timeLabel+epsTxt,
-        tag: 'earnings-'+ev.ticker+'-'+ev.report_date+(isDayOf?'-today':'-tomorrow'),
+        tag: 'earnings-'+ev.ticker+'-'+ev.report_date+'-'+notifType,
         url: '/?page=market',
       };
       for (var sub of subs) {
