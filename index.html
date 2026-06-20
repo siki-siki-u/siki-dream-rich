@@ -6898,6 +6898,11 @@ async function loadEconCalendar() {
 
     var events = d.events || [];
 
+    if(d.notice) {
+      body.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted);font-size:.85rem">📭 '+d.notice+'</div>';
+      return;
+    }
+
     // 중요도 필터
     if(impactFilter === 'high') events = events.filter(function(e){return e.impact === 'High';});
     else if(impactFilter === 'medium') events = events.filter(function(e){return e.impactOrd >= 2;});

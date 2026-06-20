@@ -353,7 +353,11 @@ module.exports = async function(req, res) {
     if (!['thisweek','nextweek'].includes(period)) period = 'thisweek';
     var url = 'https://nfs.faireconomy.media/ff_calendar_' + period + '.json?timezone=Asia/Seoul';
     var r = await get(url);
-    if (r.status !== 200) return res.status(502).json({ error: 'ForexFactory API 오류: ' + r.status });
+    if (r.status !== 200) {
+      // nextweek 데이터는 주중에만 제공됨 — 없을 때 빈 배열 반환
+      if (period === 'nextweek') return res.json({ events: [], period: period, notice: '다음주 일정은 아직 공개되지 않았어요' });
+      return res.status(502).json({ error: 'ForexFactory API 오류: ' + r.status });
+    }
     var events = JSON.parse(r.body);
     var ALLOWED_CURRENCIES = ['USD', 'EUR', 'JPY', 'GBP', 'CNY', 'KRW'];
     var result = events
