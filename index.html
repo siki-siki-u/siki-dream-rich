@@ -10323,7 +10323,7 @@ function isPwa() {
 async function loadVapidKey() {
   if (_vapidPublicKey) return _vapidPublicKey;
   try {
-    var r = await fetch('/api/push-setup');
+    var r = await fetch('/api/economic-calendar?action=push-setup');
     var d = await r.json();
     _vapidPublicKey = d.publicKey || null;
   } catch(_) {}
@@ -10381,7 +10381,7 @@ async function toggleEconNotify() {
     if (sub) {
       // ── 알림 끄기 ──
       await sub.unsubscribe();
-      await fetch('/api/push-subscribe', {
+      await fetch('/api/economic-calendar?action=subscribe', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint: sub.endpoint }),
@@ -10404,7 +10404,7 @@ async function toggleEconNotify() {
 
       var rawP256dh = sub.getKey('p256dh');
       var rawAuth   = sub.getKey('auth');
-      await fetch('/api/push-subscribe', {
+      await fetch('/api/economic-calendar?action=subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

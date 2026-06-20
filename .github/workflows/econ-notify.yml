@@ -15,7 +15,7 @@ jobs:
       - name: 경제 지표 알림 발송
         run: |
           RESPONSE=$(curl -sf -w "\n%{http_code}" -X POST \
-            "https://siki-dream-rich.vercel.app/api/push-send" \
+            "https://siki-dream-rich.vercel.app/api/economic-calendar?action=send" \
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
             --max-time 30 || echo '{"error":"curl failed"}\n000')

@@ -184,46 +184,191 @@ function get(url) {
   });
 }
 
+// ── Supabase REST 헬퍼 ──
+const SUPA_URL = 'https://boyhppqnwtxedicxbfpz.supabase.co';
+const SUPA_KEY = 'sb_publishable_Uh-YK_wDgAgQMO_CZwnyRw_SrRyQ-Tq';
+const VAPID_EMAIL = 'mailto:yoonsik092609@gmail.com';
+
+function supaRest(method, path, body) {
+  return new Promise(function(resolve, reject) {
+    var data = body ? JSON.stringify(body) : null;
+    var opts = {
+      hostname: new URL(SUPA_URL).hostname,
+      path: path, method: method,
+      headers: { 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+SUPA_KEY, 'Prefer':'resolution=merge-duplicates' },
+    };
+    if (data) opts.headers['Content-Length'] = Buffer.byteLength(data);
+    var req = https.request(opts, function(r) {
+      var c=[]; r.on('data',function(x){c.push(x);}); r.on('end',function(){resolve({status:r.statusCode,body:Buffer.concat(c).toString('utf8')});});
+    });
+    req.on('error',reject); if (data) req.write(data); req.end();
+  });
+}
+async function getSetting(key) {
+  var r = await supaRest('GET','/rest/v1/settings?key=eq.'+encodeURIComponent(key)+'&select=value',null);
+  try{var rows=JSON.parse(r.body);return rows&&rows[0]?rows[0].value:null;}catch(_){return null;}
+}
+async function setSetting(key,value){ await supaRest('POST','/rest/v1/settings',{key,value}); }
+
+// ── VAPID 키 생성 (Node.js crypto) ──
+const crypto = require('crypto');
+function generateVapidKeys() {
+  var {privateKey,publicKey} = crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'});
+  var pubDer=publicKey.export({type:'spki',format:'der'}), pubBytes=pubDer.slice(27);
+  var privDer=privateKey.export({type:'pkcs8',format:'der'}), privBytes=privDer.slice(36,68);
+  var toB64=function(buf){return Buffer.from(buf).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');};
+  return {publicKey:toB64(pubBytes),privateKey:toB64(privBytes)};
+}
+
+// ── Web Push 전송 (RFC 8291 aes128gcm + VAPID ES256) ──
+function b64D(s){return Buffer.from(s.replace(/-/g,'+').replace(/_/g,'/'),'base64');}
+function b64E(b){return Buffer.from(b).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');}
+function hmac(key,data){return crypto.createHmac('sha256',key).update(data).digest();}
+function hkdfExpand(prk,info,len){var out=[],prev=Buffer.alloc(0);for(var i=1;out.reduce(function(a,b){return a+b.length;},0)<len;i++){prev=hmac(prk,Buffer.concat([prev,info,Buffer.from([i])]));out.push(prev);}return Buffer.concat(out).slice(0,len);}
+function derToRaw(der){var o=2;o++;var rl=der[o++];var r=der.slice(o,o+rl);o+=rl;o++;var sl=der[o++];var s=der.slice(o,o+sl);var pad=function(b){b=b.slice(-32);return Buffer.concat([Buffer.alloc(32-b.length),b]);};return Buffer.concat([pad(r),pad(s)]);}
+
+function makeJwt(vapidPub,vapidPriv,audience){
+  var pub=b64D(vapidPub);
+  var priv=crypto.createPrivateKey({key:{kty:'EC',crv:'P-256',d:vapidPriv,x:b64E(pub.slice(1,33)),y:b64E(pub.slice(33,65))},format:'jwk'});
+  var hdr=b64E(Buffer.from(JSON.stringify({typ:'JWT',alg:'ES256'})));
+  var pay=b64E(Buffer.from(JSON.stringify({aud:audience,exp:Math.floor(Date.now()/1000)+43200,sub:VAPID_EMAIL})));
+  var inp=hdr+'.'+pay;
+  var sign=crypto.createSign('SHA256'); sign.update(inp);
+  return inp+'.'+b64E(derToRaw(sign.sign(priv)));
+}
+
+function encryptPush(plaintext,p256dhB64,authB64){
+  var subPub=b64D(p256dhB64), authSec=b64D(authB64), salt=crypto.randomBytes(16);
+  var {privateKey:ephPriv,publicKey:ephPub}=crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'});
+  var ephPubBytes=ephPub.export({type:'spki',format:'der'}).slice(27);
+  var recvKey=crypto.createPublicKey({key:{kty:'EC',crv:'P-256',x:b64E(subPub.slice(1,33)),y:b64E(subPub.slice(33,65))},format:'jwk'});
+  var shared=crypto.diffieHellman({privateKey:ephPriv,publicKey:recvKey});
+  var prkKey=hmac(authSec,shared);
+  var ikm=hkdfExpand(prkKey,Buffer.concat([Buffer.from('WebPush: info\x00'),subPub,ephPubBytes,Buffer.from([1])]),32);
+  var prk=hmac(salt,ikm);
+  var cek=hkdfExpand(prk,Buffer.concat([Buffer.from('Content-Encoding: aes128gcm\x00'),Buffer.from([1])]),16);
+  var nonce=hkdfExpand(prk,Buffer.concat([Buffer.from('Content-Encoding: nonce\x00'),Buffer.from([1])]),12);
+  var padded=Buffer.concat([Buffer.from(plaintext,'utf8'),Buffer.from([0x02])]);
+  var cipher=crypto.createCipheriv('aes-128-gcm',cek,nonce);
+  var body=Buffer.concat([cipher.update(padded),cipher.final(),cipher.getAuthTag()]);
+  var rsB=Buffer.alloc(4); rsB.writeUInt32BE(4096,0);
+  return Buffer.concat([salt,rsB,Buffer.from([ephPubBytes.length]),ephPubBytes,body]);
+}
+
+function sendPushNotif(endpoint,p256dh,auth,vapidPub,vapidPriv,payload){
+  return new Promise(function(resolve,reject){
+    var audience=new URL(endpoint).origin;
+    var jwt=makeJwt(vapidPub,vapidPriv,audience);
+    var record=encryptPush(JSON.stringify(payload),p256dh,auth);
+    var u=new URL(endpoint);
+    var req=https.request({hostname:u.hostname,path:u.pathname+u.search,method:'POST',
+      headers:{'Content-Type':'application/octet-stream','Content-Encoding':'aes128gcm','Content-Length':record.length,'TTL':'86400','Urgency':'normal','Authorization':'vapid t='+jwt+',k='+vapidPub}
+    },function(r){var d='';r.on('data',function(c){d+=c;});r.on('end',function(){resolve({status:r.statusCode,body:d});});});
+    req.on('error',reject); req.setTimeout(15000,function(){req.destroy();reject(new Error('timeout'));}); req.write(record); req.end();
+  });
+}
+
+// ── Push 액션 핸들러 ──
+async function handlePushSetup(req,res){
+  var pub=await getSetting('vapid_public_key');
+  if(!pub){var keys=generateVapidKeys();await setSetting('vapid_public_key',keys.publicKey);await setSetting('vapid_private_key',keys.privateKey);pub=keys.publicKey;}
+  res.json({publicKey:pub});
+}
+
+async function handleSubscribe(req,res){
+  var body=req.body||{};
+  if(req.method==='POST'){
+    var {endpoint,p256dh,auth}=body;
+    if(!endpoint||!p256dh||!auth) return res.status(400).json({error:'endpoint, p256dh, auth 필요'});
+    var r=await supaRest('POST','/rest/v1/push_subscriptions',{endpoint,p256dh,auth});
+    return res.json({ok:r.status<300});
+  } else if(req.method==='DELETE'){
+    var {endpoint}=body;
+    if(!endpoint) return res.status(400).json({error:'endpoint 필요'});
+    await supaRest('DELETE','/rest/v1/push_subscriptions?endpoint=eq.'+encodeURIComponent(endpoint),null);
+    return res.json({ok:true});
+  }
+  res.status(405).json({error:'Method not allowed'});
+}
+
+async function handlePushSend(req,res){
+  var secret=process.env.CRON_SECRET;
+  if(secret&&req.headers['x-cron-secret']!==secret) return res.status(401).json({error:'Unauthorized'});
+
+  var vapidPub=await getSetting('vapid_public_key'), vapidPriv=await getSetting('vapid_private_key');
+  if(!vapidPub||!vapidPriv) return res.status(500).json({error:'VAPID 키 없음 — /api/economic-calendar?action=push-setup 먼저 호출'});
+
+  var ALLOWED=['USD','KRW','JPY'], ALLOWED_IMPACT=['High','Medium'], allEvents=[];
+  for(var w of ['thisweek','nextweek']){
+    try{var r=await get('https://nfs.faireconomy.media/ff_calendar_'+w+'.json?timezone=Asia/Seoul');
+      if(r.status===200) JSON.parse(r.body).forEach(function(e){if(ALLOWED.includes(e.currency)&&ALLOWED_IMPACT.includes(e.impact)&&e.date)allEvents.push(e);});
+    }catch(_){}
+  }
+  if(!allEvents.length) return res.json({sent:0,message:'이벤트 없음'});
+
+  var nowMs=Date.now(), toNotify=[];
+  allEvents.forEach(function(ev){
+    var diffM=(new Date(ev.date).getTime()-nowMs)/60000;
+    if(diffM>=50&&diffM<70) toNotify.push({ev,type:'1hour'});
+    else if(diffM>=1430&&diffM<1450) toNotify.push({ev,type:'1day'});
+  });
+  if(!toNotify.length) return res.json({sent:0,message:'알림 대상 없음'});
+
+  var subRes=await supaRest('GET','/rest/v1/push_subscriptions?select=*',null);
+  var subs=[]; try{subs=JSON.parse(subRes.body)||[];}catch(_){}
+  if(!subs.length) return res.json({sent:0,message:'구독자 없음'});
+
+  var CFLAG={USD:'🇺🇸',KRW:'🇰🇷',JPY:'🇯🇵'}, CKO={USD:'미국',KRW:'한국',JPY:'일본'};
+  var sent=0,errors=0;
+  for(var {ev,type} of toNotify){
+    var payload={title:(type==='1hour'?'⏰ 1시간 후 발표 ':'📅 내일 발표 예정 ')+(CFLAG[ev.currency]||''),
+      body:(CKO[ev.currency]||ev.currency)+' · '+translateTitle(ev.title)+'\n⏱ '+(ev.time||'시간 미정')+' (KST)'+(ev.forecast?'\n📊 예측: '+ev.forecast:'')+(ev.previous?' · 이전: '+ev.previous:''),
+      tag:'econ-'+ev.currency+'-'+(ev.date||'').replace(/\D/g,'').slice(0,10)+'-'+type, url:'/?page=market'};
+    for(var sub of subs){
+      try{var result=await sendPushNotif(sub.endpoint,sub.p256dh,sub.auth,vapidPub,vapidPriv,payload);
+        if(result.status>=200&&result.status<300){sent++;}
+        else if(result.status===404||result.status===410){errors++;await supaRest('DELETE','/rest/v1/push_subscriptions?endpoint=eq.'+encodeURIComponent(sub.endpoint),null);}
+        else{errors++;}
+      }catch(_){errors++;}
+    }
+  }
+  res.json({sent,errors,events:toNotify.length,subs:subs.length});
+}
+
+// ── 메인 라우터 ──
 module.exports = async function(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  var period = (req.query && req.query.period) || 'thisweek';
-  var validPeriods = ['thisweek', 'nextweek'];
-  if (!validPeriods.includes(period)) period = 'thisweek';
+  var action = req.query && req.query.action;
 
   try {
+    if (action === 'push-setup')   return await handlePushSetup(req, res);
+    if (action === 'subscribe')    return await handleSubscribe(req, res);
+    if (action === 'send')         return await handlePushSend(req, res);
+
+    // 기본: 경제 캘린더 조회
+    var period = req.query.period || 'thisweek';
+    if (!['thisweek','nextweek'].includes(period)) period = 'thisweek';
     var url = 'https://nfs.faireconomy.media/ff_calendar_' + period + '.json?timezone=Asia/Seoul';
     var r = await get(url);
     if (r.status !== 200) return res.status(502).json({ error: 'ForexFactory API 오류: ' + r.status });
-
     var events = JSON.parse(r.body);
-
     var ALLOWED_CURRENCIES = ['USD', 'EUR', 'JPY', 'GBP', 'CNY', 'KRW'];
-
     var result = events
       .filter(function(e) { return ALLOWED_CURRENCIES.includes(e.currency); })
       .map(function(e) {
         var dt = new Date(e.date);
         var koTitle = translateTitle(e.title);
         return {
-          date:      e.date,
-          dateStr:   dt.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', weekday: 'short' }),
-          timeStr:   e.time || '시간 미정',
-          title:     e.title,
-          titleKo:   koTitle,
-          currency:  e.currency,
-          countryKo: COUNTRY_KO[e.currency] || e.currency,
-          impact:    e.impact,
-          impactKo:  IMPACT_KO[e.impact] || e.impact,
-          impactOrd: IMPACT_ORDER[e.impact] || 0,
-          actual:    e.actual || null,
-          forecast:  e.forecast || null,
-          previous:  e.previous || null,
+          date:e.date, dateStr:dt.toLocaleDateString('ko-KR',{month:'short',day:'numeric',weekday:'short'}),
+          timeStr:e.time||'시간 미정', title:e.title, titleKo:koTitle,
+          currency:e.currency, countryKo:COUNTRY_KO[e.currency]||e.currency,
+          impact:e.impact, impactKo:IMPACT_KO[e.impact]||e.impact, impactOrd:IMPACT_ORDER[e.impact]||0,
+          actual:e.actual||null, forecast:e.forecast||null, previous:e.previous||null,
         };
       });
-
     res.json({ events: result, period: period });
   } catch(e) {
     res.status(500).json({ error: e.message });
