@@ -432,13 +432,35 @@ async function handleEarningsAdd(req, res) {
 async function handleEarningsSearch(req, res) {
   var q = (req.query.q || '').trim();
   if (!q) return res.json({ results: [] });
-  var r = await finnhubGet('/search?q=' + encodeURIComponent(q));
-  if (r.status !== 200) return res.status(502).json({ error: 'Finnhub 오류' });
+  var key = process.env.FINNHUB_KEY || '';
+  if (!key) return res.status(500).json({ error: 'FINNHUB_KEY 환경변수 없음' });
+
+  // get()의 ForexFactory 헤더를 피해 직접 요청
+  var r = await new Promise(function(resolve, reject) {
+    var path = '/api/v1/search?q=' + encodeURIComponent(q) + '&token=' + encodeURIComponent(key);
+    var req2 = https.request({ hostname: 'finnhub.io', path: path, method: 'GET',
+      headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' }, timeout: 8000,
+    }, function(resp) {
+      var c = []; resp.on('data', function(x) { c.push(x); });
+      resp.on('end', function() { resolve({ status: resp.statusCode, body: Buffer.concat(c).toString('utf8') }); });
+    });
+    req2.on('error', reject);
+    req2.on('timeout', function() { req2.destroy(); reject(new Error('timeout')); });
+    req2.end();
+  });
+
+  if (r.status !== 200) return res.status(502).json({ error: 'Finnhub HTTP ' + r.status + ': ' + r.body.slice(0, 200) });
   var data = JSON.parse(r.body);
+  if (data.error) return res.status(403).json({ error: 'Finnhub: ' + data.error });
+
   var results = (data.result || [])
-    .filter(function(item) { return item.type === 'Common Stock' && !item.symbol.includes('.'); })
+    .filter(function(item) {
+      var sym = (item.displaySymbol || item.symbol || '');
+      return !sym.includes('.') && sym.length <= 5 &&
+             ['Common Stock', 'EQS', 'DR'].includes(item.type);
+    })
     .slice(0, 7)
-    .map(function(item) { return { ticker: item.displaySymbol, name: item.description }; });
+    .map(function(item) { return { ticker: item.displaySymbol || item.symbol, name: item.description }; });
   res.json({ results });
 }
 

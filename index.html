@@ -7074,6 +7074,10 @@ async function doEarningsSearch(q) {
   try {
     var r = await fetch('/api/economic-calendar?action=earnings-search&q='+encodeURIComponent(q));
     var d = await r.json();
+    if (d.error) {
+      dd.innerHTML = '<div style="padding:.6rem 1rem;font-size:.8rem;color:var(--danger)">⚠️ ' + d.error + '</div>';
+      return;
+    }
     var results = d.results || [];
     if (!results.length) {
       dd.innerHTML = '<div style="padding:.6rem 1rem;font-size:.8rem;color:var(--muted)">검색 결과 없음</div>';
