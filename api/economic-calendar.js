@@ -482,30 +482,80 @@ async function handleEarningsSearch(req, res) {
   res.json({ results });
 }
 
+// Yahoo Finance로 종목별 다음 실적 날짜 조회
+function getYahooEarnings(ticker) {
+  return new Promise(function(resolve, reject) {
+    var path = '/v10/finance/quoteSummary/' + encodeURIComponent(ticker) +
+               '?modules=calendarEvents&corsDomain=finance.yahoo.com&formatted=false';
+    var req2 = https.request({
+      hostname: 'query1.finance.yahoo.com', path: path, method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0',
+        'Accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
+      }, timeout: 10000,
+    }, function(resp) {
+      var c = []; resp.on('data', function(x){c.push(x);}); resp.on('end', function(){ resolve({status:resp.statusCode,body:Buffer.concat(c).toString('utf8')}); });
+    });
+    req2.on('error', reject); req2.on('timeout', function(){req2.destroy();reject(new Error('Yahoo timeout'));}); req2.end();
+  });
+}
+
 async function handleEarningsSync(req, res) {
   var wRes = await supaRest('GET', '/rest/v1/earnings_watchlist?select=ticker&market=eq.US', null);
-  var watchlist = []; try { watchlist = JSON.parse(wRes.body) || []; } catch(_) {}
-  if (!watchlist.length) return res.json({ synced: 0, message: '등록된 미국 주식 없음' });
+  var watchlist = []; try { var wp = JSON.parse(wRes.body); watchlist = Array.isArray(wp) ? wp : []; } catch(_) {}
+  if (!watchlist.length) return res.json({ synced: 0, found: 0, message: '등록된 미국 주식 없음' });
 
-  var tickers = new Set(watchlist.map(function(w) { return w.ticker; }));
-  var from = new Date().toISOString().slice(0,10);
-  var to   = new Date(Date.now() + 90*86400000).toISOString().slice(0,10);
-  var cRes = await finnhubGet('/calendar/earnings?from='+from+'&to='+to);
-  if (cRes.status !== 200) return res.status(502).json({ error: 'Finnhub 오류: '+cRes.status });
+  var today = new Date().toISOString().slice(0,10);
+  var synced = 0, found = 0;
 
-  var data = JSON.parse(cRes.body);
-  var calendar = (data.earningsCalendar || []).filter(function(e) { return tickers.has(e.symbol); });
+  for (var w of watchlist) {
+    var ticker = w.ticker;
+    var result = null;
 
-  var synced = 0;
-  for (var item of calendar) {
-    var timeStr = item.hour === 'bmo' ? '장 시작 전 (BMO)' : item.hour === 'amc' ? '장 마감 후 (AMC)' : null;
-    var r = await supaRest('POST', '/rest/v1/earnings_events', {
-      ticker: item.symbol, report_date: item.date,
-      report_time: timeStr, eps_estimate: item.epsEstimate || null, is_manual: false,
+    // 1차: Yahoo Finance (종목별 직접 조회 — 가장 정확)
+    try {
+      var yr = await getYahooEarnings(ticker);
+      if (yr.status === 200) {
+        var ydata = JSON.parse(yr.body);
+        var yres = ydata.quoteSummary && ydata.quoteSummary.result && ydata.quoteSummary.result[0];
+        if (yres && yres.calendarEvents && yres.calendarEvents.earnings) {
+          var dates = yres.calendarEvents.earnings.earningsDate;
+          if (dates && dates.length) {
+            // raw가 있으면 timestamp, fmt가 있으면 문자열
+            var raw = dates[0];
+            var dateStr = (typeof raw === 'object' && raw.fmt) ? raw.fmt
+                        : (typeof raw === 'object' && raw.raw) ? new Date(raw.raw*1000).toISOString().slice(0,10)
+                        : null;
+            if (dateStr && dateStr >= today) result = { date: dateStr, hour: null };
+          }
+        }
+      }
+    } catch(_) {}
+
+    // 2차: Finnhub 종목별 캘린더 (Yahoo 실패 시)
+    if (!result) {
+      try {
+        var to = new Date(Date.now() + 90*86400000).toISOString().slice(0,10);
+        var fr = await finnhubGet('/calendar/earnings?from='+today+'&to='+to+'&symbol='+encodeURIComponent(ticker));
+        if (fr.status === 200) {
+          var fdata = JSON.parse(fr.body);
+          var fitems = (fdata.earningsCalendar || []).filter(function(e){ return e.symbol===ticker && e.date>=today; });
+          if (fitems.length) result = { date: fitems[0].date, hour: fitems[0].hour || null };
+        }
+      } catch(_) {}
+    }
+
+    if (!result) continue;
+    found++;
+
+    var timeStr = result.hour === 'bmo' ? '장 시작 전 (BMO)' : result.hour === 'amc' ? '장 마감 후 (AMC)' : null;
+    var r = await supaRest('POST', '/rest/v1/earnings_events?on_conflict=ticker,report_date', {
+      ticker, report_date: result.date, report_time: timeStr, is_manual: false,
     });
     if (r.status < 300) synced++;
   }
-  res.json({ synced, found: calendar.length });
+  res.json({ synced, found });
 }
 
 // ── 메인 라우터 ──
