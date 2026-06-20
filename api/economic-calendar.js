@@ -429,6 +429,19 @@ async function handleEarningsAdd(req, res) {
   res.status(405).json({ error: 'Method not allowed' });
 }
 
+async function handleEarningsSearch(req, res) {
+  var q = (req.query.q || '').trim();
+  if (!q) return res.json({ results: [] });
+  var r = await finnhubGet('/search?q=' + encodeURIComponent(q));
+  if (r.status !== 200) return res.status(502).json({ error: 'Finnhub 오류' });
+  var data = JSON.parse(r.body);
+  var results = (data.result || [])
+    .filter(function(item) { return item.type === 'Common Stock' && !item.symbol.includes('.'); })
+    .slice(0, 7)
+    .map(function(item) { return { ticker: item.displaySymbol, name: item.description }; });
+  res.json({ results });
+}
+
 async function handleEarningsSync(req, res) {
   var wRes = await supaRest('GET', '/rest/v1/earnings_watchlist?select=ticker&market=eq.US', null);
   var watchlist = []; try { watchlist = JSON.parse(wRes.body) || []; } catch(_) {}
@@ -467,9 +480,10 @@ module.exports = async function(req, res) {
     if (action === 'push-setup')    return await handlePushSetup(req, res);
     if (action === 'subscribe')     return await handleSubscribe(req, res);
     if (action === 'send')          return await handlePushSend(req, res);
-    if (action === 'earnings-list') return await handleEarningsList(req, res);
-    if (action === 'earnings-add')  return await handleEarningsAdd(req, res);
-    if (action === 'earnings-sync') return await handleEarningsSync(req, res);
+    if (action === 'earnings-list')   return await handleEarningsList(req, res);
+    if (action === 'earnings-add')    return await handleEarningsAdd(req, res);
+    if (action === 'earnings-sync')   return await handleEarningsSync(req, res);
+    if (action === 'earnings-search') return await handleEarningsSearch(req, res);
 
     // 기본: 경제 캘린더 조회
     var period = req.query.period || 'thisweek';

@@ -1555,9 +1555,15 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
               <option value="KR">🇰🇷 한국</option>
             </select>
           </div>
-          <div>
-            <div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">티커</div>
-            <input id="earnings-ticker" placeholder="AAPL" style="width:90px;font-size:.8rem;padding:.3rem .5rem;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)" onkeydown="if(event.key==='Enter')addEarnings()">
+          <div style="position:relative">
+            <div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">종목 검색</div>
+            <input id="earnings-search-input" placeholder="애플, AAPL..." autocomplete="off"
+              style="width:160px;font-size:.8rem;padding:.3rem .5rem;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)"
+              oninput="onEarningsSearchInput(this.value)"
+              onkeydown="onEarningsSearchKey(event)">
+            <input id="earnings-ticker" type="hidden">
+            <input id="earnings-company-name" type="hidden">
+            <div id="earnings-search-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:9999;overflow:hidden"></div>
           </div>
           <div id="earnings-name-wrap" style="display:none">
             <div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">회사명</div>
@@ -1570,6 +1576,7 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
           <button onclick="addEarnings()" style="padding:.32rem .9rem;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:.8rem;cursor:pointer;font-family:inherit;height:31px">추가</button>
           <button onclick="toggleEarningsAddForm()" style="padding:.32rem .7rem;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:.8rem;cursor:pointer;font-family:inherit;height:31px">취소</button>
         </div>
+        <div id="earnings-selected-badge" style="display:none;margin-top:.5rem;font-size:.78rem;color:var(--accent)"></div>
       </div>
 
       <div id="earnings-list-body" style="padding:.25rem .5rem 1rem">
@@ -7021,25 +7028,108 @@ async function loadEconCalendar() {
 }
 
 // ── 실적 캘린더 ──
+var _earningsSearchTimer = null;
+var _earningsSearchIdx = -1;
+
 function toggleEarningsAddForm() {
   var f = document.getElementById('earnings-add-form');
   if (!f) return;
-  f.style.display = f.style.display === 'none' ? '' : 'none';
-  if (f.style.display !== 'none') document.getElementById('earnings-ticker').focus();
+  var opening = f.style.display === 'none';
+  f.style.display = opening ? '' : 'none';
+  if (opening) {
+    earningsResetForm();
+    setTimeout(function() { document.getElementById('earnings-search-input').focus(); }, 50);
+  }
+}
+function earningsResetForm() {
+  document.getElementById('earnings-search-input').value = '';
+  document.getElementById('earnings-ticker').value = '';
+  document.getElementById('earnings-company-name').value = '';
+  document.getElementById('earnings-selected-badge').style.display = 'none';
+  document.getElementById('earnings-search-dropdown').style.display = 'none';
+  _earningsSearchIdx = -1;
 }
 function onEarningsMarketChange() {
   var mkt = (document.getElementById('earnings-market') || {}).value;
   var isKR = mkt === 'KR';
   document.getElementById('earnings-name-wrap').style.display = isKR ? '' : 'none';
   document.getElementById('earnings-date-wrap').style.display = isKR ? '' : 'none';
-  document.getElementById('earnings-ticker').placeholder = isKR ? '005930' : 'AAPL';
+  document.getElementById('earnings-search-input').placeholder = isKR ? '티커 직접 입력 (005930)' : '애플, AAPL...';
+  earningsResetForm();
+}
+function onEarningsSearchInput(val) {
+  var mkt = (document.getElementById('earnings-market') || {}).value;
+  if (mkt === 'KR') { document.getElementById('earnings-ticker').value = val.trim().toUpperCase(); return; }
+  clearTimeout(_earningsSearchTimer);
+  document.getElementById('earnings-ticker').value = '';
+  document.getElementById('earnings-company-name').value = '';
+  document.getElementById('earnings-selected-badge').style.display = 'none';
+  if (!val.trim()) { document.getElementById('earnings-search-dropdown').style.display = 'none'; return; }
+  _earningsSearchTimer = setTimeout(function() { doEarningsSearch(val.trim()); }, 280);
+}
+async function doEarningsSearch(q) {
+  var dd = document.getElementById('earnings-search-dropdown');
+  dd.innerHTML = '<div style="padding:.6rem 1rem;font-size:.8rem;color:var(--muted)">검색 중...</div>';
+  dd.style.display = '';
+  try {
+    var r = await fetch('/api/economic-calendar?action=earnings-search&q='+encodeURIComponent(q));
+    var d = await r.json();
+    var results = d.results || [];
+    if (!results.length) {
+      dd.innerHTML = '<div style="padding:.6rem 1rem;font-size:.8rem;color:var(--muted)">검색 결과 없음</div>';
+      return;
+    }
+    dd.innerHTML = results.map(function(item, i) {
+      return '<div data-idx="'+i+'" data-ticker="'+item.ticker+'" data-name="'+item.name+'" '+
+        'onclick="selectEarningsTicker(\''+item.ticker+'\',\''+item.name.replace(/'/g,"\\'")+'\')" '+
+        'onmouseover="highlightEarningsItem('+i+')" '+
+        'style="padding:.5rem 1rem;cursor:pointer;font-size:.82rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)">'+
+        '<span style="color:var(--text)">'+item.name+'</span>'+
+        '<span style="color:var(--accent);font-family:JetBrains Mono,monospace;font-size:.75rem;margin-left:.5rem">'+item.ticker+'</span>'+
+        '</div>';
+    }).join('');
+    _earningsSearchIdx = -1;
+  } catch(e) {
+    dd.innerHTML = '<div style="padding:.6rem 1rem;font-size:.8rem;color:var(--danger)">오류: '+e.message+'</div>';
+  }
+}
+function highlightEarningsItem(idx) {
+  var dd = document.getElementById('earnings-search-dropdown');
+  dd.querySelectorAll('[data-idx]').forEach(function(el) {
+    el.style.background = el.dataset.idx == idx ? 'rgba(108,138,255,.12)' : '';
+  });
+  _earningsSearchIdx = idx;
+}
+function onEarningsSearchKey(e) {
+  var dd = document.getElementById('earnings-search-dropdown');
+  var items = dd.querySelectorAll('[data-idx]');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); highlightEarningsItem(Math.min(_earningsSearchIdx+1, items.length-1)); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); highlightEarningsItem(Math.max(_earningsSearchIdx-1, 0)); }
+  else if (e.key === 'Enter') {
+    e.preventDefault();
+    var idx = _earningsSearchIdx >= 0 ? _earningsSearchIdx : 0;
+    var el = dd.querySelector('[data-idx="'+idx+'"]');
+    if (el) selectEarningsTicker(el.dataset.ticker, el.dataset.name);
+  } else if (e.key === 'Escape') {
+    dd.style.display = 'none';
+  }
+}
+function selectEarningsTicker(ticker, name) {
+  document.getElementById('earnings-ticker').value = ticker;
+  document.getElementById('earnings-company-name').value = name;
+  document.getElementById('earnings-search-input').value = ticker;
+  document.getElementById('earnings-search-dropdown').style.display = 'none';
+  var badge = document.getElementById('earnings-selected-badge');
+  badge.textContent = '✅ ' + name + ' (' + ticker + ') 선택됨';
+  badge.style.display = '';
 }
 async function addEarnings() {
   var ticker = (document.getElementById('earnings-ticker').value || '').trim().toUpperCase();
   var market = (document.getElementById('earnings-market') || {}).value || 'US';
-  var name   = (document.getElementById('earnings-name') || {}).value || '';
+  var name   = (document.getElementById('earnings-company-name').value || document.getElementById('earnings-name') && document.getElementById('earnings-name').value || '').trim();
   var date   = (document.getElementById('earnings-date') || {}).value || '';
-  if (!ticker) return showToast('티커를 입력해주세요', 'error');
+  if (!ticker) return showToast('종목을 검색해서 선택해주세요', 'error');
   if (market === 'KR' && !name) return showToast('한국 주식은 회사명을 입력해주세요', 'error');
   showToast('추가 중...');
   try {
@@ -7049,12 +7139,9 @@ async function addEarnings() {
     });
     var d = await r.json();
     if (d.error) throw new Error(d.error);
-    document.getElementById('earnings-ticker').value = '';
-    if (document.getElementById('earnings-name')) document.getElementById('earnings-name').value = '';
-    if (document.getElementById('earnings-date')) document.getElementById('earnings-date').value = '';
     toggleEarningsAddForm();
-    showToast('✅ ' + (d.company_name || ticker) + ' 추가 완료!', 'success');
-    if (market === 'US') { showToast('🔄 실적 날짜 자동 조회 중...'); await syncEarnings(); }
+    showToast('✅ ' + (d.company_name || ticker) + ' 추가!', 'success');
+    if (market === 'US') { await syncEarnings(); }
     else loadEarningsCalendar();
   } catch(e) { showToast('추가 실패: ' + e.message, 'error'); }
 }
