@@ -332,7 +332,127 @@ async function handlePushSend(req,res){
       }catch(_){errors++;}
     }
   }
+  // ── 실적 발표 알림 ──
+  var kstNow = new Date(Date.now() + 9*3600000);
+  var kstH = kstNow.getUTCHours();
+  var kstToday    = kstNow.toISOString().slice(0,10);
+  var kstTomorrow = new Date(kstNow.getTime() + 86400000).toISOString().slice(0,10);
+
+  var ewRes = await supaRest('GET', '/rest/v1/earnings_watchlist?select=ticker,company_name&notify=eq.true', null);
+  var ew = []; try { ew = JSON.parse(ewRes.body) || []; } catch(_) {}
+
+  if (ew.length && subs.length) {
+    var tMap = {}; ew.forEach(function(w) { tMap[w.ticker] = w.company_name; });
+    var inList = Object.keys(tMap).join(',');
+    var eeRes = await supaRest('GET', '/rest/v1/earnings_events?select=*&ticker=in.('+inList+')', null);
+    var ee = []; try { ee = JSON.parse(eeRes.body) || []; } catch(_) {}
+
+    var earningsToNotify = ee.filter(function(e) {
+      if (e.report_date === kstTomorrow) return true;
+      if (e.report_date === kstToday && kstH >= 7 && kstH < 9) return true;
+      return false;
+    });
+
+    for (var ev of earningsToNotify) {
+      var isToday = ev.report_date === kstToday;
+      var companyName = tMap[ev.ticker] || ev.ticker;
+      var epsTxt = ev.eps_estimate ? ' · EPS 예상 $'+ev.eps_estimate : '';
+      var payload = {
+        title: isToday ? '📊 오늘 실적 발표!' : '📊 내일 실적 발표 예정',
+        body: companyName+' ('+ev.ticker+')'+(ev.report_time?'\n⏱ '+ev.report_time:'')+epsTxt,
+        tag: 'earnings-'+ev.ticker+'-'+ev.report_date+(isToday?'-today':'-tomorrow'),
+        url: '/?page=market',
+      };
+      for (var sub of subs) {
+        try {
+          var r2 = await sendPushNotif(sub.endpoint,sub.p256dh,sub.auth,vapidPub,vapidPriv,payload);
+          if (r2.status>=200&&r2.status<300) sent++;
+          else if (r2.status===404||r2.status===410) { errors++; await supaRest('DELETE','/rest/v1/push_subscriptions?endpoint=eq.'+encodeURIComponent(sub.endpoint),null); }
+          else errors++;
+        } catch(_) { errors++; }
+      }
+    }
+  }
+
   res.json({sent,errors,events:toNotify.length,subs:subs.length});
+}
+
+// ── Finnhub 헬퍼 ──
+function finnhubGet(path) {
+  var key = process.env.FINNHUB_KEY || '';
+  var sep = path.includes('?') ? '&' : '?';
+  return get('https://finnhub.io/api/v1' + path + sep + 'token=' + key);
+}
+
+// ── 실적 캘린더 핸들러 ──
+async function handleEarningsList(req, res) {
+  var wRes = await supaRest('GET', '/rest/v1/earnings_watchlist?select=*&order=ticker.asc', null);
+  var watchlist = []; try { watchlist = JSON.parse(wRes.body) || []; } catch(_) {}
+
+  var today = new Date().toISOString().slice(0,10);
+  var future = new Date(Date.now() + 90*86400000).toISOString().slice(0,10);
+  var eRes = await supaRest('GET', '/rest/v1/earnings_events?select=*&report_date=gte.'+today+'&report_date=lte.'+future+'&order=report_date.asc', null);
+  var events = []; try { events = JSON.parse(eRes.body) || []; } catch(_) {}
+
+  var eventMap = {};
+  events.forEach(function(e) { if (!eventMap[e.ticker]) eventMap[e.ticker] = e; });
+  res.json({ items: watchlist.map(function(w) { return Object.assign({}, w, { event: eventMap[w.ticker] || null }); }) });
+}
+
+async function handleEarningsAdd(req, res) {
+  var body = req.body || {};
+  if (req.method === 'DELETE') {
+    var ticker = (body.ticker || '').toUpperCase();
+    if (!ticker) return res.status(400).json({ error: 'ticker 필요' });
+    await supaRest('DELETE', '/rest/v1/earnings_watchlist?ticker=eq.'+encodeURIComponent(ticker), null);
+    await supaRest('DELETE', '/rest/v1/earnings_events?ticker=eq.'+encodeURIComponent(ticker)+'&is_manual=eq.false', null);
+    return res.json({ ok: true });
+  }
+  if (req.method === 'POST') {
+    var ticker = (body.ticker || '').toUpperCase();
+    if (!ticker) return res.status(400).json({ error: 'ticker 필요' });
+    var market = body.market || 'US';
+    var name = body.company_name || '';
+    if (!name && market === 'US') {
+      try {
+        var pRes = await finnhubGet('/stock/profile2?symbol='+encodeURIComponent(ticker));
+        if (pRes.status === 200) { var p = JSON.parse(pRes.body); name = p.name || ''; }
+      } catch(_) {}
+    }
+    if (!name) name = ticker;
+    await supaRest('POST', '/rest/v1/earnings_watchlist', { ticker, company_name: name, market, notify: true });
+    if (market === 'KR' && body.report_date) {
+      await supaRest('POST', '/rest/v1/earnings_events', { ticker, report_date: body.report_date, report_time: body.report_time || null, is_manual: true });
+    }
+    return res.json({ ok: true, company_name: name });
+  }
+  res.status(405).json({ error: 'Method not allowed' });
+}
+
+async function handleEarningsSync(req, res) {
+  var wRes = await supaRest('GET', '/rest/v1/earnings_watchlist?select=ticker&market=eq.US', null);
+  var watchlist = []; try { watchlist = JSON.parse(wRes.body) || []; } catch(_) {}
+  if (!watchlist.length) return res.json({ synced: 0, message: '등록된 미국 주식 없음' });
+
+  var tickers = new Set(watchlist.map(function(w) { return w.ticker; }));
+  var from = new Date().toISOString().slice(0,10);
+  var to   = new Date(Date.now() + 90*86400000).toISOString().slice(0,10);
+  var cRes = await finnhubGet('/calendar/earnings?from='+from+'&to='+to);
+  if (cRes.status !== 200) return res.status(502).json({ error: 'Finnhub 오류: '+cRes.status });
+
+  var data = JSON.parse(cRes.body);
+  var calendar = (data.earningsCalendar || []).filter(function(e) { return tickers.has(e.symbol); });
+
+  var synced = 0;
+  for (var item of calendar) {
+    var timeStr = item.hour === 'bmo' ? '장 시작 전 (BMO)' : item.hour === 'amc' ? '장 마감 후 (AMC)' : null;
+    var r = await supaRest('POST', '/rest/v1/earnings_events', {
+      ticker: item.symbol, report_date: item.date,
+      report_time: timeStr, eps_estimate: item.epsEstimate || null, is_manual: false,
+    });
+    if (r.status < 300) synced++;
+  }
+  res.json({ synced, found: calendar.length });
 }
 
 // ── 메인 라우터 ──
@@ -344,9 +464,12 @@ module.exports = async function(req, res) {
   var action = req.query && req.query.action;
 
   try {
-    if (action === 'push-setup')   return await handlePushSetup(req, res);
-    if (action === 'subscribe')    return await handleSubscribe(req, res);
-    if (action === 'send')         return await handlePushSend(req, res);
+    if (action === 'push-setup')    return await handlePushSetup(req, res);
+    if (action === 'subscribe')     return await handleSubscribe(req, res);
+    if (action === 'send')          return await handlePushSend(req, res);
+    if (action === 'earnings-list') return await handleEarningsList(req, res);
+    if (action === 'earnings-add')  return await handleEarningsAdd(req, res);
+    if (action === 'earnings-sync') return await handleEarningsSync(req, res);
 
     // 기본: 경제 캘린더 조회
     var period = req.query.period || 'thisweek';

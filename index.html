@@ -1531,6 +1531,51 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
         <div style="text-align:center;padding:2.5rem;color:var(--muted);font-size:.85rem">로딩 중...</div>
       </div>
     </div>
+
+    <!-- 실적 캘린더 -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:1rem 1.2rem .75rem;background:var(--surface);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+        <div>
+          <div style="font-size:.95rem;font-weight:700;color:var(--text)">📊 실적 캘린더</div>
+          <div style="font-size:.78rem;color:var(--muted);margin-top:.2rem">관심 종목 실적 발표일 · 하루 전·당일 알림</div>
+        </div>
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+          <button onclick="syncEarnings()" style="padding:.3rem .75rem;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:.78rem;cursor:pointer;font-family:inherit">🔄 날짜 자동조회</button>
+          <button onclick="toggleEarningsAddForm()" style="padding:.3rem .75rem;border-radius:7px;border:1px solid var(--accent);background:rgba(108,138,255,.1);color:var(--accent);font-size:.78rem;cursor:pointer;font-family:inherit">+ 종목 추가</button>
+        </div>
+      </div>
+
+      <!-- 추가 폼 -->
+      <div id="earnings-add-form" style="display:none;padding:.75rem 1rem;background:var(--surface2);border-top:1px solid var(--border)">
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:flex-end">
+          <div>
+            <div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">시장</div>
+            <select id="earnings-market" onchange="onEarningsMarketChange()" style="font-size:.8rem;padding:.3rem .5rem;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+              <option value="US">🇺🇸 미국</option>
+              <option value="KR">🇰🇷 한국</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">티커</div>
+            <input id="earnings-ticker" placeholder="AAPL" style="width:90px;font-size:.8rem;padding:.3rem .5rem;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)" onkeydown="if(event.key==='Enter')addEarnings()">
+          </div>
+          <div id="earnings-name-wrap" style="display:none">
+            <div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">회사명</div>
+            <input id="earnings-name" placeholder="삼성전자" style="width:110px;font-size:.8rem;padding:.3rem .5rem;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+          </div>
+          <div id="earnings-date-wrap" style="display:none">
+            <div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">실적 발표일</div>
+            <input id="earnings-date" type="date" style="font-size:.8rem;padding:.3rem .5rem;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+          </div>
+          <button onclick="addEarnings()" style="padding:.32rem .9rem;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:.8rem;cursor:pointer;font-family:inherit;height:31px">추가</button>
+          <button onclick="toggleEarningsAddForm()" style="padding:.32rem .7rem;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:.8rem;cursor:pointer;font-family:inherit;height:31px">취소</button>
+        </div>
+      </div>
+
+      <div id="earnings-list-body" style="padding:.25rem .5rem 1rem">
+        <div style="text-align:center;padding:2.5rem;color:var(--muted);font-size:.85rem">로딩 중...</div>
+      </div>
+    </div>
   </div>
 
   <!-- YOUTUBE 분석 -->
@@ -2706,7 +2751,7 @@ function showPage(id, el) {
   if(id==='realty')  { renderRealty(); initCheongak(); }
   if(id==='gifts')       { renderGiftList(); }
   if(id==='condolences') { renderCondolenceList(); }
-  if(id==='market')  { loadVix('1mo'); loadYen('3mo'); loadEconCalendar(); }
+  if(id==='market')  { loadVix('1mo'); loadYen('3mo'); loadEconCalendar(); loadEarningsCalendar(); }
   if(id==='mock-invest') { syncAndRenderMockInvest(); }
   if(id==='invest-terms') { renderInvestTerms(); }
   if(id==='stock-analysis') { loadInvestmentPrinciples(); }
@@ -6972,6 +7017,113 @@ async function loadEconCalendar() {
     body.innerHTML = html;
   } catch(e) {
     body.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--danger)">⚠️ 불러오기 실패: '+e.message+'</div>';
+  }
+}
+
+// ── 실적 캘린더 ──
+function toggleEarningsAddForm() {
+  var f = document.getElementById('earnings-add-form');
+  if (!f) return;
+  f.style.display = f.style.display === 'none' ? '' : 'none';
+  if (f.style.display !== 'none') document.getElementById('earnings-ticker').focus();
+}
+function onEarningsMarketChange() {
+  var mkt = (document.getElementById('earnings-market') || {}).value;
+  var isKR = mkt === 'KR';
+  document.getElementById('earnings-name-wrap').style.display = isKR ? '' : 'none';
+  document.getElementById('earnings-date-wrap').style.display = isKR ? '' : 'none';
+  document.getElementById('earnings-ticker').placeholder = isKR ? '005930' : 'AAPL';
+}
+async function addEarnings() {
+  var ticker = (document.getElementById('earnings-ticker').value || '').trim().toUpperCase();
+  var market = (document.getElementById('earnings-market') || {}).value || 'US';
+  var name   = (document.getElementById('earnings-name') || {}).value || '';
+  var date   = (document.getElementById('earnings-date') || {}).value || '';
+  if (!ticker) return showToast('티커를 입력해주세요', 'error');
+  if (market === 'KR' && !name) return showToast('한국 주식은 회사명을 입력해주세요', 'error');
+  showToast('추가 중...');
+  try {
+    var r = await fetch('/api/economic-calendar?action=earnings-add', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker, market, company_name: name || undefined, report_date: date || undefined }),
+    });
+    var d = await r.json();
+    if (d.error) throw new Error(d.error);
+    document.getElementById('earnings-ticker').value = '';
+    if (document.getElementById('earnings-name')) document.getElementById('earnings-name').value = '';
+    if (document.getElementById('earnings-date')) document.getElementById('earnings-date').value = '';
+    toggleEarningsAddForm();
+    showToast('✅ ' + (d.company_name || ticker) + ' 추가 완료!', 'success');
+    if (market === 'US') { showToast('🔄 실적 날짜 자동 조회 중...'); await syncEarnings(); }
+    else loadEarningsCalendar();
+  } catch(e) { showToast('추가 실패: ' + e.message, 'error'); }
+}
+async function removeEarnings(ticker) {
+  if (!confirm(ticker + ' 을(를) 실적 목록에서 삭제할까요?')) return;
+  try {
+    await fetch('/api/economic-calendar?action=earnings-add', {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker }),
+    });
+    showToast('🗑️ 삭제됐어요');
+    loadEarningsCalendar();
+  } catch(e) { showToast('삭제 실패: ' + e.message, 'error'); }
+}
+async function syncEarnings() {
+  try {
+    var r = await fetch('/api/economic-calendar?action=earnings-sync', { method: 'POST' });
+    var d = await r.json();
+    if (d.error) throw new Error(d.error);
+    showToast('🔄 ' + (d.synced || 0) + '건 업데이트 완료', 'success');
+    loadEarningsCalendar();
+  } catch(e) { showToast('동기화 실패: ' + e.message, 'error'); }
+}
+async function loadEarningsCalendar() {
+  var body = document.getElementById('earnings-list-body');
+  if (!body) return;
+  try {
+    var r = await fetch('/api/economic-calendar?action=earnings-list');
+    var d = await r.json();
+    var items = d.items || [];
+    if (!items.length) {
+      body.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--muted);font-size:.85rem">+ 종목 추가 버튼으로 관심 종목을 등록해보세요</div>';
+      return;
+    }
+    var today = new Date().toISOString().slice(0,10);
+    var html = '<div style="padding:.25rem .5rem">';
+    items.forEach(function(item) {
+      var ev = item.event;
+      var dateLabel = '—', daysLeft = '', dateBadgeColor = 'var(--muted)';
+      if (ev && ev.report_date) {
+        var diff = Math.round((new Date(ev.report_date) - new Date(today)) / 86400000);
+        if (diff < 0) dateLabel = '발표 완료';
+        else if (diff === 0) { dateLabel = '오늘 발표!'; dateBadgeColor = 'var(--danger)'; daysLeft = '🔴'; }
+        else if (diff === 1) { dateLabel = '내일 발표'; dateBadgeColor = 'var(--accent4)'; daysLeft = '🟡'; }
+        else { dateLabel = ev.report_date.slice(5).replace('-','/') + ' (' + diff + '일 후)'; daysLeft = diff <= 7 ? '🟢' : ''; }
+        if (ev.report_time) dateLabel += '  · ' + ev.report_time;
+        if (ev.eps_estimate) dateLabel += '  · EPS 예상 $' + ev.eps_estimate;
+      }
+      var mktBadge = item.market === 'KR'
+        ? '<span style="font-size:.68rem;background:rgba(255,99,99,.12);color:var(--danger);padding:.1rem .4rem;border-radius:4px;margin-left:.35rem">KR</span>'
+        : '<span style="font-size:.68rem;background:rgba(108,138,255,.12);color:var(--accent);padding:.1rem .4rem;border-radius:4px;margin-left:.35rem">US</span>';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:.6rem .4rem;border-bottom:1px solid var(--border)">' +
+        '<div style="display:flex;align-items:center;gap:.5rem;min-width:0">' +
+          '<span style="font-size:.85rem">' + daysLeft + '</span>' +
+          '<div style="min-width:0">' +
+            '<div style="font-size:.88rem;font-weight:600;color:var(--text)">' + item.company_name + mktBadge + '</div>' +
+            '<div style="font-size:.75rem;color:var(--muted);margin-top:.15rem">' +
+              '<span style="font-family:JetBrains Mono,monospace">' + item.ticker + '</span>' +
+              '  ·  <span style="color:' + dateBadgeColor + '">' + dateLabel + '</span>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<button onclick="removeEarnings(\'' + item.ticker + '\')" style="flex-shrink:0;padding:.25rem .6rem;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:.75rem;cursor:pointer">삭제</button>' +
+      '</div>';
+    });
+    html += '</div>';
+    body.innerHTML = html;
+  } catch(e) {
+    body.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--danger);font-size:.85rem">⚠️ 불러오기 실패: ' + e.message + '</div>';
   }
 }
 
