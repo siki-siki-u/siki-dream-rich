@@ -2372,7 +2372,7 @@ function showToast(msg, type) {
   t.className = 'app-toast';
   t.textContent = msg;
   var bg = type==='error' ? 'var(--danger)' : type==='success' ? 'var(--success)' : 'rgba(30,30,50,.93)';
-  t.style.cssText = 'position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 5.5rem);left:50%;transform:translateX(-50%);background:'+bg+';color:#fff;padding:.6rem 1.3rem;border-radius:20px;font-size:.84rem;z-index:99999;white-space:nowrap;max-width:88vw;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.35);pointer-events:none;transition:opacity .35s';
+  t.style.cssText = 'position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 6.5rem);left:50%;transform:translateX(-50%);background:'+bg+';color:#fff;padding:.65rem 1.3rem;border-radius:20px;font-size:.84rem;z-index:99999;white-space:normal;word-break:keep-all;max-width:88vw;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.35);pointer-events:none;transition:opacity .35s;line-height:1.45';
   document.body.appendChild(t);
   setTimeout(function(){ t.style.opacity='0'; setTimeout(function(){ t.remove(); },380); }, 2400);
 }
@@ -10357,12 +10357,13 @@ function updateNotifyBtn(isOn) {
   }
 }
 
-// PWA 진입 시 기존 구독 확인
+// PWA 진입 시 기존 구독 확인 + VAPID 키 미리 로드
 async function initPushNotify(reg) {
   try {
     var sub = await reg.pushManager.getSubscription();
     updateNotifyBtn(!!sub);
   } catch(_) {}
+  loadVapidKey(); // 백그라운드에서 미리 캐싱
 }
 
 // 알림 토글 (켜기/끄기)
@@ -10415,7 +10416,7 @@ async function toggleEconNotify() {
       });
 
       updateNotifyBtn(true);
-      showToast('🔔 경제 지표 알림을 켰어요! 발표 1일 전 · 1시간 전에 알려드릴게요', 'success');
+      showToast('🔔 알림 켜짐! 발표 1일 전·1시간 전에 알려드릴게요', 'success');
     }
   } catch(e) {
     showToast('알림 설정 오류: ' + e.message, 'error');
