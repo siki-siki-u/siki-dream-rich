@@ -7207,6 +7207,12 @@ async function loadEarningsCalendar() {
           daysLeft = diff <= 7 ? '🟢' : '';
         }
         if (ev.eps_estimate) dateLabel += '  ·  EPS 예상 $' + ev.eps_estimate;
+
+        // 알림 전송 예정 시간 계산
+        var notifyDayBefore = new Date(kstDate.getTime() - 86400000);
+        var notifyMM = function(d) { return (d.getUTCMonth()+1) + '/' + d.getUTCDate(); };
+        var notifyStr = notifyMM(notifyDayBefore) + ' 중 · ' + notifyMM(kstDate) + ' 07-08시';
+        ev._notifyStr = notifyStr;
       }
       var mktBadge = item.market === 'KR'
         ? '<span style="font-size:.68rem;background:rgba(255,99,99,.12);color:var(--danger);padding:.1rem .4rem;border-radius:4px;margin-left:.35rem">KR</span>'
@@ -7220,6 +7226,7 @@ async function loadEarningsCalendar() {
               '<span style="font-family:JetBrains Mono,monospace">' + item.ticker + '</span>' +
               '  ·  <span style="color:' + dateBadgeColor + '">' + dateLabel + '</span>' +
             '</div>' +
+            (ev && ev._notifyStr ? '<div style="font-size:.72rem;color:var(--muted);margin-top:.1rem">🔔 알림: ' + ev._notifyStr + '</div>' : '') +
           '</div>' +
         '</div>' +
         '<button onclick="removeEarnings(\'' + item.ticker + '\')" style="flex-shrink:0;padding:.25rem .6rem;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:.75rem;cursor:pointer">삭제</button>' +

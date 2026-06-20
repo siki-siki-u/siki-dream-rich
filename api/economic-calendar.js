@@ -348,19 +348,36 @@ async function handlePushSend(req,res){
     var ee = []; try { ee = JSON.parse(eeRes.body) || []; } catch(_) {}
 
     var earningsToNotify = ee.filter(function(e) {
-      if (e.report_date === kstTomorrow) return true;
-      if (e.report_date === kstToday && kstH >= 7 && kstH < 9) return true;
+      // AMC: KST 기준 발표일 = report_date + 1일 (미국 장 마감 후 = 한국 익일 새벽 5시)
+      // BMO: KST 기준 발표일 = report_date (미국 장 시작 전 = 한국 당일 밤 10시)
+      var isAMC = e.report_time && e.report_time.includes('AMC');
+      var kstEventDate = isAMC
+        ? new Date(new Date(e.report_date+'T00:00:00Z').getTime()+86400000).toISOString().slice(0,10)
+        : e.report_date;
+      var kstDayBefore = new Date(new Date(kstEventDate+'T00:00:00Z').getTime()-86400000).toISOString().slice(0,10);
+      // 하루 전: 발표 전날 중 아무 크론
+      if (kstToday === kstDayBefore) return true;
+      // 당일 오전 7-8시 알림 (AMC면 결과 확인, BMO면 당일 발표 예정)
+      if (kstToday === kstEventDate && kstH >= 7 && kstH < 9) return true;
       return false;
     });
 
     for (var ev of earningsToNotify) {
-      var isToday = ev.report_date === kstToday;
+      var evIsAMC = ev.report_time && ev.report_time.includes('AMC');
+      var kstEvDate = evIsAMC
+        ? new Date(new Date(ev.report_date+'T00:00:00Z').getTime()+86400000).toISOString().slice(0,10)
+        : ev.report_date;
+      var isDayOf = kstToday === kstEvDate;
       var companyName = tMap[ev.ticker] || ev.ticker;
       var epsTxt = ev.eps_estimate ? ' · EPS 예상 $'+ev.eps_estimate : '';
+      var timeLabel = evIsAMC ? '새벽 5-6시 (KST)' : '밤 10-11시 (KST)';
+      var title = isDayOf
+        ? (evIsAMC ? '📊 실적 발표 결과 확인!' : '📊 오늘 밤 실적 발표!')
+        : (evIsAMC ? '📊 내일 새벽 실적 발표 예정' : '📊 내일 밤 실적 발표 예정');
       var payload = {
-        title: isToday ? '📊 오늘 실적 발표!' : '📊 내일 실적 발표 예정',
-        body: companyName+' ('+ev.ticker+')'+(ev.report_time?'\n⏱ '+ev.report_time:'')+epsTxt,
-        tag: 'earnings-'+ev.ticker+'-'+ev.report_date+(isToday?'-today':'-tomorrow'),
+        title,
+        body: companyName+' ('+ev.ticker+')\n⏱ '+timeLabel+epsTxt,
+        tag: 'earnings-'+ev.ticker+'-'+ev.report_date+(isDayOf?'-today':'-tomorrow'),
         url: '/?page=market',
       };
       for (var sub of subs) {
