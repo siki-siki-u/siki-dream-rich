@@ -1112,8 +1112,11 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
 
     <!-- 보유 종목 -->
     <div class="card" style="margin-bottom:1.5rem">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
-        <div class="sec-title" style="margin:0">📋 보유 종목</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <div class="sec-title" style="margin:0">📋 보유 종목</div>
+          <span style="font-size:.68rem;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:.15rem .55rem">💱 현재 환율 USD/KRW <b id="port-usdkrw-2" style="font-family:JetBrains Mono,monospace;color:var(--accent4)">–</b></span>
+        </div>
         <div style="display:flex;gap:.3rem">
           <button class="btn btn-ghost owner-only" style="font-size:.72rem;padding:.25rem .6rem" onclick="openFxCorrect()">💱 원금 보정</button>
           <button class="btn btn-ghost" id="port-refresh-btn" style="font-size:.72rem;padding:.25rem .6rem" onclick="refreshPortPrices()">🔄 시세 갱신</button>
@@ -8603,6 +8606,8 @@ async function fetchPortUsdKrw(){
       S.set('port_usdkrw',_portUsdKrw);
       var el=document.getElementById('port-usdkrw');
       if(el) el.textContent=_portUsdKrw.toLocaleString();
+      var el2=document.getElementById('port-usdkrw-2');
+      if(el2) el2.textContent=_portUsdKrw.toLocaleString();
     }
   }catch(e){}
 }
@@ -9317,7 +9322,7 @@ function renderPortHoldings(){
       '<span style="color:var(--muted)">직접입력</span>'+
       '<span style="color:var(--muted)">원금 <b class="g-blur" style="font-family:JetBrains Mono,monospace;color:var(--text)">₩'+Math.round(h.investedKRW||0).toLocaleString()+'</b></span>':
       '<span style="color:var(--muted)">현재가 <b style="font-family:JetBrains Mono,monospace;color:var(--text)">'+priceStr+'</b></span>'+
-      '<span class="g-blur" style="color:var(--muted)">'+h.qty+'주 · ₩'+Math.round(h.investedKRW||0).toLocaleString()+'</span>';
+      '<span class="g-blur" style="color:var(--muted)">보유 '+h.qty+'주 · 매입 ₩'+Math.round(h.investedKRW||0).toLocaleString()+'</span>';
     var borderClr=h.type==='HOUSING'?'var(--muted)':(pos?'var(--success)':'var(--danger)');
     return '<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid '+borderClr+';border-radius:9px;padding:.5rem .75rem;margin-bottom:.35rem">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem">'+
@@ -9341,8 +9346,8 @@ function renderPortHoldings(){
       '</div>'+
       '<div style="display:flex;flex-wrap:wrap;gap:.4rem .8rem;margin-top:.25rem;font-size:.75rem;align-items:baseline">'+
         infoRow+
-        '<span class="g-blur" style="font-family:JetBrains Mono,monospace;color:var(--accent4);font-weight:600">'+valStr+'</span>'+
-        (h.type!=='HOUSING'?'<span class="g-blur" style="color:'+pclr+'">'+pStr+' ('+rStr+')</span>':'')+
+        '<span class="g-blur" style="color:var(--muted)">평가 <b style="font-family:JetBrains Mono,monospace;color:var(--accent4);font-weight:600">'+valStr+'</b></span>'+
+        (h.type!=='HOUSING'?'<span class="g-blur" style="color:var(--muted)">수익 <b style="color:'+pclr+'">'+pStr+' ('+rStr+')</b></span>':'')+
       '</div>'+
       actionForm+
     '</div>';
@@ -9911,6 +9916,8 @@ async function initPortfolio(){
   _portUsdKrw = S.get('port_usdkrw') || 1380;
   var uEl=document.getElementById('port-usdkrw');
   if(uEl) uEl.textContent=_portUsdKrw.toLocaleString();
+  var uEl2=document.getElementById('port-usdkrw-2');
+  if(uEl2) uEl2.textContent=_portUsdKrw.toLocaleString();
   // 기존 owner 없는 종목 → 윤식 계좌로 마이그레이션
   var holdings=S.get('portfolio_holdings')||[];
   var migrated=false;
