@@ -331,6 +331,9 @@ tr:hover td{background:rgba(108,138,255,.03)}
   .stats-row[style*="repeat(4"]{grid-template-columns:1fr 1fr!important}
   .stats-row[style*="repeat(3"]{grid-template-columns:1fr 1fr!important}
   #page-realty .card div[style*="display:flex"][style*="gap:.5rem"]{flex-wrap:wrap}
+  .pf-trend-head{flex-direction:column;align-items:stretch!important}
+  .pf-trend-actions{width:100%}
+  .pf-trend-actions .btn{flex:1;font-size:.68rem!important;padding:.45rem .25rem!important;white-space:nowrap}
   #page-assets label[style*="min-width:130px"]{min-width:90px!important;font-size:.78rem}
   #page-budget .stats-row{grid-template-columns:1fr 1fr}
   .journal-header{flex-direction:column;gap:.5rem}
@@ -1158,9 +1161,9 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
 
     <!-- 자산 추이 차트 -->
     <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <div class="pf-trend-head" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.6rem">
         <div class="sec-title" style="margin:0">📊 자산 추이</div>
-        <div style="display:flex;gap:.35rem;flex-wrap:wrap">
+        <div class="pf-trend-actions" style="display:flex;gap:.35rem;flex-wrap:wrap">
           <button class="btn owner-only" style="font-size:.73rem;padding:.3rem .7rem;background:rgba(251,146,60,.12);border:1px solid rgba(251,146,60,.25);color:#fb923c" onclick="openRealizedProfitPopup(null)">💰 익절 기록</button>
           <button class="btn" style="font-size:.73rem;padding:.3rem .7rem;background:var(--surface2);border:1px solid var(--border);color:var(--muted)" onclick="showPortChanges()">🔍 변화 보기</button>
           <button class="btn btn-primary owner-only" style="font-size:.73rem;padding:.3rem .7rem" onclick="savePortSnapshot()">💾 오늘 저장</button>
@@ -1397,60 +1400,6 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
         <button onclick="loadYen('3mo')" id="yen-btn-3mo" class="btn btn-primary" style="font-size:.72rem;padding:.2rem .5rem">3개월</button>
         <button onclick="loadYen('6mo')" id="yen-btn-6mo" class="btn btn-ghost" style="font-size:.72rem;padding:.2rem .5rem">6개월</button>
         <button onclick="loadYen('1y')"  id="yen-btn-1y"  class="btn btn-ghost" style="font-size:.72rem;padding:.2rem .5rem">1년</button>
-      </div>
-    </div>
-
-    <!-- 미국 vs 일본 2년물 국채금리 비교 -->
-    <div class="card" style="margin-bottom:1.5rem;padding:0;overflow:hidden">
-      <div style="padding:1rem 1.2rem .5rem;background:var(--surface)">
-        <div style="font-size:1rem;font-weight:700;color:var(--text)">📊 미국 vs 일본 2년물 국채금리 (6개월)</div>
-        <div style="font-size:.75rem;color:var(--muted);margin-top:.1rem">미국(파랑) vs 일본(주황) — 금리 역전 시 엔화 강세 압력</div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;padding:.5rem .5rem .3rem">
-        <div>
-          <div style="font-size:.72rem;color:#6c8aff;font-weight:600;text-align:center;margin-bottom:.2rem">🇺🇸 미국 2년물</div>
-          <div class="tradingview-widget-container" style="height:160px">
-            <div class="tradingview-widget-container__widget" style="height:100%"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
-            {
-              "symbol": "TVC:US02Y",
-              "width": "100%",
-              "height": "100%",
-              "locale": "kr",
-              "dateRange": "6M",
-              "colorTheme": "dark",
-              "trendLineColor": "rgba(108,138,255,1)",
-              "underLineColor": "rgba(108,138,255,0.1)",
-              "underLineBottomColor": "rgba(41,98,255,0)",
-              "isTransparent": true,
-              "autosize": true,
-              "largeChartUrl": ""
-            }
-            </script>
-          </div>
-        </div>
-        <div>
-          <div style="font-size:.72rem;color:#f59e0b;font-weight:600;text-align:center;margin-bottom:.2rem">🇯🇵 일본 2년물</div>
-          <div class="tradingview-widget-container" style="height:160px">
-            <div class="tradingview-widget-container__widget" style="height:100%"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
-            {
-              "symbol": "TVC:JP02Y",
-              "width": "100%",
-              "height": "100%",
-              "locale": "kr",
-              "dateRange": "6M",
-              "colorTheme": "dark",
-              "trendLineColor": "rgba(245,158,11,1)",
-              "underLineColor": "rgba(245,158,11,0.1)",
-              "underLineBottomColor": "rgba(245,158,11,0)",
-              "isTransparent": true,
-              "autosize": true,
-              "largeChartUrl": ""
-            }
-            </script>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -2470,18 +2419,50 @@ async function syncFromSupabase() {
   await recoverFromLocalStorage();
   showSyncBadge('🔄 동기화 중...');
   try {
+    // 독립적인 테이블 조회를 모두 병렬로 발사 — 순차 await(15회 왕복, 4~8초) 대신
+    // 가장 느린 1개 요청 시간만큼만 대기하도록 단축
+    var [
+      { data: stocks },
+      { data: journals },
+      { data: assets },
+      { data: txs, error: txErr },
+      { data: incomes },
+      { data: realty },
+      { data: mockInvData },
+      { data: termsData },
+      { data: rpData },
+      { data: snData },
+      { data: settings },
+      { data: dbShots },
+      { data: assetSnaps },
+      { data: dbEvents },
+      { data: dbYt },
+    ] = await Promise.all([
+      supa.from('stocks').select('*'),
+      supa.from('journals').select('*').order('created_at',{ascending:false}),
+      supa.from('assets').select('*'),
+      supa.from('transactions').select('*').order('id', {ascending: false}).limit(5000),
+      supa.from('income').select('*'),
+      supa.from('realty').select('*'),
+      supa.from('mock_investments').select('*').order('invest_date',{ascending:false}),
+      supa.from('invest_terms').select('*').order('created_at',{ascending:false}),
+      supa.from('realized_profits').select('*').order('date',{ascending:false}),
+      supa.from('stock_notes').select('*').order('updated_at',{ascending:false}),
+      supa.from('settings').select('*'),
+      supa.from('asset_shots').select('*').order('id', {ascending:false}).limit(500),
+      supa.from('asset_snapshots').select('*').order('id', {ascending: false}).limit(500),
+      supa.from('events').select('*').order('date', {ascending:true}),
+      supa.from('yt_summaries').select('*').order('saved_at', {ascending:false}).limit(50),
+    ]);
+
     // stocks
-    const { data: stocks } = await supa.from('stocks').select('*');
     if(stocks && stocks.length > 0) S.set('stocks', stocks.map(function(s){ return {id:s.id, type:s.type, ticker:s.ticker, name:s.name, note:s.note||'', price:null, change:null, changeP:null, fetchError:false}; }));
     // journals
-    const { data: journals } = await supa.from('journals').select('*').order('created_at',{ascending:false});
     if(journals && journals.length > 0) S.set('journals', journals.map(function(j){ return {id:j.id, date:j.date, emotion:j.emotion, title:j.title, tickers:j.tickers||'', fearGreed:j.fear_greed||'', action:j.action||'', content:j.content, feedback:j.feedback||null, advice:j.advice||null, savedAt:j.saved_at}; }));
     // assets
-    const { data: assets } = await supa.from('assets').select('*');
     if(assets && assets.length > 0) assets.forEach(function(a){ S.set('assets_'+a.month_key, Object.assign({}, a.data, {savedAt:a.saved_at})); });
     // ── transactions: DB가 단일 진실 소스 ──
     // 쓰기(추가/수정/삭제)는 모두 즉시 DB에 기록되므로 sync는 DB→로컬 단방향만 수행
-    const { data: txs, error: txErr } = await supa.from('transactions').select('*').order('id', {ascending: false}).limit(5000);
     if(!txErr) {
       var byKey = {};
       (txs||[]).forEach(function(t){
@@ -2493,26 +2474,19 @@ async function syncFromSupabase() {
       Object.keys(byKey).forEach(function(k){ S.set('txs_'+k, byKey[k]); });
     }
     // ── income: 동일하게 DB 단방향 ──
-    const { data: incomes } = await supa.from('income').select('*');
     Object.keys(_sc).filter(function(k){ return k.startsWith('income_'); }).forEach(function(k){ delete _sc[k]; });
     if(incomes && incomes.length > 0) incomes.forEach(function(i){ S.set('income_'+i.budget_key, {yoonsik:i.yoonsik||0, yujin:i.yujin||0, bonusY:i.bonus_y||0, bonusU:i.bonus_u||0, etc:i.etc||0}); });
     // realty
-    const { data: realty } = await supa.from('realty').select('*');
     if(realty && realty.length > 0) S.set('apts', realty.map(function(r){ return r.data; }));
     // mock_investments
-    const { data: mockInvData } = await supa.from('mock_investments').select('*').order('invest_date',{ascending:false});
     if(mockInvData && mockInvData.length > 0) S.set('mock_investments', mockInvData.map(function(m){ return {id:m.id,invest_date:m.invest_date,symbol:m.symbol,name:m.name,asset_type:m.asset_type||'US',currency:m.currency||'USD',quantity:m.quantity,price_at_invest:m.price_at_invest,invest_amount_krw:m.invest_amount_krw||0,reason:m.reason||'',note:m.note||'',created_at:m.created_at}; }));
     // invest_terms
-    const { data: termsData } = await supa.from('invest_terms').select('*').order('created_at',{ascending:false});
     if(termsData && termsData.length > 0) S.set('invest_terms', termsData.map(function(t){ return {id:t.id,term:t.term,meaning:t.meaning,created_at:t.created_at}; }));
     // realized_profits
-    const { data: rpData } = await supa.from('realized_profits').select('*').order('date',{ascending:false});
     if(rpData && rpData.length > 0) S.set('realized_profits', rpData.map(function(r){ return {id:r.id,date:r.date,amount:r.amount,ticker:r.ticker||'',note:r.note||''}; }));
     // stock_notes
-    const { data: snData } = await supa.from('stock_notes').select('*').order('updated_at',{ascending:false});
     if(snData && snData.length > 0) S.set('stock_notes', snData.map(function(n){ return {id:n.id,ticker:n.ticker,name:n.name||'',market:n.market||'US',status:n.status||'watching',fairValue:n.fair_value||null,targetBuyPrice:n.target_buy_price||null,opinion:n.opinion||'',updatedAt:n.updated_at}; }));
     // settings (고정비, 사용자 설정 등)
-    const { data: settings } = await supa.from('settings').select('*');
     if(settings && settings.length > 0) settings.forEach(function(s){
       if(s.key === 'fixed_costs') { try {
         var fc2 = JSON.parse(s.value);
@@ -2571,7 +2545,6 @@ async function syncFromSupabase() {
     // pending: 이 디바이스에서 업로드했지만 DB 확인 안 된 ID
     var localShots = S.get('asset_shots') || [];
     var pendingShotIds = new Set(S.get('_pending_shot_ids') || []);
-    const { data: dbShots } = await supa.from('asset_shots').select('*').order('id', {ascending:false}).limit(500);
     var dbShotIdSet = new Set((dbShots||[]).map(function(s){return s.id;}));
     var newLocalShots = localShots.filter(function(s){
       if(dbShotIdSet.has(s.id)) { pendingShotIds.delete(s.id); return true; } // DB에 있음 → 유지, pending 해제
@@ -2592,7 +2565,6 @@ async function syncFromSupabase() {
     var validShotIds = new Set(newLocalShots.map(function(s){return s.id;}));
     var localSnaps = S.get('asset_snapshots') || [];
     var pendingSnapIds = new Set(S.get('_pending_snap_ids') || []);
-    const { data: assetSnaps } = await supa.from('asset_snapshots').select('*').order('id', {ascending: false}).limit(500);
     var dbSnapIdSet = new Set((assetSnaps||[]).map(function(s){return s.id;}));
     var newLocalSnaps = localSnaps.filter(function(s){
       if(!validShotIds.has(s.id)) return false; // shot 없는 스냅샷 무조건 제거
@@ -2615,7 +2587,6 @@ async function syncFromSupabase() {
     S.set('asset_snapshots', newLocalSnaps.slice(0,100));
     S.set('_pending_snap_ids', Array.from(pendingSnapIds));
     // events — Supabase 단일 진실 소스 (localStorage 완전 제거)
-    const { data: dbEvents } = await supa.from('events').select('*').order('date', {ascending:true});
     // 한 번만: localStorage에 남아있는 이전 events를 Supabase로 마이그레이션
     // legacy localStorage events 마이그레이션 (1회)
     try {
@@ -2628,7 +2599,6 @@ async function syncFromSupabase() {
     } catch(_) {}
     _events = (dbEvents||[]).map(function(e){ return {id:e.id, date:e.date, title:e.title, color:e.color||'blue'}; });
     // yt_summaries — 양방향 sync
-    const { data: dbYt } = await supa.from('yt_summaries').select('*').order('saved_at', {ascending:false}).limit(50);
     var localYt = S.get('yt_summaries') || [];
     var dbYtIds = new Set((dbYt||[]).map(function(s){return s.video_id;}));
     localYt.forEach(function(s){ if(!dbYtIds.has(s.videoId)) dbUpsert('yt_summaries', {video_id:s.videoId, title:s.title, summary:s.summary, published:s.published||'', thumb:s.thumb||'', saved_at:s.savedAt||''}); });
@@ -8454,8 +8424,8 @@ function deleteJournal(id){
 var _portType='US', _portOwner='윤식', _portSelTicker=null, _portPrices={}, _portUsdKrw=1380, _portSearchTimer=null;
 var _portDirectTypes={'GOLD':true,'PENSION':true,'FUND':true,'ETC':true};
 var _VOLATILE_TYPES=['US','KR','CRYPTO','GOLD','FUND'];
-var _LOCKED_TYPES=['PENSION','HOUSING']; // HOUSING: 레거시 호환
-var _FIXED_TYPES=['SAVINGS','LEASE','ETC','HOUSING']; // SAVINGS/LEASE/HOUSING: 레거시 호환
+var _LOCKED_TYPES=['PENSION','HOUSING']; // 주택청약은 해지해야 꺼낼 수 있는 묶인 자산
+var _FIXED_TYPES=['SAVINGS','LEASE','ETC'];
 
 function setPortOwner(o){
   _portOwner=o;
