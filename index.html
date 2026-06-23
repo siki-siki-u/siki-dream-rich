@@ -8718,7 +8718,10 @@ function openPortDirectEditPopup(id) {
 
   var isUsd = h.type==='US';
   var sym = isUsd ? '$' : '₩';
-  var curAvg = h.qty > 0 ? Math.round((h.investedKRW||0) / h.qty) : 0;
+  // investedKRW는 항상 원화 기준 — USD 종목이면 표시 전 환율을 나눠서 실제 달러 단가로 환원
+  var curAvg = h.qty > 0 ? (h.investedKRW||0) / h.qty : 0;
+  if (isUsd && _portUsdKrw > 0) curAvg = curAvg / _portUsdKrw;
+  curAvg = isUsd ? Math.round(curAvg * 100) / 100 : Math.round(curAvg);
 
   var overlay = document.createElement('div');
   overlay.id = 'port-direct-edit-overlay';
