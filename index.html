@@ -8716,12 +8716,8 @@ function openPortDirectEditPopup(id) {
   var h = holdings.find(function(x){ return x.id===id; });
   if(!h) return;
 
-  var isUsd = h.type==='US';
-  var sym = isUsd ? '$' : '₩';
-  // investedKRW는 항상 원화 기준 — USD 종목이면 표시 전 환율을 나눠서 실제 달러 단가로 환원
-  var curAvg = h.qty > 0 ? (h.investedKRW||0) / h.qty : 0;
-  if (isUsd && _portUsdKrw > 0) curAvg = curAvg / _portUsdKrw;
-  curAvg = isUsd ? Math.round(curAvg * 100) / 100 : Math.round(curAvg);
+  // 매수 시점 환율을 알 수 없으므로 평단가는 항상 원화로 입력받음 (환율 변환 없음)
+  var curAvg = h.qty > 0 ? Math.round((h.investedKRW||0) / h.qty) : 0;
 
   var overlay = document.createElement('div');
   overlay.id = 'port-direct-edit-overlay';
@@ -8739,14 +8735,14 @@ function openPortDirectEditPopup(id) {
             ' oninput="pdeCalc()"/>'+
         '</div>'+
         '<div>'+
-          '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">평균 매수 단가 ('+sym+')</div>'+
+          '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">평균 매수 단가 (₩)</div>'+
           '<input id="pde-avg" type="number" value="'+curAvg+'" min="0" step="any"'+
             ' style="width:100%;box-sizing:border-box;font-size:.95rem;padding:.55rem .7rem;border-radius:8px;font-family:JetBrains Mono,monospace;font-weight:700"'+
             ' oninput="pdeCalc()"/>'+
         '</div>'+
         '<div style="background:var(--surface2);border-radius:8px;padding:.6rem .75rem;display:flex;justify-content:space-between;align-items:center">'+
           '<span style="font-size:.72rem;color:var(--muted)">총 투자금 (자동 계산)</span>'+
-          '<span id="pde-total" style="font-size:.85rem;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--accent4)">'+sym+Math.round(h.investedKRW||0).toLocaleString()+'</span>'+
+          '<span id="pde-total" style="font-size:.85rem;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--accent4)">₩'+Math.round(h.investedKRW||0).toLocaleString()+'</span>'+
         '</div>'+
       '</div>'+
       '<div style="display:flex;gap:.5rem;margin-top:1.2rem">'+
@@ -8757,8 +8753,6 @@ function openPortDirectEditPopup(id) {
     '</div>';
   document.body.appendChild(overlay);
 
-  // USD 종목은 평단가를 달러로 입력 → investedKRW 계산 시 환율 반영
-  overlay._isUsd = isUsd;
   overlay._id = id;
 
   setTimeout(function(){
@@ -8772,22 +8766,18 @@ function pdeCalc() {
   if(!overlay) return;
   var qty = parseFloat(document.getElementById('pde-qty').value)||0;
   var avg = parseFloat(document.getElementById('pde-avg').value)||0;
-  var isUsd = overlay._isUsd;
-  var raw = qty * avg;
-  var krw = isUsd ? Math.round(raw * _portUsdKrw) : Math.round(raw);
-  var sym = isUsd ? '$' : '₩';
+  var krw = Math.round(qty * avg);
   var totalEl = document.getElementById('pde-total');
-  if(totalEl) totalEl.textContent = sym + raw.toLocaleString(undefined, isUsd?{maximumFractionDigits:2}:{}) + (isUsd ? ' → ₩'+krw.toLocaleString() : '');
+  if(totalEl) totalEl.textContent = '₩' + krw.toLocaleString();
 }
 
 function savePortDirectEdit(id) {
-  var overlay = document.getElementById('port-direct-edit-overlay');
   var qty = parseFloat(document.getElementById('pde-qty').value);
   var avg = parseFloat(document.getElementById('pde-avg').value);
   if(isNaN(qty)||qty<0||isNaN(avg)||avg<0){ showToast('수량과 평단가를 올바르게 입력해주세요','error'); return; }
-  var isUsd = overlay && overlay._isUsd;
-  var investedKRW = isUsd ? Math.round(qty * avg * _portUsdKrw) : Math.round(qty * avg);
+  var investedKRW = Math.round(qty * avg);
 
+  var overlay = document.getElementById('port-direct-edit-overlay');
   var holdings = S.get('portfolio_holdings') || [];
   var h = holdings.find(function(x){ return x.id===id; });
   if(!h) return;
