@@ -8596,6 +8596,25 @@ async function fetchPortPrice(ticker,type){
   }catch(e){return null;}
 }
 
+// 여러 종목 시세를 한 번의 API 호출로 일괄 조회 (Yahoo/CoinGecko 배치) — N회 요청 대신 1회 왕복
+async function fetchPortPricesBatch(items){
+  var prices={};
+  if(!items||!items.length) return prices;
+  var uniq=[]; var seen={};
+  items.forEach(function(it){ var k=it.ticker+':'+it.type; if(!seen[k]){seen[k]=1; uniq.push(it);} });
+  try{
+    var param=uniq.map(function(it){return encodeURIComponent(it.ticker)+':'+encodeURIComponent(it.type);}).join(',');
+    var ctrl=new AbortController();
+    setTimeout(function(){ctrl.abort();},12000);
+    var res=await fetch('/api/stock-price?tickers='+param,{signal:ctrl.signal});
+    if(res.ok){
+      var d=await res.json();
+      Object.assign(prices, d.results||{});
+    }
+  }catch(e){}
+  return prices;
+}
+
 async function fetchPortUsdKrw(){
   try{
     var res=await fetch('/api/stock-price?ticker=KRW%3DX&type=US');
@@ -8850,14 +8869,20 @@ async function refreshPortPrices(){
   if(!holdings.length) return;
   var btn=document.getElementById('port-refresh-btn');
   if(btn){btn.textContent='⏳ 갱신 중...';btn.disabled=true;}
-  await fetchPortUsdKrw();
-  var results = await Promise.allSettled(holdings.map(async function(h){
-    var pd=await fetchPortPrice(h.ticker,h.type);
+  var nonDirect=holdings.filter(function(h){return !h.isDirect;});
+  // 환율 조회와 전체 시세 일괄 조회를 동시에 발사 (순차 대기 제거)
+  var batchPrices = (await Promise.all([
+    fetchPortUsdKrw(),
+    fetchPortPricesBatch(nonDirect.map(function(h){return {ticker:h.ticker,type:h.type};})),
+  ]))[1];
+  var failCount=0;
+  nonDirect.forEach(function(h){
+    var pd=batchPrices[h.ticker];
     if(pd) _portPrices[h.ticker]=pd;
-  }));
+    else failCount++;
+  });
   S.set('port_prices_cache', _portPrices);
   renderPortHoldings(); renderPortSummary(); renderPortMonthlyChart();
-  var failCount = results.filter(function(r){ return r.status==='rejected'; }).length;
   if(btn){
     btn.textContent='🔄 시세 갱신';
     btn.disabled=false;
@@ -9964,18 +9989,24 @@ async function initPortfolio(){
   renderPortMonthlyChart();
   renderRealizedProfits();
   renderPortHistory();
-  fetchPortUsdKrw();
   var holdings=S.get('portfolio_holdings')||[];
   if(holdings.length){
-    await Promise.all(holdings.map(async function(h){
-      var pd=await fetchPortPrice(h.ticker,h.type);
+    var nonDirectH=holdings.filter(function(h){return !h.isDirect;});
+    var batchPrices2 = (await Promise.all([
+      fetchPortUsdKrw(),
+      fetchPortPricesBatch(nonDirectH.map(function(h){return {ticker:h.ticker,type:h.type};})),
+    ]))[1];
+    nonDirectH.forEach(function(h){
+      var pd=batchPrices2[h.ticker];
       if(pd) _portPrices[h.ticker]=pd;
-    }));
+    });
     S.set('port_prices_cache', _portPrices);
     renderPortHoldings();
     renderPortSummary();
     renderPortMonthlyChart();
     try { renderMarriageGrowth(); } catch(e) {}
+  } else {
+    fetchPortUsdKrw();
   }
 }
 // ── 부동산 관리 ──
@@ -11012,10 +11043,9 @@ async function renderMockInvest() {
   listEl.innerHTML='<div style="color:var(--muted);font-size:.78rem;text-align:center;padding:.8rem">현재 시세 조회 중...</div>';
   var uniq=[];
   list.forEach(function(x){if(!uniq.find(function(u){return u.s===x.symbol;}))uniq.push({s:x.symbol,t:x.asset_type});});
+  var batchResult=await fetchPortPricesBatch(uniq.map(function(u){return {ticker:u.s,type:u.t};}));
   var prices={};
-  await Promise.all(uniq.map(async function(u){
-    try{var pd=await fetchPortPrice(u.s,u.t);if(pd&&pd.price)prices[u.s]=pd;}catch(e){}
-  }));
+  uniq.forEach(function(u){ if(batchResult[u.s]) prices[u.s]=batchResult[u.s]; });
   var usdkrw=S.get('port_usdkrw')||_mockUsdKrw||1350;
   var totalInvested=0,totalValue=0;
   var html=list.map(function(item){
