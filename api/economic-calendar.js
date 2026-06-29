@@ -280,8 +280,9 @@ async function handleSubscribe(req,res){
   if(req.method==='POST'){
     var {endpoint,p256dh,auth}=body;
     if(!endpoint||!p256dh||!auth) return res.status(400).json({error:'endpoint, p256dh, auth 필요'});
-    var r=await supaRest('POST','/rest/v1/push_subscriptions',{endpoint,p256dh,auth});
-    return res.json({ok:r.status<300});
+    var r=await supaRest('POST','/rest/v1/push_subscriptions?on_conflict=endpoint',{endpoint,p256dh,auth});
+    if(r.status>=300) return res.status(500).json({ok:false,error:r.body});
+    return res.json({ok:true});
   } else if(req.method==='DELETE'){
     var {endpoint}=body;
     if(!endpoint) return res.status(400).json({error:'endpoint 필요'});

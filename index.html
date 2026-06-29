@@ -10678,7 +10678,7 @@ async function toggleEconNotify() {
 
       var rawP256dh = sub.getKey('p256dh');
       var rawAuth   = sub.getKey('auth');
-      await fetch('/api/economic-calendar?action=subscribe', {
+      var subRes = await fetch('/api/economic-calendar?action=subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -10687,6 +10687,11 @@ async function toggleEconNotify() {
           auth:     btoa(String.fromCharCode.apply(null, new Uint8Array(rawAuth))),
         }),
       });
+      var subData = await subRes.json().catch(function(){ return {}; });
+      if (!subRes.ok || !subData.ok) {
+        await sub.unsubscribe();
+        return showToast('알림 등록 실패: 서버에 저장하지 못했어요', 'error');
+      }
 
       updateNotifyBtn(true);
       showToast('🔔 알림 켜짐! 발표 1일 전·1시간 전에 알려드릴게요', 'success');
