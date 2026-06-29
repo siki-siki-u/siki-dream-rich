@@ -1492,10 +1492,12 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
           <div style="font-size:.78rem;color:var(--muted);margin-top:.2rem">관심 종목 실적 발표일 · 하루 전·당일 알림</div>
         </div>
         <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+          <button id="earnings-notify-btn" onclick="toggleEconNotify()" style="display:none;padding:.3rem .75rem;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:.78rem;cursor:pointer;white-space:nowrap;font-family:inherit;transition:all .2s">🔔 알림 켜기</button>
           <button onclick="syncEarnings()" style="padding:.3rem .75rem;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:.78rem;cursor:pointer;font-family:inherit">🔄 날짜 자동조회</button>
           <button onclick="toggleEarningsAddForm()" style="padding:.3rem .75rem;border-radius:7px;border:1px solid var(--accent);background:rgba(108,138,255,.1);color:var(--accent);font-size:.78rem;cursor:pointer;font-family:inherit">+ 종목 추가</button>
         </div>
       </div>
+      <div style="padding:0 1.2rem .6rem;font-size:.7rem;color:var(--muted)">🔔 알림은 경제 캘린더와 공유돼요 — 한 번만 켜면 둘 다 받아요</div>
 
       <!-- 추가 폼 -->
       <div id="earnings-add-form" style="display:none;padding:.75rem 1rem;background:var(--surface2);border-top:1px solid var(--border)">
@@ -10612,22 +10614,24 @@ function urlB64ToUint8Array(b64) {
   return arr;
 }
 
-// 알림 버튼 상태 업데이트
+// 알림 버튼 상태 업데이트 (경제 캘린더 + 실적 캘린더 버튼 동시 동기화)
 function updateNotifyBtn(isOn) {
-  var btn = document.getElementById('econ-notify-btn');
-  if (!btn) return;
-  btn.style.display = '';
-  if (isOn) {
-    btn.textContent = '🔔 알림 켜짐';
-    btn.style.color        = 'var(--accent3)';
-    btn.style.borderColor  = 'var(--accent3)';
-    btn.style.background   = 'rgba(52,211,153,.08)';
-  } else {
-    btn.textContent = '🔕 알림 꺼짐';
-    btn.style.color        = 'var(--muted)';
-    btn.style.borderColor  = 'var(--border)';
-    btn.style.background   = 'var(--surface2)';
-  }
+  ['econ-notify-btn', 'earnings-notify-btn'].forEach(function(id) {
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    btn.style.display = '';
+    if (isOn) {
+      btn.textContent = '🔔 알림 켜짐';
+      btn.style.color        = 'var(--accent3)';
+      btn.style.borderColor  = 'var(--accent3)';
+      btn.style.background   = 'rgba(52,211,153,.08)';
+    } else {
+      btn.textContent = '🔕 알림 꺼짐';
+      btn.style.color        = 'var(--muted)';
+      btn.style.borderColor  = 'var(--border)';
+      btn.style.background   = 'var(--surface2)';
+    }
+  });
 }
 
 // PWA 진입 시 기존 구독 확인 + VAPID 키 미리 로드
