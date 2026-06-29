@@ -220,52 +220,15 @@ function generateVapidKeys() {
   return {publicKey:toB64(pubBytes),privateKey:toB64(privBytes)};
 }
 
-// ── Web Push 전송 (RFC 8291 aes128gcm + VAPID ES256) ──
-function b64D(s){return Buffer.from(s.replace(/-/g,'+').replace(/_/g,'/'),'base64');}
-function b64E(b){return Buffer.from(b).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');}
-function hmac(key,data){return crypto.createHmac('sha256',key).update(data).digest();}
-function hkdfExpand(prk,info,len){var out=[],prev=Buffer.alloc(0);for(var i=1;out.reduce(function(a,b){return a+b.length;},0)<len;i++){prev=hmac(prk,Buffer.concat([prev,info,Buffer.from([i])]));out.push(prev);}return Buffer.concat(out).slice(0,len);}
-function derToRaw(der){var o=2;o++;var rl=der[o++];var r=der.slice(o,o+rl);o+=rl;o++;var sl=der[o++];var s=der.slice(o,o+sl);var pad=function(b){b=b.slice(-32);return Buffer.concat([Buffer.alloc(32-b.length),b]);};return Buffer.concat([pad(r),pad(s)]);}
-
-function makeJwt(vapidPub,vapidPriv,audience){
-  var pub=b64D(vapidPub);
-  var priv=crypto.createPrivateKey({key:{kty:'EC',crv:'P-256',d:vapidPriv,x:b64E(pub.slice(1,33)),y:b64E(pub.slice(33,65))},format:'jwk'});
-  var hdr=b64E(Buffer.from(JSON.stringify({typ:'JWT',alg:'ES256'})));
-  var pay=b64E(Buffer.from(JSON.stringify({aud:audience,exp:Math.floor(Date.now()/1000)+43200,sub:VAPID_EMAIL})));
-  var inp=hdr+'.'+pay;
-  var sign=crypto.createSign('SHA256'); sign.update(inp);
-  return inp+'.'+b64E(derToRaw(sign.sign(priv)));
-}
-
-function encryptPush(plaintext,p256dhB64,authB64){
-  var subPub=b64D(p256dhB64), authSec=b64D(authB64), salt=crypto.randomBytes(16);
-  var {privateKey:ephPriv,publicKey:ephPub}=crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'});
-  var ephPubBytes=ephPub.export({type:'spki',format:'der'}).slice(26);
-  var recvKey=crypto.createPublicKey({key:{kty:'EC',crv:'P-256',x:b64E(subPub.slice(1,33)),y:b64E(subPub.slice(33,65))},format:'jwk'});
-  var shared=crypto.diffieHellman({privateKey:ephPriv,publicKey:recvKey});
-  var prkKey=hmac(authSec,shared);
-  var ikm=hkdfExpand(prkKey,Buffer.concat([Buffer.from('WebPush: info\x00'),subPub,ephPubBytes]),32);
-  var prk=hmac(salt,ikm);
-  var cek=hkdfExpand(prk,Buffer.from('Content-Encoding: aes128gcm\x00'),16);
-  var nonce=hkdfExpand(prk,Buffer.from('Content-Encoding: nonce\x00'),12);
-  var padded=Buffer.concat([Buffer.from(plaintext,'utf8'),Buffer.from([0x02])]);
-  var cipher=crypto.createCipheriv('aes-128-gcm',cek,nonce);
-  var body=Buffer.concat([cipher.update(padded),cipher.final(),cipher.getAuthTag()]);
-  var rsB=Buffer.alloc(4); rsB.writeUInt32BE(4096,0);
-  return Buffer.concat([salt,rsB,Buffer.from([ephPubBytes.length]),ephPubBytes,body]);
-}
+// ── Web Push 전송 (web-push 라이브러리 — 직접 구현한 RFC 8291 암호화에서 버그가 반복 발견되어 검증된 라이브러리로 교체) ──
+const webpush = require('web-push');
 
 function sendPushNotif(endpoint,p256dh,auth,vapidPub,vapidPriv,payload){
-  return new Promise(function(resolve,reject){
-    var audience=new URL(endpoint).origin;
-    var jwt=makeJwt(vapidPub,vapidPriv,audience);
-    var record=encryptPush(JSON.stringify(payload),p256dh,auth);
-    var u=new URL(endpoint);
-    var req=https.request({hostname:u.hostname,path:u.pathname+u.search,method:'POST',
-      headers:{'Content-Type':'application/octet-stream','Content-Encoding':'aes128gcm','Content-Length':record.length,'TTL':'86400','Urgency':'normal','Authorization':'vapid t='+jwt+',k='+vapidPub}
-    },function(r){var d='';r.on('data',function(c){d+=c;});r.on('end',function(){resolve({status:r.statusCode,body:d});});});
-    req.on('error',reject); req.setTimeout(15000,function(){req.destroy();reject(new Error('timeout'));}); req.write(record); req.end();
-  });
+  webpush.setVapidDetails(VAPID_EMAIL, vapidPub, vapidPriv);
+  var subscription = { endpoint, keys: { p256dh, auth } };
+  return webpush.sendNotification(subscription, JSON.stringify(payload), { TTL: 86400 })
+    .then(function(result){ return { status: result.statusCode, body: result.body }; })
+    .catch(function(err){ return { status: err.statusCode || 500, body: err.body || err.message }; });
 }
 
 // ── Push 액션 핸들러 ──

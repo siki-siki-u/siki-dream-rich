@@ -32,15 +32,17 @@ self.addEventListener('push', function(e) {
   var title = data.title || '📅 경제 지표 알림';
   var options = {
     body:   data.body   || '',
-    icon:   '/icons/icon-192.svg',
-    badge:  '/icons/icon-192.svg',
     tag:    data.tag    || 'econ-event',
     data:   { url: data.url || '/?page=market' },
     requireInteraction: false,
     vibrate: [200, 100, 200],
   };
 
-  e.waitUntil(self.registration.showNotification(title, options));
+  e.waitUntil(
+    self.registration.showNotification(title, options).catch(function(err) {
+      return self.registration.showNotification('⚠️ 알림 오류', { body: String(err && err.message || err) });
+    })
+  );
 });
 
 // ── 알림 클릭 → 앱 열기 ──
