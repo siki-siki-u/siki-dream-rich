@@ -10533,6 +10533,13 @@ function deleteApt(id) {
     }
     S.set('_fix_float_id_migration', '1');
   })();
+  // 알림 클릭 등으로 ?page=market 같은 딥링크로 들어온 경우 해당 페이지로 이동
+  (function() {
+    var pageParam = new URLSearchParams(location.search).get('page');
+    if (pageParam && document.getElementById('page-'+pageParam)) {
+      showPage(pageParam, null);
+    }
+  })();
   syncFromSupabase();
 })();
 
