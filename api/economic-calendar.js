@@ -589,6 +589,8 @@ function earningsTimeLabel(hour) {
 }
 
 async function storeEarningsResult(ticker, result) {
+  // 자동조회 기록은 종목당 최신 1건만 유지 (지난 날짜 누적 방지)
+  await supaRest('DELETE', '/rest/v1/earnings_events?ticker=eq.'+encodeURIComponent(ticker)+'&is_manual=eq.false', null);
   return await supaRest('POST', '/rest/v1/earnings_events?on_conflict=ticker,report_date', {
     ticker, report_date: result.date, report_time: earningsTimeLabel(result.hour), is_manual: false,
   });
