@@ -614,6 +614,32 @@ async function handleEarningsSync(req, res) {
   res.json({ synced, found });
 }
 
+// 테스트용: 실제 알림 조건과 무관하게 구독자 전원에게 즉시 푸시 1건 발송
+async function handleTestPush(req, res) {
+  var vapidPub=await getSetting('vapid_public_key'), vapidPriv=await getSetting('vapid_private_key');
+  if(!vapidPub||!vapidPriv) return res.status(500).json({error:'VAPID 키 없음'});
+
+  var subRes=await supaRest('GET','/rest/v1/push_subscriptions?select=*',null);
+  var subs=[]; try{var sp=JSON.parse(subRes.body); subs=Array.isArray(sp)?sp:[];}catch(_){}
+  if(!subs.length) return res.json({sent:0,message:'구독자 없음'});
+
+  var payload = {
+    title: '🔔 테스트 알림',
+    body: '이 알림이 보이면 푸시 시스템이 정상 작동 중이에요!',
+    tag: 'test-push-'+Date.now(),
+    url: '/?page=market',
+  };
+  var sent=0, errors=0;
+  for (var sub of subs) {
+    try {
+      var r = await sendPushNotif(sub.endpoint, sub.p256dh, sub.auth, vapidPub, vapidPriv, payload);
+      if (r.status>=200 && r.status<300) sent++;
+      else errors++;
+    } catch(_) { errors++; }
+  }
+  res.json({ sent, errors, subs: subs.length });
+}
+
 // ── 메인 라우터 ──
 module.exports = async function(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -626,6 +652,7 @@ module.exports = async function(req, res) {
     if (action === 'push-setup')    return await handlePushSetup(req, res);
     if (action === 'subscribe')     return await handleSubscribe(req, res);
     if (action === 'send')          return await handlePushSend(req, res);
+    if (action === 'test-push')     return await handleTestPush(req, res);
     if (action === 'earnings-list')   return await handleEarningsList(req, res);
     if (action === 'earnings-add')    return await handleEarningsAdd(req, res);
     if (action === 'earnings-sync')   return await handleEarningsSync(req, res);
