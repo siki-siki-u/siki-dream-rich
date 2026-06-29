@@ -298,104 +298,130 @@ async function handlePushSend(req,res){
   var vapidPub=await getSetting('vapid_public_key'), vapidPriv=await getSetting('vapid_private_key');
   if(!vapidPub||!vapidPriv) return res.status(500).json({error:'VAPID 키 없음 — /api/economic-calendar?action=push-setup 먼저 호출'});
 
-  var ALLOWED=['USD','KRW','JPY'], ALLOWED_IMPACT=['High','Medium'], allEvents=[];
-  for(var w of ['thisweek','nextweek']){
-    try{var r=await get('https://nfs.faireconomy.media/ff_calendar_'+w+'.json?timezone=Asia/Seoul');
-      if(r.status===200) JSON.parse(r.body).forEach(function(e){if(ALLOWED.includes(e.currency)&&ALLOWED_IMPACT.includes(e.impact)&&e.date)allEvents.push(e);});
-    }catch(_){}
-  }
-  if(!allEvents.length) return res.json({sent:0,message:'이벤트 없음'});
-
-  var nowMs=Date.now(), toNotify=[];
-  allEvents.forEach(function(ev){
-    var diffM=(new Date(ev.date).getTime()-nowMs)/60000;
-    if(diffM>=50&&diffM<70) toNotify.push({ev,type:'1hour'});
-    else if(diffM>=1430&&diffM<1450) toNotify.push({ev,type:'1day'});
-  });
-  if(!toNotify.length) return res.json({sent:0,message:'알림 대상 없음'});
-
   var subRes=await supaRest('GET','/rest/v1/push_subscriptions?select=*',null);
-  var subs=[]; try{subs=JSON.parse(subRes.body)||[];}catch(_){}
-  if(!subs.length) return res.json({sent:0,message:'구독자 없음'});
+  var subs=[]; try{var sp=JSON.parse(subRes.body); subs=Array.isArray(sp)?sp:[];}catch(_){}
 
-  var CFLAG={USD:'🇺🇸',KRW:'🇰🇷',JPY:'🇯🇵'}, CKO={USD:'미국',KRW:'한국',JPY:'일본'};
-  var sent=0,errors=0;
-  for(var {ev,type} of toNotify){
-    var payload={title:(type==='1hour'?'⏰ 1시간 후 발표 ':'📅 내일 발표 예정 ')+(CFLAG[ev.currency]||''),
-      body:(CKO[ev.currency]||ev.currency)+' · '+translateTitle(ev.title)+'\n⏱ '+(ev.time||'시간 미정')+' (KST)'+(ev.forecast?'\n📊 예측: '+ev.forecast:'')+(ev.previous?' · 이전: '+ev.previous:''),
-      tag:'econ-'+ev.currency+'-'+(ev.date||'').replace(/\D/g,'').slice(0,10)+'-'+type, url:'/?page=market'};
+  var sent=0, errors=0;
+  async function sendToAll(payload){
     for(var sub of subs){
-      try{var result=await sendPushNotif(sub.endpoint,sub.p256dh,sub.auth,vapidPub,vapidPriv,payload);
+      try{
+        var result=await sendPushNotif(sub.endpoint,sub.p256dh,sub.auth,vapidPub,vapidPriv,payload);
         if(result.status>=200&&result.status<300){sent++;}
         else if(result.status===404||result.status===410){errors++;await supaRest('DELETE','/rest/v1/push_subscriptions?endpoint=eq.'+encodeURIComponent(sub.endpoint),null);}
         else{errors++;}
       }catch(_){errors++;}
     }
   }
-  // ── 실적 발표 알림 ──
-  var kstNow = new Date(Date.now() + 9*3600000);
-  var kstH = kstNow.getUTCHours();
-  var kstToday    = kstNow.toISOString().slice(0,10);
-  var kstTomorrow = new Date(kstNow.getTime() + 86400000).toISOString().slice(0,10);
 
-  var ewRes = await supaRest('GET', '/rest/v1/earnings_watchlist?select=ticker,company_name&notify=eq.true', null);
-  var ew = []; try { ew = JSON.parse(ewRes.body) || []; } catch(_) {}
-
-  if (ew.length && subs.length) {
-    var tMap = {}; ew.forEach(function(w) { tMap[w.ticker] = w.company_name; });
-    var inList = Object.keys(tMap).join(',');
-    var eeRes = await supaRest('GET', '/rest/v1/earnings_events?select=*&ticker=in.('+inList+')', null);
-    var ee = []; try { ee = JSON.parse(eeRes.body) || []; } catch(_) {}
-
-    var earningsToNotify = [];
-    ee.forEach(function(e) {
-      var isAMC = e.report_time && e.report_time.includes('AMC');
-      var isBMO = e.report_time && e.report_time.includes('BMO');
-      var kstEventDate = isAMC
-        ? new Date(new Date(e.report_date+'T00:00:00Z').getTime()+86400000).toISOString().slice(0,10)
-        : e.report_date;
-      var kstDayBefore = new Date(new Date(kstEventDate+'T00:00:00Z').getTime()-86400000).toISOString().slice(0,10);
-      // AMC: 새벽 5시 발표 → 4시(1시간 전), 전날 5시(하루 전)
-      if (isAMC) {
-        if (kstToday === kstEventDate && kstH === 4)  earningsToNotify.push({e, type:'1hour'});
-        if (kstToday === kstDayBefore  && kstH === 5)  earningsToNotify.push({e, type:'1day'});
-      // BMO: 밤 22시 발표 → 21시(1시간 전), 전날 22시(하루 전)
-      } else if (isBMO) {
-        if (kstToday === kstEventDate && kstH === 21) earningsToNotify.push({e, type:'1hour'});
-        if (kstToday === kstDayBefore  && kstH === 22) earningsToNotify.push({e, type:'1day'});
-      // 시간 미정: 당일/전날 오전 9시
-      } else {
-        if (kstToday === kstEventDate && kstH === 9) earningsToNotify.push({e, type:'1hour'});
-        if (kstToday === kstDayBefore  && kstH === 9) earningsToNotify.push({e, type:'1day'});
-      }
+  // ── ① 경제 캘린더 알림 (구독자 없거나 대상 이벤트 없어도 아래 실적 체크는 계속 진행) ──
+  var econEvents=0;
+  try {
+    var ALLOWED=['USD','KRW','JPY'], ALLOWED_IMPACT=['High','Medium'], allEvents=[];
+    for(var w of ['thisweek','nextweek']){
+      try{var r=await get('https://nfs.faireconomy.media/ff_calendar_'+w+'.json?timezone=Asia/Seoul');
+        if(r.status===200) JSON.parse(r.body).forEach(function(e){if(ALLOWED.includes(e.currency)&&ALLOWED_IMPACT.includes(e.impact)&&e.date)allEvents.push(e);});
+      }catch(_){}
+    }
+    var nowMs=Date.now(), toNotify=[];
+    allEvents.forEach(function(ev){
+      var diffM=(new Date(ev.date).getTime()-nowMs)/60000;
+      if(diffM>=50&&diffM<70) toNotify.push({ev,type:'1hour'});
+      else if(diffM>=1430&&diffM<1450) toNotify.push({ev,type:'1day'});
     });
+    econEvents=toNotify.length;
 
-    for (var {e: ev, type: notifType} of earningsToNotify) {
-      var evIsAMC = ev.report_time && ev.report_time.includes('AMC');
-      var companyName = tMap[ev.ticker] || ev.ticker;
-      var epsTxt = ev.eps_estimate ? ' · EPS 예상 $'+ev.eps_estimate : '';
-      var timeLabel = evIsAMC ? '새벽 5시경 (KST)' : '밤 10시경 (KST)';
-      var title = notifType === '1hour'
-        ? '⏰ 1시간 후 실적 발표! 📊'
-        : '📅 내일 ' + (evIsAMC ? '새벽' : '밤') + ' 실적 발표 예정';
-      var payload = {
-        title,
-        body: companyName+' ('+ev.ticker+')\n⏱ '+timeLabel+epsTxt,
-        tag: 'earnings-'+ev.ticker+'-'+ev.report_date+'-'+notifType,
-        url: '/?page=market',
-      };
-      for (var sub of subs) {
-        try {
-          var r2 = await sendPushNotif(sub.endpoint,sub.p256dh,sub.auth,vapidPub,vapidPriv,payload);
-          if (r2.status>=200&&r2.status<300) sent++;
-          else if (r2.status===404||r2.status===410) { errors++; await supaRest('DELETE','/rest/v1/push_subscriptions?endpoint=eq.'+encodeURIComponent(sub.endpoint),null); }
-          else errors++;
-        } catch(_) { errors++; }
+    if (subs.length) {
+      var CFLAG={USD:'🇺🇸',KRW:'🇰🇷',JPY:'🇯🇵'}, CKO={USD:'미국',KRW:'한국',JPY:'일본'};
+      for(var {ev,type} of toNotify){
+        var payload={title:(type==='1hour'?'⏰ 1시간 후 발표 ':'📅 내일 발표 예정 ')+(CFLAG[ev.currency]||''),
+          body:(CKO[ev.currency]||ev.currency)+' · '+translateTitle(ev.title)+'\n⏱ '+(ev.time||'시간 미정')+' (KST)'+(ev.forecast?'\n📊 예측: '+ev.forecast:'')+(ev.previous?' · 이전: '+ev.previous:''),
+          tag:'econ-'+ev.currency+'-'+(ev.date||'').replace(/\D/g,'').slice(0,10)+'-'+type, url:'/?page=market'};
+        await sendToAll(payload);
       }
     }
-  }
+  } catch(_) {}
 
-  res.json({sent,errors,events:toNotify.length,subs:subs.length});
+  // ── ② 실적 발표 알림 (경제 캘린더 결과와 무관하게 항상 실행) ──
+  var earningsChecked=0;
+  try {
+    var kstNow = new Date(Date.now() + 9*3600000);
+    var kstH = kstNow.getUTCHours();
+    var kstToday = kstNow.toISOString().slice(0,10);
+
+    var ewRes = await supaRest('GET', '/rest/v1/earnings_watchlist?select=ticker,company_name&notify=eq.true', null);
+    var ew = []; try { var ewp=JSON.parse(ewRes.body); ew=Array.isArray(ewp)?ewp:[]; } catch(_) {}
+
+    if (ew.length) {
+      var tMap = {}; ew.forEach(function(w) { tMap[w.ticker] = w.company_name; });
+      var inList = Object.keys(tMap).join(',');
+      var eeRes = await supaRest('GET', '/rest/v1/earnings_events?select=*&ticker=in.('+inList+')&order=report_date.desc', null);
+      var eeAll = []; try { var eep=JSON.parse(eeRes.body); eeAll=Array.isArray(eep)?eep:[]; } catch(_) {}
+
+      // ticker별 가장 최신(미래에 가까운) 1건만 사용
+      var latestByTicker = {};
+      eeAll.forEach(function(e){ if(!latestByTicker[e.ticker]) latestByTicker[e.ticker]=e; });
+
+      // 지난 날짜이거나 데이터 없는 종목 → 다음 실적일 자동 재조회 (구독자 유무와 무관하게 항상 최신화)
+      var staleTickers = Object.keys(tMap).filter(function(t){
+        var e = latestByTicker[t];
+        return !e || e.report_date < kstToday;
+      });
+      for (var st of staleTickers) {
+        var fresh = await fetchNextEarningsDate(st, kstToday);
+        if (fresh) {
+          await storeEarningsResult(st, fresh);
+          latestByTicker[st] = { ticker: st, report_date: fresh.date, report_time: earningsTimeLabel(fresh.hour), eps_estimate: null };
+        }
+      }
+
+      var ee = Object.keys(latestByTicker).map(function(k){ return latestByTicker[k]; });
+      earningsChecked = ee.length;
+
+      var earningsToNotify = [];
+      ee.forEach(function(e) {
+        var isAMC = e.report_time && e.report_time.includes('AMC');
+        var isBMO = e.report_time && e.report_time.includes('BMO');
+        var kstEventDate = isAMC
+          ? new Date(new Date(e.report_date+'T00:00:00Z').getTime()+86400000).toISOString().slice(0,10)
+          : e.report_date;
+        var kstDayBefore = new Date(new Date(kstEventDate+'T00:00:00Z').getTime()-86400000).toISOString().slice(0,10);
+        // AMC: 새벽 5시 발표 → 4시(1시간 전), 전날 5시(하루 전)
+        if (isAMC) {
+          if (kstToday === kstEventDate && kstH === 4)  earningsToNotify.push({e, type:'1hour'});
+          if (kstToday === kstDayBefore  && kstH === 5)  earningsToNotify.push({e, type:'1day'});
+        // BMO: 밤 22시 발표 → 21시(1시간 전), 전날 22시(하루 전)
+        } else if (isBMO) {
+          if (kstToday === kstEventDate && kstH === 21) earningsToNotify.push({e, type:'1hour'});
+          if (kstToday === kstDayBefore  && kstH === 22) earningsToNotify.push({e, type:'1day'});
+        // 시간 미정: 당일/전날 오전 9시
+        } else {
+          if (kstToday === kstEventDate && kstH === 9) earningsToNotify.push({e, type:'1hour'});
+          if (kstToday === kstDayBefore  && kstH === 9) earningsToNotify.push({e, type:'1day'});
+        }
+      });
+
+      if (subs.length) {
+        for (var {e: ev, type: notifType} of earningsToNotify) {
+          var evIsAMC = ev.report_time && ev.report_time.includes('AMC');
+          var companyName = tMap[ev.ticker] || ev.ticker;
+          var epsTxt = ev.eps_estimate ? ' · EPS 예상 $'+ev.eps_estimate : '';
+          var timeLabel = evIsAMC ? '새벽 5시경 (KST)' : '밤 10시경 (KST)';
+          var title = notifType === '1hour'
+            ? '⏰ 1시간 후 실적 발표! 📊'
+            : '📅 내일 ' + (evIsAMC ? '새벽' : '밤') + ' 실적 발표 예정';
+          var payload = {
+            title,
+            body: companyName+' ('+ev.ticker+')\n⏱ '+timeLabel+epsTxt,
+            tag: 'earnings-'+ev.ticker+'-'+ev.report_date+'-'+notifType,
+            url: '/?page=market',
+          };
+          await sendToAll(payload);
+        }
+      }
+    }
+  } catch(_) {}
+
+  res.json({sent,errors,econEvents,earningsChecked,subs:subs.length});
 }
 
 // ── Finnhub 헬퍼 (직접 HTTPS — ForexFactory 헤더 오염 방지) ──
@@ -522,6 +548,51 @@ function getYahooEarnings(ticker) {
   });
 }
 
+// 종목 하나의 다음 실적 날짜 조회 (Yahoo 1차 → Finnhub 2차 폴백)
+async function fetchNextEarningsDate(ticker, today) {
+  var result = null;
+  try {
+    var yr = await getYahooEarnings(ticker);
+    if (yr.status === 200) {
+      var ydata = JSON.parse(yr.body);
+      var yres = ydata.quoteSummary && ydata.quoteSummary.result && ydata.quoteSummary.result[0];
+      if (yres && yres.calendarEvents && yres.calendarEvents.earnings) {
+        var dates = yres.calendarEvents.earnings.earningsDate;
+        if (dates && dates.length) {
+          var raw = dates[0];
+          var dateStr = (typeof raw === 'object' && raw.fmt) ? raw.fmt
+                      : (typeof raw === 'object' && raw.raw) ? new Date(raw.raw*1000).toISOString().slice(0,10)
+                      : null;
+          if (dateStr && dateStr >= today) result = { date: dateStr, hour: null };
+        }
+      }
+    }
+  } catch(_) {}
+
+  if (!result) {
+    try {
+      var to = new Date(Date.now() + 90*86400000).toISOString().slice(0,10);
+      var fr = await finnhubGet('/calendar/earnings?from='+today+'&to='+to+'&symbol='+encodeURIComponent(ticker));
+      if (fr.status === 200) {
+        var fdata = JSON.parse(fr.body);
+        var fitems = (fdata.earningsCalendar || []).filter(function(e){ return e.symbol===ticker && e.date>=today; });
+        if (fitems.length) result = { date: fitems[0].date, hour: fitems[0].hour || null };
+      }
+    } catch(_) {}
+  }
+  return result;
+}
+
+function earningsTimeLabel(hour) {
+  return hour === 'bmo' ? '장 시작 전 (BMO)' : hour === 'amc' ? '장 마감 후 (AMC)' : null;
+}
+
+async function storeEarningsResult(ticker, result) {
+  return await supaRest('POST', '/rest/v1/earnings_events?on_conflict=ticker,report_date', {
+    ticker, report_date: result.date, report_time: earningsTimeLabel(result.hour), is_manual: false,
+  });
+}
+
 async function handleEarningsSync(req, res) {
   var wRes = await supaRest('GET', '/rest/v1/earnings_watchlist?select=ticker&market=eq.US', null);
   var watchlist = []; try { var wp = JSON.parse(wRes.body); watchlist = Array.isArray(wp) ? wp : []; } catch(_) {}
@@ -531,49 +602,10 @@ async function handleEarningsSync(req, res) {
   var synced = 0, found = 0;
 
   for (var w of watchlist) {
-    var ticker = w.ticker;
-    var result = null;
-
-    // 1차: Yahoo Finance (종목별 직접 조회 — 가장 정확)
-    try {
-      var yr = await getYahooEarnings(ticker);
-      if (yr.status === 200) {
-        var ydata = JSON.parse(yr.body);
-        var yres = ydata.quoteSummary && ydata.quoteSummary.result && ydata.quoteSummary.result[0];
-        if (yres && yres.calendarEvents && yres.calendarEvents.earnings) {
-          var dates = yres.calendarEvents.earnings.earningsDate;
-          if (dates && dates.length) {
-            // raw가 있으면 timestamp, fmt가 있으면 문자열
-            var raw = dates[0];
-            var dateStr = (typeof raw === 'object' && raw.fmt) ? raw.fmt
-                        : (typeof raw === 'object' && raw.raw) ? new Date(raw.raw*1000).toISOString().slice(0,10)
-                        : null;
-            if (dateStr && dateStr >= today) result = { date: dateStr, hour: null };
-          }
-        }
-      }
-    } catch(_) {}
-
-    // 2차: Finnhub 종목별 캘린더 (Yahoo 실패 시)
-    if (!result) {
-      try {
-        var to = new Date(Date.now() + 90*86400000).toISOString().slice(0,10);
-        var fr = await finnhubGet('/calendar/earnings?from='+today+'&to='+to+'&symbol='+encodeURIComponent(ticker));
-        if (fr.status === 200) {
-          var fdata = JSON.parse(fr.body);
-          var fitems = (fdata.earningsCalendar || []).filter(function(e){ return e.symbol===ticker && e.date>=today; });
-          if (fitems.length) result = { date: fitems[0].date, hour: fitems[0].hour || null };
-        }
-      } catch(_) {}
-    }
-
+    var result = await fetchNextEarningsDate(w.ticker, today);
     if (!result) continue;
     found++;
-
-    var timeStr = result.hour === 'bmo' ? '장 시작 전 (BMO)' : result.hour === 'amc' ? '장 마감 후 (AMC)' : null;
-    var r = await supaRest('POST', '/rest/v1/earnings_events?on_conflict=ticker,report_date', {
-      ticker, report_date: result.date, report_time: timeStr, is_manual: false,
-    });
+    var r = await storeEarningsResult(w.ticker, result);
     if (r.status < 300) synced++;
   }
   res.json({ synced, found });
