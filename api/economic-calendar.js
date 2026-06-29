@@ -240,14 +240,14 @@ function makeJwt(vapidPub,vapidPriv,audience){
 function encryptPush(plaintext,p256dhB64,authB64){
   var subPub=b64D(p256dhB64), authSec=b64D(authB64), salt=crypto.randomBytes(16);
   var {privateKey:ephPriv,publicKey:ephPub}=crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'});
-  var ephPubBytes=ephPub.export({type:'spki',format:'der'}).slice(27);
+  var ephPubBytes=ephPub.export({type:'spki',format:'der'}).slice(26);
   var recvKey=crypto.createPublicKey({key:{kty:'EC',crv:'P-256',x:b64E(subPub.slice(1,33)),y:b64E(subPub.slice(33,65))},format:'jwk'});
   var shared=crypto.diffieHellman({privateKey:ephPriv,publicKey:recvKey});
   var prkKey=hmac(authSec,shared);
-  var ikm=hkdfExpand(prkKey,Buffer.concat([Buffer.from('WebPush: info\x00'),subPub,ephPubBytes,Buffer.from([1])]),32);
+  var ikm=hkdfExpand(prkKey,Buffer.concat([Buffer.from('WebPush: info\x00'),subPub,ephPubBytes]),32);
   var prk=hmac(salt,ikm);
-  var cek=hkdfExpand(prk,Buffer.concat([Buffer.from('Content-Encoding: aes128gcm\x00'),Buffer.from([1])]),16);
-  var nonce=hkdfExpand(prk,Buffer.concat([Buffer.from('Content-Encoding: nonce\x00'),Buffer.from([1])]),12);
+  var cek=hkdfExpand(prk,Buffer.from('Content-Encoding: aes128gcm\x00'),16);
+  var nonce=hkdfExpand(prk,Buffer.from('Content-Encoding: nonce\x00'),12);
   var padded=Buffer.concat([Buffer.from(plaintext,'utf8'),Buffer.from([0x02])]);
   var cipher=crypto.createCipheriv('aes-128-gcm',cek,nonce);
   var body=Buffer.concat([cipher.update(padded),cipher.final(),cipher.getAuthTag()]);
