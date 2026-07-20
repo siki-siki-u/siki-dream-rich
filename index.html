@@ -9963,18 +9963,16 @@ async function initPortfolio(){
     dbUpsert('realized_profits', newEntry);
   })();
 
-  // 기존 항목 날짜 형식 정규화: YYYY-MM-DD → YYYY-MM, 4월 이관 외 항목 → 2026-05
+  // 기존 항목 날짜 형식 정규화: YYYY-MM-DD → YYYY-MM (날짜값은 건드리지 않음)
   (function normalizeRpDates(){
     var list = S.get('realized_profits')||[];
     var changed = false;
     list = list.map(function(p){
-      var isApr = p.id === 'migrated_apr_2025';
       var date = (p.date||'');
-      // 풀 날짜(YYYY-MM-DD)면 년월만 추출
-      var ym = date.length > 7 ? date.slice(0,7) : date;
-      // 4월 이관 항목이 아닌데 2026-05가 아니면 2026-05로 변경
-      var newYm = isApr ? (ym || '2025-04') : '2026-05';
-      if(p.date !== newYm){ changed=true; return Object.assign({},p,{date:newYm}); }
+      if(date.length > 7){
+        changed = true;
+        return Object.assign({},p,{date:date.slice(0,7)});
+      }
       return p;
     });
     if(!changed) return;
