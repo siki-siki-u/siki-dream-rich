@@ -6743,14 +6743,17 @@ function onAuthSuccess(user, fromLogin) {
   hideLockScreen();
   enforceGuestMode();
   var _validPages = ['dashboard','budget','assets','market','calendar','youtube','journal','mock-invest','invest-terms','realty','gifts','condolences','stock-analysis'];
-  var _hash = location.hash.replace('#', '');
-  if (_hash && _validPages.indexOf(_hash) !== -1) {
-    var _navEl = null;
+  function navigateToHash(hash) {
+    var h = (hash || location.hash).replace('#', '');
+    if (!h || _validPages.indexOf(h) === -1) return;
+    var navEl = null;
     document.querySelectorAll('.nav-item').forEach(function(n) {
-      if ((n.getAttribute('onclick')||'').indexOf("'"+_hash+"'") !== -1) _navEl = n;
+      if ((n.getAttribute('onclick')||'').indexOf("'"+h+"'") !== -1) navEl = n;
     });
-    showPage(_hash, _navEl);
+    showPage(h, navEl);
   }
+  navigateToHash();
+  window.addEventListener('hashchange', function() { navigateToHash(location.hash); });
   if (_userRole === 'owner' && _loginUsername) {
     var u = _loginUsername;
     setTimeout(function() { maybeOfferWebAuthn(u); }, 600);
