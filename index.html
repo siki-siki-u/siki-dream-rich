@@ -1167,7 +1167,7 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
       <div class="pf-trend-head" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.6rem">
         <div class="sec-title" style="margin:0">📊 자산 추이</div>
         <div class="pf-trend-actions" style="display:flex;gap:.35rem;flex-wrap:wrap">
-          <button class="btn owner-only" style="font-size:.73rem;padding:.3rem .7rem;background:rgba(251,146,60,.12);border:1px solid rgba(251,146,60,.25);color:#fb923c" onclick="openRealizedProfitPopup(null)">💰 익절 기록</button>
+          <button class="btn owner-only" style="font-size:.73rem;padding:.3rem .7rem;background:rgba(251,146,60,.12);border:1px solid rgba(251,146,60,.25);color:#fb923c" onclick="openRealizedProfitPopup(null)">💰 익절/손절 기록</button>
           <button class="btn" style="font-size:.73rem;padding:.3rem .7rem;background:var(--surface2);border:1px solid var(--border);color:var(--muted)" onclick="showPortChanges()">🔍 변화 보기</button>
           <button class="btn btn-primary owner-only" style="font-size:.73rem;padding:.3rem .7rem" onclick="savePortSnapshot()">💾 오늘 저장</button>
         </div>
@@ -1196,8 +1196,11 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
       <div style="border-top:1px solid var(--border);padding-top:.8rem">
         <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem">
           <span style="width:8px;height:8px;border-radius:2px;background:#fb923c;display:inline-block;flex-shrink:0"></span>
-          <span style="font-size:.74rem;color:var(--muted);font-weight:600;letter-spacing:.03em">익절금액 추이</span>
-          <span style="font-size:.67rem;color:var(--muted);opacity:.6">월별 실현 수익</span>
+          <span style="font-size:.74rem;color:var(--muted);font-weight:600;letter-spacing:.03em">익절/손절금액 추이</span>
+          <span style="font-size:.67rem;color:var(--muted);opacity:.6">월별 실현 손익</span>
+        </div>
+        <div style="font-size:.68rem;color:var(--muted);opacity:.65;margin-bottom:.35rem;line-height:1.5;padding:.3rem .4rem;background:var(--surface2);border-radius:6px;border-left:2px solid rgba(251,146,60,.4)">
+          📌 토스 앱 <b>판매일 기준</b>으로 입력하세요 · 회계월(21일~) 무시 후 월별 추이 기록
         </div>
         <div id="port-chart-profit" style="min-height:120px"></div>
         <!-- 익절 기록 목록 -->
@@ -9756,7 +9759,7 @@ function showRealizedMonthly(){
   overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
 
   var listHtml = !data.length
-    ? '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:.85rem">기록된 익절 내역이 없어요<br><span style="font-size:.78rem">자산 추이 탭에서 💰 익절 기록 버튼으로 추가하세요</span></div>'
+    ? '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:.85rem">기록된 익절/손절 내역이 없어요<br><span style="font-size:.78rem">자산 추이 탭에서 💰 익절/손절 기록 버튼으로 추가하세요</span></div>'
     : data.map(function(d){
         var items = d.items.slice().sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
         return '<div style="margin-bottom:.9rem;border:1px solid var(--border);border-radius:10px;overflow:hidden">'+
@@ -9800,7 +9803,7 @@ function renderRealizedProfits() {
 function _renderProfitBarChart(el, profits) {
   if(!el) return;
   if(!profits || !profits.length) {
-    el.innerHTML='<div style="text-align:center;padding:1.2rem;color:var(--muted);font-size:.8rem">익절 기록이 없어요<br><span style="font-size:.72rem">💰 익절 기록 버튼으로 추가하세요</span></div>';
+    el.innerHTML='<div style="text-align:center;padding:1.2rem;color:var(--muted);font-size:.8rem">익절/손절 기록이 없어요<br><span style="font-size:.72rem">💰 익절/손절 기록 버튼으로 추가하세요</span></div>';
     return;
   }
   var monthly = {};
@@ -9875,7 +9878,7 @@ function openRealizedProfitPopup(id) {
   overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
   overlay.innerHTML =
     '<div style="background:var(--surface);border-radius:16px;padding:1.5rem;width:100%;max-width:320px;box-shadow:0 20px 60px rgba(0,0,0,.5)" onclick="event.stopPropagation()">'+
-      '<div style="font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:1.1rem">💰 익절 기록 '+(isNew?'추가':'수정')+'</div>'+
+      '<div style="font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:1.1rem">💰 익절/손절 기록 '+(isNew?'추가':'수정')+'</div>'+
       '<div style="display:flex;flex-direction:column;gap:.75rem">'+
         '<div>'+
           '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">날짜</div>'+
@@ -9927,11 +9930,11 @@ async function saveRealizedProfit(id, isNewStr) {
   var ov = document.getElementById('rp-overlay');
   if(ov) ov.remove();
   renderRealizedProfits();
-  showToast(isNew ? '익절 기록됐어요 💰' : '수정됐어요', 'success');
+  showToast(isNew ? '익절/손절 기록됐어요 💰' : '수정됐어요', 'success');
 }
 
 async function deleteRealizedProfit(id) {
-  if(!confirm('이 익절 기록을 삭제할까요?')) return;
+  if(!confirm('이 익절/손절 기록을 삭제할까요?')) return;
   var ov = document.getElementById('rp-overlay');
   if(ov) ov.remove();
   S.set('realized_profits', getRealizedProfits().filter(function(p){ return p.id!==id; }));
