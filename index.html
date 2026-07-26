@@ -9595,8 +9595,8 @@ function _renderPortBarChart(el, snaps, barColor, H, showDelete){
     var bY=H-padB;
     var invM=inv>=100000000?(inv/100000000).toFixed(2).replace(/\.?0+$/,'')+'억':(inv/10000).toFixed(2).replace(/\.?0+$/,'')+'만';
     var roiExact=inv>0?((profit/inv)*100).toFixed(2)+'%':'–';
-    var prevVal=i>0?(snaps[i-1].valueKRW||snaps[i-1].investedKRW||0):null;
-    var pctStr=prevVal&&prevVal>0?((val-prevVal)/prevVal*100>=0?'+':'')+((val-prevVal)/prevVal*100).toFixed(2)+'%':'';
+    var prevInv=i>0?(snaps[i-1].investedKRW||0):null;
+    var pctStr=prevInv&&prevInv>0?((inv-prevInv)/prevInv*100>=0?'+':'')+((inv-prevInv)/prevInv*100).toFixed(2)+'%':'';
     var dateParts=s.date.split('-');
     var dateLabel=(dateParts[1]||'').replace(/^0/,'')+'/'+((dateParts[2]||'').replace(/^0/,''));
     var invAmt='₩'+inv.toLocaleString();
