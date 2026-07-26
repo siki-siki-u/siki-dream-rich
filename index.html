@@ -9596,7 +9596,8 @@ function _renderPortBarChart(el, snaps, barColor, H, showDelete){
     var invM=inv>=100000000?(inv/100000000).toFixed(2).replace(/\.?0+$/,'')+'억':(inv/10000).toFixed(2).replace(/\.?0+$/,'')+'만';
     var roiExact=inv>0?((profit/inv)*100).toFixed(2)+'%':'–';
     var prevInv=i>0?(snaps[i-1].investedKRW||0):null;
-    var pctStr=prevInv&&prevInv>0?((inv-prevInv)/prevInv*100>=0?'+':'')+((inv-prevInv)/prevInv*100).toFixed(2)+'%':'';
+    var pctVal=prevInv&&prevInv>0?(inv-prevInv)/prevInv*100:null;
+    var pctStr=pctVal!=null?(pctVal>=0?'+':'')+pctVal.toFixed(2)+'%':'';
     var dateParts=s.date.split('-');
     var dateLabel=(dateParts[1]||'').replace(/^0/,'')+'/'+((dateParts[2]||'').replace(/^0/,''));
     var invAmt='₩'+inv.toLocaleString();
@@ -9612,7 +9613,7 @@ function _renderPortBarChart(el, snaps, barColor, H, showDelete){
       '<text x="'+(x+barW/2)+'" y="'+(H-padB+15)+'" text-anchor="middle" fill="#aaa" font-size="'+fsDate+'">'+dateLabel+'</text>'+
       (showDelete?'<text x="'+(x+barW/2)+'" y="'+(H-padB+30)+'" text-anchor="middle" fill="#555" font-size="13" style="cursor:pointer" onclick="deletePortSnapshot(\''+s.date+'\')">×</text>':'')+
       '<text x="'+(x+barW/2)+'" y="'+(bY-invH-(profH>0?profH:0)-5)+'" text-anchor="middle" fill="#ccc" font-size="'+fs+'">'+invM+'</text>'+
-      (pctStr?'<text x="'+(x+barW/2)+'" y="'+(bY-invH-(profH>0?profH:0)-16)+'" text-anchor="middle" fill="'+(profit>=0?'#52d9a3':'#f87171')+'" font-size="'+(H<=160?10:11)+'" font-weight="bold">'+pctStr+'</text>':'')
+      (pctStr?'<text x="'+(x+barW/2)+'" y="'+(bY-invH-(profH>0?profH:0)-16)+'" text-anchor="middle" fill="'+(pctVal>=0?'#52d9a3':'#f87171')+'" font-size="'+(H<=160?10:11)+'" font-weight="bold">'+pctStr+'</text>':'')
     );
   }).join('');
 
