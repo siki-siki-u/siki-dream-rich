@@ -520,7 +520,7 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
     <div style="font-size:.8rem;color:var(--muted);line-height:1.5">다음부터 비밀번호 없이 지문으로 바로 로그인할 수 있어요</div>
     <div style="display:flex;gap:.7rem;margin-top:.3rem">
       <button onclick="registerWebAuthn()" class="btn btn-primary" style="flex:1">등록하기</button>
-      <button onclick="dismissWebAuthn()" class="btn" style="flex:1;background:var(--surface2);border:1px solid var(--border)">나중에</button>
+      <button onclick="declineWebAuthn()" class="btn" style="flex:1;background:var(--surface2);border:1px solid var(--border)">나중에</button>
     </div>
   </div>
 </div>
@@ -550,6 +550,7 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
       <div class="nav-item" onclick="showPage('budget',this);closeSidebar()"><span class="icon">💰</span> 가계부</div>
       <div class="nav-item" onclick="showPage('assets',this);closeSidebar()"><span class="icon">🏦</span> 자산현황</div>
       <div class="nav-item" onclick="showPage('market',this);closeSidebar()"><span class="icon">📊</span> 마켓 현황</div>
+      <div class="nav-item" onclick="showPage('sectormap',this);closeSidebar()"><span class="icon">🗺️</span> 섹터맵</div>
 
       <div class="nav-label">투자공부</div>
       <div class="nav-item" onclick="showPage('youtube',this);closeSidebar()"><span class="icon">▶️</span> 올랜도킴 분석</div>
@@ -1537,6 +1538,22 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
       <div id="earnings-list-body" style="padding:.25rem .5rem 1rem">
         <div style="text-align:center;padding:2.5rem;color:var(--muted);font-size:.85rem">로딩 중...</div>
       </div>
+    </div>
+  </div>
+
+  <!-- 섹터맵 -->
+  <div class="page" id="page-sectormap">
+    <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:.6rem;flex-wrap:wrap">
+      <div style="min-width:0">
+        <h2>🗺️ 섹터맵</h2>
+        <p>테마별 등락률 트리맵 · 박스를 클릭하면 종목 리스트가 표시돼요</p>
+      </div>
+      <button id="sectormap-demo-btn" onclick="toggleSectorMapDemo()" style="flex-shrink:0;padding:.4rem .75rem;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:.78rem;cursor:pointer;white-space:nowrap;font-family:inherit;transition:all .2s">샘플로 미리보기</button>
+    </div>
+
+    <div style="display:flex;gap:1rem;flex-wrap:wrap">
+      <div class="card" id="sectormap-grid" style="flex:1 1 60%;min-width:280px;padding:.8rem"></div>
+      <div class="card" id="sectormap-detail" style="flex:1 1 34%;min-width:240px;padding:.8rem"></div>
     </div>
   </div>
 
@@ -2735,6 +2752,7 @@ function showPage(id, el) {
   if(id==='gifts')       { renderGiftList(); }
   if(id==='condolences') { renderCondolenceList(); }
   if(id==='market')  { loadVix('1mo'); loadYen('3mo'); loadEconCalendar(); loadEarningsCalendar(); }
+  if(id==='sectormap') { renderSectorMap(); }
   if(id==='mock-invest') { syncAndRenderMockInvest(); }
   if(id==='invest-terms') { renderInvestTerms(); }
   if(id==='stock-analysis') { loadInvestmentPrinciples(); }
@@ -6745,7 +6763,7 @@ function onAuthSuccess(user, fromLogin) {
   if (userEl) userEl.style.display = 'flex';
   hideLockScreen();
   enforceGuestMode();
-  var _validPages = ['dashboard','budget','assets','market','calendar','youtube','journal','mock-invest','invest-terms','realty','gifts','condolences','stock-analysis'];
+  var _validPages = ['dashboard','budget','assets','market','sectormap','calendar','youtube','journal','mock-invest','invest-terms','realty','gifts','condolences','stock-analysis'];
   function navigateToHash(hash) {
     var h = (hash || location.hash).replace('#', '');
     if (!h || _validPages.indexOf(h) === -1) return;
@@ -6874,6 +6892,8 @@ async function doWebAuthnLogin() {
 async function maybeOfferWebAuthn(username) {
   if (!window.PublicKeyCredential) return;
   if (localStorage.getItem('wa_cred_' + username)) return;
+  var declinedAt = +localStorage.getItem('wa_declined_' + username);
+  if (declinedAt && Date.now() - declinedAt < 7 * 24 * 60 * 60 * 1000) return;
   try {
     var supported = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
     if (!supported) return;
@@ -6910,6 +6930,131 @@ function dismissWebAuthn() {
   var offer = document.getElementById('webauthn-offer');
   if (offer) offer.classList.remove('show');
   _webauthnPw = '';
+}
+
+function declineWebAuthn() {
+  if (_webauthnUsername) localStorage.setItem('wa_declined_' + _webauthnUsername, String(Date.now()));
+  dismissWebAuthn();
+}
+
+// ── 섹터맵 ──
+// TODO(토스증권 API 연동): fetchSectorMapData / fetchSectorStocks 안에
+// /api/toss-sector-map 같은 서버리스 엔드포인트를 만들어 실제 등락률을 채워 넣으면
+// 아래 렌더링 로직은 그대로 동작함. 지금은 레이아웃만 구성된 상태.
+var _sectorMapDemo = false;
+
+async function fetchSectorMapData() {
+  return null; // 연동 전
+}
+
+async function fetchSectorStocks(theme) {
+  return null; // 연동 전
+}
+
+function sectorMapSampleData() {
+  return [
+    {theme:'반도체', changePct:2.31, weight:18},
+    {theme:'2차전지', changePct:-1.42, weight:14},
+    {theme:'바이오', changePct:0.85, weight:12},
+    {theme:'자동차', changePct:1.10, weight:11},
+    {theme:'인터넷_게임', changePct:-0.62, weight:9},
+    {theme:'금융', changePct:0.34, weight:9},
+    {theme:'조선_기계', changePct:3.05, weight:7},
+    {theme:'건설', changePct:-2.10, weight:6},
+    {theme:'화학', changePct:0.12, weight:6},
+    {theme:'통신', changePct:-0.28, weight:5},
+    {theme:'유통_소비재', changePct:0.55, weight:3}
+  ];
+}
+
+function sectorMapSampleStocks(theme) {
+  var pool = ['삼성전자','SK하이닉스','LG에너지솔루션','현대차','카카오','NAVER','셀트리온','포스코퓨처엠','한화오션','KB금융'];
+  return pool.slice(0, 6).map(function(n, i) {
+    return { name: n, changePct: Math.sin(i * 13 + theme.length) * 4 };
+  });
+}
+
+async function renderSectorMap() {
+  var grid = document.getElementById('sectormap-grid');
+  if (!grid) return;
+  document.getElementById('sectormap-detail').innerHTML =
+    '<div style="display:flex;height:100%;min-height:380px;align-items:center;justify-content:center;color:var(--muted);text-align:center;font-size:.85rem;padding:1rem">섹터 박스를 클릭하면<br>종목 리스트가 여기 표시돼요</div>';
+
+  var data = _sectorMapDemo ? sectorMapSampleData() : await fetchSectorMapData();
+
+  if (!data || !data.length) {
+    grid.innerHTML =
+      '<div style="display:flex;height:100%;min-height:380px;align-items:center;justify-content:center;flex-direction:column;gap:.6rem;color:var(--muted);text-align:center;padding:1rem">' +
+      '<div style="font-size:2rem">🔌</div>' +
+      '<div style="font-weight:700;color:var(--text)">아직 데이터 연동 전이에요</div>' +
+      '<div style="font-size:.8rem;line-height:1.5">토스증권 API 연동 후 이 자리에<br>실시간 섹터별 등락률이 표시돼요</div>' +
+      '</div>';
+    return;
+  }
+  renderSectorMapBoxes(grid, data);
+}
+
+function renderSectorMapBoxes(grid, data) {
+  var sorted = data.slice().sort(function(a, b) { return b.weight - a.weight; });
+  var totalWeight = sorted.reduce(function(s, d) { return s + d.weight; }, 0) || 1;
+  grid.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:4px;min-height:380px;align-content:flex-start"></div>';
+  var wrap = grid.firstChild;
+  sorted.forEach(function(d) {
+    var pct = d.changePct;
+    var intensity = Math.min(Math.abs(pct) / 5, 1);
+    var bg = pct >= 0
+      ? 'rgba(82,217,163,' + (0.15 + intensity * 0.55) + ')'
+      : 'rgba(248,113,113,' + (0.15 + intensity * 0.55) + ')';
+    var basisPct = Math.max((d.weight / totalWeight) * 100, 8);
+    var box = document.createElement('div');
+    box.setAttribute('data-theme', d.theme);
+    box.className = 'sectormap-box';
+    box.style.cssText = 'flex:1 1 ' + basisPct + '%;min-width:90px;min-height:64px;border-radius:8px;background:' + bg + ';border:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:.15rem;cursor:pointer;padding:.4rem;text-align:center';
+    box.innerHTML =
+      '<div style="font-size:.78rem;font-weight:700;color:var(--text)">' + d.theme + '</div>' +
+      '<div style="font-size:.85rem;font-weight:800;color:' + (pct >= 0 ? '#52d9a3' : '#f87171') + '">' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%</div>';
+    box.onclick = function() { selectSectorMapTheme(d); };
+    wrap.appendChild(box);
+  });
+}
+
+function selectSectorMapTheme(sectorData) {
+  document.querySelectorAll('.sectormap-box').forEach(function(b) { b.style.outline = ''; });
+  var el = document.querySelector('.sectormap-box[data-theme="' + sectorData.theme + '"]');
+  if (el) el.style.outline = '2px solid var(--accent)';
+  renderSectorMapDetail(sectorData);
+}
+
+async function renderSectorMapDetail(sectorData) {
+  var detail = document.getElementById('sectormap-detail');
+  if (!detail) return;
+  detail.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem 0">불러오는 중...</div>';
+
+  var stocks = _sectorMapDemo ? sectorMapSampleStocks(sectorData.theme) : await fetchSectorStocks(sectorData.theme);
+
+  if (!stocks || !stocks.length) {
+    detail.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem 1rem;font-size:.8rem">' + sectorData.theme + ' 종목 데이터가 아직 없어요</div>';
+    return;
+  }
+
+  detail.innerHTML =
+    '<div style="font-weight:700;margin-bottom:.6rem">' + sectorData.theme + ' 종목 (' + stocks.length + ')</div>' +
+    '<div style="display:flex;flex-direction:column;gap:.35rem;max-height:420px;overflow-y:auto">' +
+    stocks.map(function(s) {
+      var c = s.changePct >= 0 ? '#52d9a3' : '#f87171';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem .6rem;background:var(--surface2);border-radius:8px">' +
+        '<span style="font-size:.82rem;color:var(--text)">' + s.name + '</span>' +
+        '<span style="font-size:.82rem;font-weight:700;color:' + c + '">' + (s.changePct >= 0 ? '+' : '') + s.changePct.toFixed(2) + '%</span>' +
+        '</div>';
+    }).join('') +
+    '</div>';
+}
+
+function toggleSectorMapDemo() {
+  _sectorMapDemo = !_sectorMapDemo;
+  var btn = document.getElementById('sectormap-demo-btn');
+  if (btn) btn.textContent = _sectorMapDemo ? '샘플 끄기' : '샘플로 미리보기';
+  renderSectorMap();
 }
 
 
