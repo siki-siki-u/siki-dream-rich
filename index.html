@@ -6962,7 +6962,7 @@ async function loadTossHoldings() {
   if (!body) return;
   body.innerHTML = '불러오는 중...';
   try {
-    var res = await fetchWithTimeout('/api/toss-holdings', 15000);
+    var res = await fetchWithTimeout('/api/toss?action=holdings', 15000);
     var json = await res.json();
     if (!res.ok) throw new Error((json && json.error) || ('HTTP ' + res.status));
     var r = json.result;
@@ -7001,7 +7001,7 @@ async function searchTossStocks() {
   if (!q) { box.innerHTML = ''; return; }
   box.innerHTML = '<div style="color:var(--muted);font-size:.8rem;padding:.3rem 0">검색 중...</div>';
   try {
-    var res = await fetchWithTimeout('/api/toss-stocks-search?q=' + encodeURIComponent(q), 15000);
+    var res = await fetchWithTimeout('/api/toss?action=search&q=' + encodeURIComponent(q), 15000);
     var json = await res.json();
     if (!res.ok) throw new Error((json && json.error) || ('HTTP ' + res.status));
     var list = json.result || [];
@@ -7058,7 +7058,7 @@ async function fetchSectorStocks(theme) {
   var priceMap = {};
   try {
     var symbols = r.data.map(function(row) { return row.symbol; }).join(',');
-    var pRes = await fetchWithTimeout('/api/toss-prices?symbols=' + encodeURIComponent(symbols), 12000);
+    var pRes = await fetchWithTimeout('/api/toss?action=prices&symbols=' + encodeURIComponent(symbols), 12000);
     var pJson = await pRes.json();
     (pJson.result || []).forEach(function(p) { priceMap[p.symbol] = p.lastPrice; });
   } catch (e) {}
