@@ -550,7 +550,7 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
       <div class="nav-item" onclick="showPage('budget',this);closeSidebar()"><span class="icon">💰</span> 가계부</div>
       <div class="nav-item" onclick="showPage('assets',this);closeSidebar()"><span class="icon">🏦</span> 자산현황</div>
       <div class="nav-item" onclick="showPage('market',this);closeSidebar()"><span class="icon">📊</span> 마켓 현황</div>
-      <div class="nav-item" onclick="showPage('sectormap',this);closeSidebar()"><span class="icon">🗺️</span> 섹터맵</div>
+      <div class="nav-item" onclick="showPage('sectormap',this);closeSidebar()"><span class="icon">🧪</span> 토스증권API 테스트</div>
 
       <div class="nav-label">투자공부</div>
       <div class="nav-item" onclick="showPage('youtube',this);closeSidebar()"><span class="icon">▶️</span> 올랜도킴 분석</div>
@@ -1541,14 +1541,33 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
     </div>
   </div>
 
-  <!-- 섹터맵 -->
+  <!-- 토스증권API 테스트 -->
   <div class="page" id="page-sectormap">
     <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:.6rem;flex-wrap:wrap">
       <div style="min-width:0">
-        <h2>🗺️ 섹터맵</h2>
-        <p>테마별 등락률 트리맵 · 박스를 클릭하면 종목 리스트가 표시돼요</p>
+        <h2>🧪 토스증권API 테스트</h2>
+        <p>계좌 현황 · 종목 검색 · 섹터맵 — 토스증권 Open API 연동 테스트 공간이에요</p>
       </div>
       <button id="sectormap-demo-btn" onclick="toggleSectorMapDemo()" style="flex-shrink:0;padding:.4rem .75rem;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:.78rem;cursor:pointer;white-space:nowrap;font-family:inherit;transition:all .2s">샘플로 미리보기</button>
+    </div>
+
+    <!-- 내 계좌 현황 -->
+    <div class="card" style="margin-bottom:1rem;padding:.9rem 1rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.5rem">
+        <div style="font-weight:700">💼 내 계좌 현황</div>
+        <button onclick="loadTossHoldings()" style="padding:.35rem .7rem;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.75rem;cursor:pointer;font-family:inherit">계좌 불러오기</button>
+      </div>
+      <div id="toss-holdings-body" style="font-size:.82rem;color:var(--muted)">"계좌 불러오기" 버튼을 눌러서 실제 계좌 데이터를 가져와요</div>
+    </div>
+
+    <!-- 종목 검색 → 섹터에 추가 -->
+    <div class="card" style="margin-bottom:1rem;padding:.9rem 1rem">
+      <div style="font-weight:700;margin-bottom:.5rem">🔍 종목 검색해서 섹터에 추가</div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem">
+        <input id="toss-search-input" placeholder="종목명 또는 종목코드 (예: 삼성전자, 005930)" style="flex:1;min-width:200px;padding:.5rem .7rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.82rem;font-family:inherit" onkeydown="if(event.key==='Enter')searchTossStocks()">
+        <button onclick="searchTossStocks()" style="padding:.5rem 1rem;border-radius:8px;border:1px solid var(--border);background:var(--accent);color:#fff;font-size:.8rem;cursor:pointer;font-family:inherit">검색</button>
+      </div>
+      <div id="toss-search-results" style="display:flex;flex-direction:column;gap:.4rem"></div>
     </div>
 
     <div style="display:flex;gap:1rem;flex-wrap:wrap">
@@ -6937,18 +6956,115 @@ function declineWebAuthn() {
   dismissWebAuthn();
 }
 
-// ── 섹터맵 ──
-// TODO(토스증권 API 연동): fetchSectorMapData / fetchSectorStocks 안에
-// /api/toss-sector-map 같은 서버리스 엔드포인트를 만들어 실제 등락률을 채워 넣으면
-// 아래 렌더링 로직은 그대로 동작함. 지금은 레이아웃만 구성된 상태.
+// ── 토스증권 API 테스트: 계좌 현황 ──
+async function loadTossHoldings() {
+  var body = document.getElementById('toss-holdings-body');
+  if (!body) return;
+  body.innerHTML = '불러오는 중...';
+  try {
+    var res = await fetchWithTimeout('/api/toss-holdings', 15000);
+    var json = await res.json();
+    if (!res.ok) throw new Error((json && json.error) || ('HTTP ' + res.status));
+    var r = json.result;
+    if (!r) { body.innerHTML = json.message || '데이터가 없어요'; return; }
+    var pl = r.profitLoss || {};
+    var mv = r.marketValue || {};
+    var plKrw = Number((pl.amount && pl.amount.krw) || 0);
+    var plRate = Number(pl.rate || 0) * 100;
+    var mvKrw = Number((mv.amount && mv.amount.krw) || 0);
+    var plColor = plKrw >= 0 ? '#52d9a3' : '#f87171';
+    var itemsHtml = (r.items || []).map(function(it) {
+      var itPl = Number((it.profitLoss && it.profitLoss.rate) || 0) * 100;
+      var itColor = itPl >= 0 ? '#52d9a3' : '#f87171';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem .6rem;background:var(--surface2);border-radius:8px">' +
+        '<span style="font-size:.8rem;color:var(--text)">' + it.name + ' <span style="color:var(--muted);font-size:.7rem">' + it.quantity + '주</span></span>' +
+        '<span style="font-size:.8rem;font-weight:700;color:' + itColor + '">' + (itPl >= 0 ? '+' : '') + itPl.toFixed(2) + '%</span>' +
+        '</div>';
+    }).join('');
+    body.innerHTML =
+      '<div style="display:flex;gap:1.2rem;flex-wrap:wrap;margin-bottom:.7rem">' +
+      '<div><div style="color:var(--muted);font-size:.72rem">평가금액</div><div style="font-weight:700;font-size:.95rem;color:var(--text)">₩' + mvKrw.toLocaleString() + '</div></div>' +
+      '<div><div style="color:var(--muted);font-size:.72rem">평가손익</div><div style="font-weight:700;font-size:.95rem;color:' + plColor + '">' + (plKrw >= 0 ? '+' : '') + plKrw.toLocaleString() + ' (' + (plRate >= 0 ? '+' : '') + plRate.toFixed(2) + '%)</div></div>' +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:.35rem">' + (itemsHtml || '<div style="color:var(--muted);font-size:.8rem">보유 종목이 없어요</div>') + '</div>';
+  } catch (e) {
+    body.innerHTML = '<span style="color:#f87171">불러오기 실패: ' + e.message + '</span>';
+  }
+}
+
+// ── 토스증권 API 테스트: 종목 검색 → 섹터에 추가 ──
+async function searchTossStocks() {
+  var input = document.getElementById('toss-search-input');
+  var box = document.getElementById('toss-search-results');
+  var q = (input ? input.value : '').trim();
+  if (!box) return;
+  if (!q) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div style="color:var(--muted);font-size:.8rem;padding:.3rem 0">검색 중...</div>';
+  try {
+    var res = await fetchWithTimeout('/api/toss-stocks-search?q=' + encodeURIComponent(q), 15000);
+    var json = await res.json();
+    if (!res.ok) throw new Error((json && json.error) || ('HTTP ' + res.status));
+    var list = json.result || [];
+    if (!list.length) { box.innerHTML = '<div style="color:var(--muted);font-size:.8rem;padding:.3rem 0">검색 결과 없어요</div>'; return; }
+    box.innerHTML = list.map(function(s) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem .6rem;background:var(--surface2);border-radius:8px;gap:.5rem">' +
+        '<span style="font-size:.82rem;color:var(--text)">' + s.name + ' <span style="color:var(--muted);font-size:.72rem">(' + s.symbol + ' · ' + s.market + ')</span></span>' +
+        '<button onclick=\'promptAddToSector(' + JSON.stringify(s.symbol) + ',' + JSON.stringify(s.name) + ',' + JSON.stringify(s.market) + ')\' style="padding:.3rem .6rem;border-radius:6px;border:1px solid var(--border);background:var(--accent);color:#fff;font-size:.72rem;cursor:pointer;font-family:inherit;white-space:nowrap">+ 섹터에 추가</button>' +
+        '</div>';
+    }).join('');
+  } catch (e) {
+    box.innerHTML = '<div style="color:#f87171;font-size:.8rem;padding:.3rem 0">검색 실패: ' + e.message + '</div>';
+  }
+}
+
+async function promptAddToSector(symbol, name, market) {
+  var theme = prompt(name + ' (' + symbol + ')를 어떤 테마에 추가할까요?\n예: 반도체, 2차전지, 바이오 ...');
+  if (!theme) return;
+  theme = theme.trim();
+  if (!theme) return;
+  if (!supa) { showToast('DB 연결이 안 되어 있어요', 'error'); return; }
+  var { error } = await supa.from('sector_map_stocks').insert({ symbol: symbol, name: name, market: market, theme: theme });
+  if (error) { showToast('추가 실패: ' + error.message, 'error'); return; }
+  showToast(name + ' → "' + theme + '" 테마에 추가했어요');
+  renderSectorMap();
+}
+
+async function removeStockFromSector(id, theme) {
+  if (!supa) return;
+  var { error } = await supa.from('sector_map_stocks').delete().eq('id', id);
+  if (error) { showToast('삭제 실패: ' + error.message, 'error'); return; }
+  renderSectorMap();
+  var data = _sectorMapDemo ? sectorMapSampleData() : await fetchSectorMapData();
+  var match = (data || []).find(function(d) { return d.theme === theme; });
+  if (match) renderSectorMapDetail(match);
+}
+
+// ── 섹터맵 (실데이터: Supabase sector_map_stocks + 토스 실시간 시세) ──
 var _sectorMapDemo = false;
 
 async function fetchSectorMapData() {
-  return null; // 연동 전
+  if (!supa) return null;
+  var r = await supa.from('sector_map_stocks').select('theme');
+  if (r.error || !r.data || !r.data.length) return null;
+  var counts = {};
+  r.data.forEach(function(row) { counts[row.theme] = (counts[row.theme] || 0) + 1; });
+  return Object.keys(counts).map(function(theme) { return { theme: theme, weight: counts[theme], changePct: null }; });
 }
 
 async function fetchSectorStocks(theme) {
-  return null; // 연동 전
+  if (!supa) return null;
+  var r = await supa.from('sector_map_stocks').select('id,symbol,name,market').eq('theme', theme);
+  if (r.error || !r.data || !r.data.length) return null;
+  var priceMap = {};
+  try {
+    var symbols = r.data.map(function(row) { return row.symbol; }).join(',');
+    var pRes = await fetchWithTimeout('/api/toss-prices?symbols=' + encodeURIComponent(symbols), 12000);
+    var pJson = await pRes.json();
+    (pJson.result || []).forEach(function(p) { priceMap[p.symbol] = p.lastPrice; });
+  } catch (e) {}
+  return r.data.map(function(row) {
+    return { id: row.id, symbol: row.symbol, name: row.name, theme: theme, lastPrice: priceMap[row.symbol] || null, changePct: null };
+  });
 }
 
 function sectorMapSampleData() {
@@ -7001,10 +7117,16 @@ function renderSectorMapBoxes(grid, data) {
   var wrap = grid.firstChild;
   sorted.forEach(function(d) {
     var pct = d.changePct;
-    var intensity = Math.min(Math.abs(pct) / 5, 1);
-    var bg = pct >= 0
-      ? 'rgba(82,217,163,' + (0.15 + intensity * 0.55) + ')'
-      : 'rgba(248,113,113,' + (0.15 + intensity * 0.55) + ')';
+    var hasPct = typeof pct === 'number';
+    var bg;
+    if (hasPct) {
+      var intensity = Math.min(Math.abs(pct) / 5, 1);
+      bg = pct >= 0
+        ? 'rgba(82,217,163,' + (0.15 + intensity * 0.55) + ')'
+        : 'rgba(248,113,113,' + (0.15 + intensity * 0.55) + ')';
+    } else {
+      bg = 'var(--surface2)';
+    }
     var basisPct = Math.max((d.weight / totalWeight) * 100, 8);
     var box = document.createElement('div');
     box.setAttribute('data-theme', d.theme);
@@ -7012,7 +7134,8 @@ function renderSectorMapBoxes(grid, data) {
     box.style.cssText = 'flex:1 1 ' + basisPct + '%;min-width:90px;min-height:64px;border-radius:8px;background:' + bg + ';border:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:.15rem;cursor:pointer;padding:.4rem;text-align:center';
     box.innerHTML =
       '<div style="font-size:.78rem;font-weight:700;color:var(--text)">' + d.theme + '</div>' +
-      '<div style="font-size:.85rem;font-weight:800;color:' + (pct >= 0 ? '#52d9a3' : '#f87171') + '">' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%</div>';
+      '<div style="font-size:.8rem;font-weight:700;color:' + (hasPct ? (pct >= 0 ? '#52d9a3' : '#f87171') : 'var(--muted)') + '">' +
+      (hasPct ? (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%' : d.weight + '개 종목') + '</div>';
     box.onclick = function() { selectSectorMapTheme(d); };
     wrap.appendChild(box);
   });
@@ -7041,10 +7164,20 @@ async function renderSectorMapDetail(sectorData) {
     '<div style="font-weight:700;margin-bottom:.6rem">' + sectorData.theme + ' 종목 (' + stocks.length + ')</div>' +
     '<div style="display:flex;flex-direction:column;gap:.35rem;max-height:420px;overflow-y:auto">' +
     stocks.map(function(s) {
-      var c = s.changePct >= 0 ? '#52d9a3' : '#f87171';
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem .6rem;background:var(--surface2);border-radius:8px">' +
+      var hasPct = typeof s.changePct === 'number';
+      var c = hasPct ? (s.changePct >= 0 ? '#52d9a3' : '#f87171') : 'var(--text)';
+      var right = hasPct
+        ? (s.changePct >= 0 ? '+' : '') + s.changePct.toFixed(2) + '%'
+        : (s.lastPrice ? '₩' + Number(s.lastPrice).toLocaleString() : '-');
+      var delBtn = s.id
+        ? '<button onclick="removeStockFromSector(' + JSON.stringify(s.id) + ',' + JSON.stringify(s.theme || sectorData.theme) + ')" style="border:none;background:none;color:var(--muted);cursor:pointer;font-size:.85rem;padding:0 .2rem" title="테마에서 제거">✕</button>'
+        : '';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem .6rem;background:var(--surface2);border-radius:8px;gap:.4rem">' +
         '<span style="font-size:.82rem;color:var(--text)">' + s.name + '</span>' +
-        '<span style="font-size:.82rem;font-weight:700;color:' + c + '">' + (s.changePct >= 0 ? '+' : '') + s.changePct.toFixed(2) + '%</span>' +
+        '<span style="display:flex;align-items:center;gap:.4rem">' +
+        '<span style="font-size:.82rem;font-weight:700;color:' + c + '">' + right + '</span>' +
+        delBtn +
+        '</span>' +
         '</div>';
     }).join('') +
     '</div>';

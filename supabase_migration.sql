@@ -93,6 +93,17 @@ create table if not exists push_subscriptions (
   created_at timestamptz default now()
 );
 
+-- 8. sector_map_stocks (토스증권 API 테스트 — 섹터맵 종목 매핑)
+create table if not exists sector_map_stocks (
+  id         uuid primary key default gen_random_uuid(),
+  symbol     text not null,
+  name       text not null default '',
+  market     text not null default 'KOSPI',
+  theme      text not null,
+  created_at timestamptz default now(),
+  unique(symbol, theme)
+);
+
 -- RLS (Row Level Security) 비활성화 — 퍼블릭 접근 허용
 alter table portfolio_holdings  disable row level security;
 alter table portfolio_snapshots disable row level security;
@@ -101,3 +112,4 @@ alter table invest_terms         disable row level security;
 alter table stock_notes          disable row level security;
 alter table realized_profits     disable row level security;
 alter table push_subscriptions   disable row level security;
+alter table sector_map_stocks    disable row level security;
