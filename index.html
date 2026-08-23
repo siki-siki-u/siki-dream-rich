@@ -7039,31 +7039,56 @@ async function removeStockFromSector(id, theme) {
   if (match) renderSectorMapDetail(match);
 }
 
-// ── 섹터맵 (실데이터: Supabase sector_map_stocks + 토스 실시간 시세) ──
+// ── 섹터맵 (실데이터: Supabase sector_map_stocks + Yahoo Finance 실시간 시세) ──
+// 토스 API는 계좌/검색 전용으로만 쓰고, 시세는 인증·IP 제한이 없는 기존 /api/stock-price(Yahoo Finance)를 재사용
 var _sectorMapDemo = false;
 
-async function fetchSectorMapData() {
+async function loadSectorMapRows() {
   if (!supa) return null;
-  var r = await supa.from('sector_map_stocks').select('theme');
-  if (r.error || !r.data || !r.data.length) return null;
-  var counts = {};
-  r.data.forEach(function(row) { counts[row.theme] = (counts[row.theme] || 0) + 1; });
-  return Object.keys(counts).map(function(theme) { return { theme: theme, weight: counts[theme], changePct: null }; });
+  var r = await supa.from('sector_map_stocks').select('id,symbol,name,market,theme');
+  if (r.error || !r.data) return null;
+  return r.data;
+}
+
+async function fetchPricesForRows(rows) {
+  if (!rows || !rows.length) return {};
+  try {
+    var param = rows.map(function(row) {
+      var t = row.market === 'KOSDAQ' ? 'KRQ' : 'KR';
+      return row.symbol + ':' + t;
+    }).join(',');
+    var res = await fetchWithTimeout('/api/stock-price?tickers=' + encodeURIComponent(param), 15000);
+    var json = await res.json();
+    return json.results || {};
+  } catch (e) { return {}; }
+}
+
+async function fetchSectorMapData() {
+  var rows = await loadSectorMapRows();
+  if (!rows || !rows.length) return null;
+  var priceMap = await fetchPricesForRows(rows);
+  var byTheme = {};
+  rows.forEach(function(row) {
+    if (!byTheme[row.theme]) byTheme[row.theme] = [];
+    var p = priceMap[row.symbol];
+    byTheme[row.theme].push(p ? p.changeP : null);
+  });
+  return Object.keys(byTheme).map(function(theme) {
+    var vals = byTheme[theme].filter(function(v) { return typeof v === 'number'; });
+    var avg = vals.length ? vals.reduce(function(a, b) { return a + b; }, 0) / vals.length : null;
+    return { theme: theme, weight: byTheme[theme].length, changePct: avg };
+  });
 }
 
 async function fetchSectorStocks(theme) {
-  if (!supa) return null;
-  var r = await supa.from('sector_map_stocks').select('id,symbol,name,market').eq('theme', theme);
-  if (r.error || !r.data || !r.data.length) return null;
-  var priceMap = {};
-  try {
-    var symbols = r.data.map(function(row) { return row.symbol; }).join(',');
-    var pRes = await fetchWithTimeout('/api/toss?action=prices&symbols=' + encodeURIComponent(symbols), 12000);
-    var pJson = await pRes.json();
-    (pJson.result || []).forEach(function(p) { priceMap[p.symbol] = p.lastPrice; });
-  } catch (e) {}
-  return r.data.map(function(row) {
-    return { id: row.id, symbol: row.symbol, name: row.name, theme: theme, lastPrice: priceMap[row.symbol] || null, changePct: null };
+  var rows = await loadSectorMapRows();
+  if (!rows) return null;
+  var themeRows = rows.filter(function(r) { return r.theme === theme; });
+  if (!themeRows.length) return null;
+  var priceMap = await fetchPricesForRows(themeRows);
+  return themeRows.map(function(row) {
+    var p = priceMap[row.symbol];
+    return { id: row.id, symbol: row.symbol, name: row.name, theme: theme, lastPrice: p ? p.price : null, changePct: p ? p.changeP : null };
   });
 }
 

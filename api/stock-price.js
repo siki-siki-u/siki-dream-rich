@@ -71,7 +71,7 @@ module.exports = async function(req, res) {
       if (stockItems.length) {
         var symToItem = {};
         var symbols = stockItems.map(function(it) {
-          var sym = it.type === 'KR' ? it.ticker + '.KS' : it.ticker;
+          var sym = it.type === 'KR' ? it.ticker + '.KS' : it.type === 'KRQ' ? it.ticker + '.KQ' : it.ticker;
           symToItem[sym] = it;
           return sym;
         });
@@ -103,7 +103,7 @@ module.exports = async function(req, res) {
         if (missing.length) {
           await Promise.all(missing.map(async function(it) {
             try {
-              var sym2 = it.type === 'KR' ? it.ticker + '.KS' : it.ticker;
+              var sym2 = it.type === 'KR' ? it.ticker + '.KS' : it.type === 'KRQ' ? it.ticker + '.KQ' : it.ticker;
               var yfUrl2 = 'https://query2.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym2) + '?interval=1d&range=1d';
               var yfRes2 = await get(yfUrl2);
               if (yfRes2.status !== 200) return;
@@ -139,7 +139,7 @@ module.exports = async function(req, res) {
       });
     }
 
-    var sym = type === 'KR' ? ticker + '.KS' : ticker;
+    var sym = type === 'KR' ? ticker + '.KS' : type === 'KRQ' ? ticker + '.KQ' : ticker;
 
     // ── 1차 시도: v7/finance/quote (더 실시간에 가까운 데이터) ──
     try {
