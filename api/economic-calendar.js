@@ -388,6 +388,87 @@ async function handlePushSend(req,res){
   res.json({sent,errors,econEvents,earningsChecked,subs:subs.length});
 }
 
+// ── 리버풀 경기 알림 (Vercel Cron: 매일 23:00 UTC = 익일 08:00 KST) ──
+async function handlePushLFC(req, res) {
+  var vapidPub = await getSetting('vapid_public_key'), vapidPriv = await getSetting('vapid_private_key');
+  if (!vapidPub || !vapidPriv) return res.json({ ok: false, reason: 'no vapid' });
+
+  var subRes = await supaRest('GET', '/rest/v1/push_subscriptions?select=*', null);
+  var subs = []; try { var sp = JSON.parse(subRes.body); subs = Array.isArray(sp) ? sp : []; } catch(_) {}
+  if (!subs.length) return res.json({ ok: true, sent: 0, reason: 'no subscribers' });
+
+  async function sendToAll(payload) {
+    for (var sub of subs) {
+      try {
+        var r = await sendPushNotif(sub.endpoint, sub.p256dh, sub.auth, vapidPub, vapidPriv, payload);
+        if (r.status === 404 || r.status === 410) {
+          await supaRest('DELETE', '/rest/v1/push_subscriptions?endpoint=eq.' + encodeURIComponent(sub.endpoint), null);
+        }
+      } catch(_) {}
+    }
+  }
+
+  var LFC_ICON = 'https://crests.football-data.org/64.png';
+  var kstNow = new Date(Date.now() + 9 * 3600000);
+  var kstToday = kstNow.toISOString().slice(0, 10);
+  var kstDow = kstNow.getUTCDay(); // 1 = 월요일
+
+  var season = kstNow.getUTCMonth() >= 7 ? kstNow.getUTCFullYear() : kstNow.getUTCFullYear() - 1;
+  var lfcRes = await callFootballData('/v4/teams/' + LFC_FD_ID + '/matches?competitions=PL&season=' + season);
+  if (lfcRes.status !== 200) return res.json({ ok: false, reason: 'fd-api ' + lfcRes.status });
+
+  var matches = JSON.parse(lfcRes.body).matches || [];
+  var sent = 0;
+
+  // ① 경기 하루 전 알림
+  var kstTomorrow = new Date(kstNow.getTime() + 86400000).toISOString().slice(0, 10);
+  var tomorrowMatch = matches.find(function(m) {
+    var kd = new Date(new Date(m.utcDate).getTime() + 9 * 3600000).toISOString().slice(0, 10);
+    return kd === kstTomorrow && (m.status === 'TIMED' || m.status === 'SCHEDULED');
+  });
+  if (tomorrowMatch) {
+    var isHome = tomorrowMatch.homeTeam.id === LFC_FD_ID;
+    var opp = isHome ? tomorrowMatch.awayTeam : tomorrowMatch.homeTeam;
+    var mKst = new Date(new Date(tomorrowMatch.utcDate).getTime() + 9 * 3600000);
+    var timeStr = String(mKst.getUTCHours()).padStart(2,'0') + ':' + String(mKst.getUTCMinutes()).padStart(2,'0');
+    await sendToAll({
+      title: '⚽ 내일 리버풀 경기!',
+      body: (isHome ? '🏠 홈' : '✈️ 원정') + ' vs ' + (opp.shortName || opp.name) + ' · ' + timeStr + ' KST',
+      icon: LFC_ICON, badge: LFC_ICON,
+      tag: 'lfc-match-' + kstTomorrow, url: '/#hobby',
+    });
+    sent++;
+  }
+
+  // ② 월요일 주간 일정 알림
+  if (kstDow === 1) {
+    var weekEnd = new Date(kstNow.getTime() + 7 * 86400000).toISOString().slice(0, 10);
+    var weekMatches = matches.filter(function(m) {
+      var kd = new Date(new Date(m.utcDate).getTime() + 9 * 3600000).toISOString().slice(0, 10);
+      return kd >= kstToday && kd <= weekEnd && (m.status === 'TIMED' || m.status === 'SCHEDULED');
+    });
+    if (weekMatches.length > 0) {
+      var lines = weekMatches.map(function(m) {
+        var mk = new Date(new Date(m.utcDate).getTime() + 9 * 3600000);
+        var dt = (mk.getUTCMonth()+1) + '/' + mk.getUTCDate();
+        var tm = String(mk.getUTCHours()).padStart(2,'0') + ':' + String(mk.getUTCMinutes()).padStart(2,'0');
+        var mHome = m.homeTeam.id === LFC_FD_ID;
+        var mOpp = mHome ? m.awayTeam.shortName : m.homeTeam.shortName;
+        return dt + ' ' + tm + ' ' + (mHome ? '🏠' : '✈️') + ' vs ' + mOpp;
+      }).join('\n');
+      await sendToAll({
+        title: '📅 이번주 리버풀 EPL 일정',
+        body: weekMatches.length + '경기\n' + lines,
+        icon: LFC_ICON, badge: LFC_ICON,
+        tag: 'lfc-weekly-' + kstToday, url: '/#hobby',
+      });
+      sent++;
+    }
+  }
+
+  res.json({ ok: true, sent, subs: subs.length, tomorrow: tomorrowMatch ? tomorrowMatch.id : null });
+}
+
 // ── Finnhub 헬퍼 (직접 HTTPS — ForexFactory 헤더 오염 방지) ──
 function finnhubGet(path) {
   var key = process.env.FINNHUB_KEY || '';
@@ -704,6 +785,7 @@ module.exports = async function(req, res) {
     if (action === 'earnings-search') return await handleEarningsSearch(req, res);
     if (action === 'liverpool')       return await handleLiverpool(req, res);
     if (action === 'epl-table')       return await handleEPLTable(req, res);
+    if (action === 'push-lfc')        return await handlePushLFC(req, res);
 
     // 기본: 경제 캘린더 조회
     var period = req.query.period || 'thisweek';

@@ -1,4 +1,7 @@
 {
+  "crons": [
+    { "path": "/api/economic-calendar?action=push-lfc", "schedule": "0 23 * * *" }
+  ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
