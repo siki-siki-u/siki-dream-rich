@@ -3533,6 +3533,7 @@ function renderEPLStandings(data) {
   html += '<span><span style="color:#60a5fa">■</span> UCL(1-4위)</span>';
   html += '<span><span style="color:#a78bfa">■</span> UEL(5-6위)</span>';
   html += '<span><span style="color:var(--danger)">■</span> 강등권(18-20위)</span>';
+  if (data.isFallback) html += '<span style="margin-left:auto;color:#fb923c">※ ' + data.season + ' 시즌 기준 (신시즌 집계 중)</span>';
   html += '</div>';
   el.innerHTML = html;
 }

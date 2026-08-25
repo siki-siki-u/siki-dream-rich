@@ -635,37 +635,103 @@ function getSportsDB(path) {
   });
 }
 
-async function handleLiverpool(req, res) {
-  var season = getSeasonStr();
-  var r = await getSportsDB('/api/v1/json/3/eventsseason.php?id=4328&s=' + season);
-  if (r.status !== 200) return res.status(502).json({ error: 'thesportsdb 오류: ' + r.status });
-  var data = JSON.parse(r.body);
+function mapLFCEvent(ev) {
   var LFC = '133602';
-  var events = (data.events || [])
-    .filter(function(ev) { return ev.idHomeTeam === LFC || ev.idAwayTeam === LFC; })
-    .map(function(ev) {
-      var isHome = ev.idHomeTeam === LFC;
-      return {
-        date: ev.dateEvent,
-        timestamp: ev.strTimestamp || (ev.dateEvent + 'T' + (ev.strTime || '00:00:00') + '+00:00'),
-        opponent: isHome ? ev.strAwayTeam : ev.strHomeTeam,
-        opponentBadge: isHome ? (ev.strAwayTeamBadge || '') : (ev.strHomeTeamBadge || ''),
-        isHome: isHome,
-        homeScore: ev.intHomeScore,
-        awayScore: ev.intAwayScore,
-        lfcScore: isHome ? ev.intHomeScore : ev.intAwayScore,
-        oppScore: isHome ? ev.intAwayScore : ev.intHomeScore,
-      };
-    });
-  res.json({ events: events, season: season });
+  var isHome = String(ev.idHomeTeam) === LFC;
+  return {
+    date: ev.dateEvent,
+    timestamp: ev.strTimestamp || (ev.dateEvent + 'T' + (ev.strTime || '00:00:00') + 'Z'),
+    opponent: isHome ? (ev.strAwayTeam || '') : (ev.strHomeTeam || ''),
+    opponentBadge: isHome ? (ev.strAwayTeamBadge || '') : (ev.strHomeTeamBadge || ''),
+    isHome: isHome,
+    lfcScore: isHome ? ev.intHomeScore : ev.intAwayScore,
+    oppScore: isHome ? ev.intAwayScore : ev.intHomeScore,
+    eventId: ev.idEvent,
+  };
+}
+
+async function handleLiverpool(req, res) {
+  var LFC = '133602';
+  var season = getSeasonStr();
+  var allEvents = [];
+  var seen = {};
+
+  // 1차: 팀 시즌 전체 일정 (가장 완전한 데이터)
+  try {
+    var r1 = await getSportsDB('/api/v1/json/3/eventsseason.php?id=' + LFC + '&s=' + season);
+    if (r1.status === 200) {
+      var d1 = JSON.parse(r1.body);
+      (d1.events || []).forEach(function(ev) {
+        if (!seen[ev.idEvent]) { seen[ev.idEvent] = 1; allEvents.push(ev); }
+      });
+    }
+  } catch(_) {}
+
+  // 2차 fallback: 다음 5경기 + 최근 15경기
+  if (allEvents.length < 3) {
+    try {
+      var r2 = await getSportsDB('/api/v1/json/3/eventsnext.php?id=' + LFC);
+      if (r2.status === 200) {
+        var d2 = JSON.parse(r2.body);
+        (d2.events || []).forEach(function(ev) {
+          if (!seen[ev.idEvent]) { seen[ev.idEvent] = 1; allEvents.push(ev); }
+        });
+      }
+    } catch(_) {}
+    try {
+      var r3 = await getSportsDB('/api/v1/json/3/eventslast.php?id=' + LFC);
+      if (r3.status === 200) {
+        var d3 = JSON.parse(r3.body);
+        (d3.results || []).forEach(function(ev) {
+          if (!seen[ev.idEvent]) { seen[ev.idEvent] = 1; allEvents.push(ev); }
+        });
+      }
+    } catch(_) {}
+  }
+
+  // EPL 경기만 필터 (idLeague === '4328')
+  var eplOnly = allEvents.filter(function(ev) {
+    return String(ev.idLeague) === '4328' &&
+      (String(ev.idHomeTeam) === LFC || String(ev.idAwayTeam) === LFC);
+  });
+  // EPL 필터 후 너무 적으면 전체 허용
+  if (eplOnly.length < 3) eplOnly = allEvents.filter(function(ev) {
+    return String(ev.idHomeTeam) === LFC || String(ev.idAwayTeam) === LFC;
+  });
+
+  eplOnly.sort(function(a, b) { return (a.dateEvent || '').localeCompare(b.dateEvent || ''); });
+  res.json({ events: eplOnly.map(mapLFCEvent), season: season, total: eplOnly.length });
 }
 
 async function handleEPLTable(req, res) {
   var season = getSeasonStr();
-  var r = await getSportsDB('/api/v1/json/3/lookuptable.php?l=4328&s=' + season);
-  if (r.status !== 200) return res.status(502).json({ error: 'thesportsdb 오류: ' + r.status });
-  var data = JSON.parse(r.body);
-  res.json({ table: data.table || [], season: season });
+  var table = [];
+
+  // 현재 시즌 시도
+  try {
+    var r = await getSportsDB('/api/v1/json/3/lookuptable.php?l=4328&s=' + season);
+    if (r.status === 200) {
+      var d = JSON.parse(r.body);
+      table = d.table || [];
+    }
+  } catch(_) {}
+
+  // 20팀 미만이면 이전 시즌으로 폴백
+  if (table.length < 20) {
+    var prevSeason = (function() {
+      var p = season.split('-');
+      return (Number(p[0]) - 1) + '-' + (Number(p[1]) - 1);
+    })();
+    try {
+      var rp = await getSportsDB('/api/v1/json/3/lookuptable.php?l=4328&s=' + prevSeason);
+      if (rp.status === 200) {
+        var dp = JSON.parse(rp.body);
+        if ((dp.table || []).length > table.length) { table = dp.table; season = prevSeason; }
+      }
+    } catch(_) {}
+  }
+
+  res.json({ table: table, season: season, isFallback: season !== getSeasonStr() });
 }
 
 module.exports = async function(req, res) {
