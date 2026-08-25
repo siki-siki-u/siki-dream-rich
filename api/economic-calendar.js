@@ -612,18 +612,15 @@ async function handleTestPush(req, res) {
   res.json({ sent, errors, subs: subs.length });
 }
 
-// ── 메인 라우터 ──
-function getSeasonStr() {
-  var now = new Date();
-  var y = now.getUTCFullYear(), m = now.getUTCMonth();
-  return m >= 7 ? y + '-' + (y+1) : (y-1) + '-' + y;
-}
+// ── football-data.org helpers ──
+var FD_TOKEN = '7f73138f6934428a84fe0223b6c4c5ce';
+var LFC_FD_ID = 64;  // Liverpool FC ID in football-data.org
 
-function getSportsDB(path) {
+function callFootballData(path) {
   return new Promise(function(resolve, reject) {
-    var u = new URL('https://www.thesportsdb.com' + path);
+    var u = new URL('https://api.football-data.org' + path);
     var opts = { hostname: u.hostname, path: u.pathname + u.search, method: 'GET',
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' }, timeout: 10000 };
+      headers: { 'X-Auth-Token': FD_TOKEN, 'Accept': 'application/json' }, timeout: 10000 };
     var r = https.request(opts, function(res) {
       var chunks = [];
       res.on('data', function(c) { chunks.push(c); });
@@ -635,103 +632,58 @@ function getSportsDB(path) {
   });
 }
 
-function mapLFCEvent(ev) {
-  var LFC = '133602';
-  var isHome = String(ev.idHomeTeam) === LFC;
-  return {
-    date: ev.dateEvent,
-    timestamp: ev.strTimestamp || (ev.dateEvent + 'T' + (ev.strTime || '00:00:00') + 'Z'),
-    opponent: isHome ? (ev.strAwayTeam || '') : (ev.strHomeTeam || ''),
-    opponentBadge: isHome ? (ev.strAwayTeamBadge || '') : (ev.strHomeTeamBadge || ''),
-    isHome: isHome,
-    lfcScore: isHome ? ev.intHomeScore : ev.intAwayScore,
-    oppScore: isHome ? ev.intAwayScore : ev.intHomeScore,
-    eventId: ev.idEvent,
-  };
+function fdSeason() {
+  var now = new Date();
+  var y = now.getUTCFullYear(), m = now.getUTCMonth();
+  return m >= 7 ? y : y - 1;  // 2026 for 2026-2027 season
 }
 
 async function handleLiverpool(req, res) {
-  var LFC = '133602';
-  var season = getSeasonStr();
-  var allEvents = [];
-  var seen = {};
-
-  // 1차: 팀 시즌 전체 일정 (가장 완전한 데이터)
-  try {
-    var r1 = await getSportsDB('/api/v1/json/3/eventsseason.php?id=' + LFC + '&s=' + season);
-    if (r1.status === 200) {
-      var d1 = JSON.parse(r1.body);
-      (d1.events || []).forEach(function(ev) {
-        if (!seen[ev.idEvent]) { seen[ev.idEvent] = 1; allEvents.push(ev); }
-      });
-    }
-  } catch(_) {}
-
-  // 2차 fallback: 다음 5경기 + 최근 15경기
-  if (allEvents.length < 3) {
-    try {
-      var r2 = await getSportsDB('/api/v1/json/3/eventsnext.php?id=' + LFC);
-      if (r2.status === 200) {
-        var d2 = JSON.parse(r2.body);
-        (d2.events || []).forEach(function(ev) {
-          if (!seen[ev.idEvent]) { seen[ev.idEvent] = 1; allEvents.push(ev); }
-        });
-      }
-    } catch(_) {}
-    try {
-      var r3 = await getSportsDB('/api/v1/json/3/eventslast.php?id=' + LFC);
-      if (r3.status === 200) {
-        var d3 = JSON.parse(r3.body);
-        (d3.results || []).forEach(function(ev) {
-          if (!seen[ev.idEvent]) { seen[ev.idEvent] = 1; allEvents.push(ev); }
-        });
-      }
-    } catch(_) {}
-  }
-
-  // EPL 경기만 필터 (idLeague === '4328')
-  var eplOnly = allEvents.filter(function(ev) {
-    return String(ev.idLeague) === '4328' &&
-      (String(ev.idHomeTeam) === LFC || String(ev.idAwayTeam) === LFC);
+  var season = fdSeason();
+  var r = await callFootballData('/v4/teams/' + LFC_FD_ID + '/matches?competitions=PL&season=' + season);
+  if (r.status !== 200) return res.status(502).json({ error: 'football-data 오류 ' + r.status + ': ' + r.body.slice(0, 200) });
+  var data = JSON.parse(r.body);
+  var events = (data.matches || []).map(function(m) {
+    var isHome = m.homeTeam.id === LFC_FD_ID;
+    var opp = isHome ? m.awayTeam : m.homeTeam;
+    var finished = m.status === 'FINISHED';
+    return {
+      date: m.utcDate.slice(0, 10),
+      timestamp: m.utcDate,
+      opponent: opp.shortName || opp.name,
+      opponentBadge: opp.crest || '',
+      isHome: isHome,
+      lfcScore: finished ? (isHome ? m.score.fullTime.home : m.score.fullTime.away) : null,
+      oppScore: finished ? (isHome ? m.score.fullTime.away : m.score.fullTime.home) : null,
+      status: m.status,
+    };
   });
-  // EPL 필터 후 너무 적으면 전체 허용
-  if (eplOnly.length < 3) eplOnly = allEvents.filter(function(ev) {
-    return String(ev.idHomeTeam) === LFC || String(ev.idAwayTeam) === LFC;
-  });
-
-  eplOnly.sort(function(a, b) { return (a.dateEvent || '').localeCompare(b.dateEvent || ''); });
-  res.json({ events: eplOnly.map(mapLFCEvent), season: season, total: eplOnly.length });
+  events.sort(function(a, b) { return a.timestamp.localeCompare(b.timestamp); });
+  res.json({ events: events, season: season + '-' + (season + 1) });
 }
 
 async function handleEPLTable(req, res) {
-  var season = getSeasonStr();
-  var table = [];
-
-  // 현재 시즌 시도
-  try {
-    var r = await getSportsDB('/api/v1/json/3/lookuptable.php?l=4328&s=' + season);
-    if (r.status === 200) {
-      var d = JSON.parse(r.body);
-      table = d.table || [];
-    }
-  } catch(_) {}
-
-  // 20팀 미만이면 이전 시즌으로 폴백
-  if (table.length < 20) {
-    var prevSeason = (function() {
-      var p = season.split('-');
-      return (Number(p[0]) - 1) + '-' + (Number(p[1]) - 1);
-    })();
-    try {
-      var rp = await getSportsDB('/api/v1/json/3/lookuptable.php?l=4328&s=' + prevSeason);
-      if (rp.status === 200) {
-        var dp = JSON.parse(rp.body);
-        if ((dp.table || []).length > table.length) { table = dp.table; season = prevSeason; }
-      }
-    } catch(_) {}
-  }
-
-  res.json({ table: table, season: season, isFallback: season !== getSeasonStr() });
+  var r = await callFootballData('/v4/competitions/PL/standings');
+  if (r.status !== 200) return res.status(502).json({ error: 'football-data 오류 ' + r.status + ': ' + r.body.slice(0, 200) });
+  var data = JSON.parse(r.body);
+  var totalStanding = (data.standings || []).find(function(s) { return s.type === 'TOTAL'; });
+  var rawTable = (totalStanding && totalStanding.table) || [];
+  var season = data.season ? data.season.startDate.slice(0, 4) + '-' + data.season.endDate.slice(0, 4) : '';
+  var table = rawTable.map(function(e) {
+    return {
+      intRank: String(e.position),
+      idTeam: String(e.team.id),
+      strTeam: e.team.shortName || e.team.name,
+      strBadge: e.team.crest || '',
+      intPlayed: String(e.playedGames),
+      intWin: String(e.won),
+      intDraw: String(e.draw),
+      intLoss: String(e.lost),
+      intGoalDifference: String(e.goalDifference),
+      intPoints: String(e.points),
+    };
+  });
+  res.json({ table: table, season: season });
 }
 
 module.exports = async function(req, res) {

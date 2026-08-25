@@ -3429,7 +3429,7 @@ async function loadLiverpool() {
     var sr = await fetch('/api/economic-calendar?action=epl-table');
     var sdata = await sr.json();
     if (sdata.error) throw new Error(sdata.error);
-    var lfcEntry = (sdata.table || []).find(function(e) { return String(e.idTeam) === '133602'; });
+    var lfcEntry = (sdata.table || []).find(function(e) { return String(e.idTeam) === '64'; });
     if (lfcEntry && lfcEntry.strBadge) { _lfcBadge = lfcEntry.strBadge; renderLFCCalendar(); }
     renderEPLStandings(sdata);
   } catch(e) {
