@@ -515,6 +515,9 @@ function getYahooEarnings(ticker) {
 // 종목 하나의 다음 실적 날짜 조회 (Yahoo 1차 → Finnhub 2차 폴백)
 async function fetchNextEarningsDate(ticker, today) {
   var result = null;
+  var yahooDate = null;
+
+  // 1단계: Yahoo에서 날짜 가져오기 (날짜 기준으로 신뢰도 높음)
   try {
     var yr = await getYahooEarnings(ticker);
     if (yr.status === 200) {
@@ -527,23 +530,29 @@ async function fetchNextEarningsDate(ticker, today) {
           var dateStr = (typeof raw === 'object' && raw.fmt) ? raw.fmt
                       : (typeof raw === 'object' && raw.raw) ? new Date(raw.raw*1000).toISOString().slice(0,10)
                       : null;
-          if (dateStr && dateStr >= today) result = { date: dateStr, hour: null };
+          if (dateStr && dateStr >= today) yahooDate = dateStr;
         }
       }
     }
   } catch(_) {}
 
-  if (!result) {
-    try {
-      var to = new Date(Date.now() + 90*86400000).toISOString().slice(0,10);
-      var fr = await finnhubGet('/calendar/earnings?from='+today+'&to='+to+'&symbol='+encodeURIComponent(ticker));
-      if (fr.status === 200) {
-        var fdata = JSON.parse(fr.body);
-        var fitems = (fdata.earningsCalendar || []).filter(function(e){ return e.symbol===ticker && e.date>=today; });
-        if (fitems.length) result = { date: fitems[0].date, hour: fitems[0].hour || null };
+  // 2단계: Finnhub에서 AMC/BMO 시간 정보 가져오기 (날짜는 무시하고 hour만 사용)
+  var finnhubHour = null;
+  try {
+    var to = new Date(Date.now() + 90*86400000).toISOString().slice(0,10);
+    var fr = await finnhubGet('/calendar/earnings?from='+today+'&to='+to+'&symbol='+encodeURIComponent(ticker));
+    if (fr.status === 200) {
+      var fdata = JSON.parse(fr.body);
+      var fitems = (fdata.earningsCalendar || []).filter(function(e){ return e.symbol===ticker && e.date>=today; });
+      if (fitems.length) {
+        finnhubHour = fitems[0].hour || null;
+        // Yahoo 날짜가 없을 때만 Finnhub 날짜 사용
+        if (!yahooDate) yahooDate = fitems[0].date;
       }
-    } catch(_) {}
-  }
+    }
+  } catch(_) {}
+
+  if (yahooDate) result = { date: yahooDate, hour: finnhubHour };
   return result;
 }
 
