@@ -569,6 +569,10 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
       <div class="nav-item" onclick="showPage('gifts',this);closeSidebar()"><span class="icon">🎁</span> 축의금 장부</div>
       <div class="nav-item" onclick="showPage('condolences',this);closeSidebar()"><span class="icon">🖤</span> 조의금 장부</div>
     </div>
+    <div class="nav-section">
+      <div class="nav-label">취미</div>
+      <div class="nav-item" onclick="showPage('hobby',this);closeSidebar()"><span class="icon">⚽</span> 리버풀 &amp; EPL</div>
+    </div>
   </div>
 
   <div class="sidebar-footer">
@@ -2200,6 +2204,43 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
     </div>
   </div>
 
+  <!-- ── 취미: 리버풀 & EPL ── -->
+  <div class="page" id="page-hobby">
+    <div class="page-header">
+      <h2>⚽ 리버풀 &amp; EPL</h2>
+      <p>리버풀 FC 경기 일정과 프리미어리그 순위</p>
+    </div>
+
+    <!-- 리버풀 캘린더 -->
+    <div class="card" style="margin-bottom:1.5rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:nowrap;gap:.5rem">
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <img src="https://a.espncdn.com/i/teamlogos/soccer/500/10.png" style="width:22px;height:22px;object-fit:contain">
+          <span class="sec-title" style="margin:0">리버풀 경기 일정</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:.35rem;flex-shrink:0">
+          <button onclick="changeLFCMonth(-1)" class="btn btn-ghost" style="padding:.2rem .55rem;font-size:.85rem">◀</button>
+          <span id="lfc-month-label" style="font-size:.82rem;font-weight:600;color:var(--text);min-width:80px;text-align:center"></span>
+          <button onclick="changeLFCMonth(1)" class="btn btn-ghost" style="padding:.2rem .55rem;font-size:.85rem">▶</button>
+        </div>
+      </div>
+      <div id="lfc-calendar"></div>
+      <!-- 범례 -->
+      <div style="display:flex;gap:1rem;margin-top:.6rem;font-size:.7rem;color:var(--muted);flex-wrap:wrap">
+        <span>🏠 홈</span><span>✈️ 원정</span>
+        <span style="color:#52d9a3">■ 승</span>
+        <span style="color:#fb923c">■ 무</span>
+        <span style="color:var(--danger)">■ 패</span>
+      </div>
+    </div>
+
+    <!-- EPL 순위 -->
+    <div class="card">
+      <div class="sec-title">🏆 EPL 순위</div>
+      <div id="epl-standings"><div style="text-align:center;padding:2rem;color:var(--muted);font-size:.85rem">불러오는 중...</div></div>
+    </div>
+  </div>
+
   <!-- ── 모의 투자 ── -->
   <div class="page" id="page-mock-invest">
     <div class="page-header">
@@ -2775,6 +2816,7 @@ function showPage(id, el) {
   if(id==='mock-invest') { syncAndRenderMockInvest(); }
   if(id==='invest-terms') { renderInvestTerms(); }
   if(id==='stock-analysis') { loadInvestmentPrinciples(); }
+  if(id==='hobby') { loadLiverpool(); }
   if(id==='stock-notes') { renderStockNotes(); }
 }
 
@@ -3343,6 +3385,168 @@ function renderCondolenceList() {
 
 // 앱 시작 시 condolences 로드
 loadCondolences();
+
+// ── HOBBY: 리버풀 & EPL ──
+var _lfcYear = new Date().getFullYear();
+var _lfcMonth = new Date().getMonth();
+var _lfcMatches = {};
+
+async function loadLiverpool() {
+  var calEl = document.getElementById('lfc-calendar');
+  if (!calEl) return;
+  calEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:.85rem">⏳ 불러오는 중...</div>';
+  document.getElementById('epl-standings').innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:.85rem">⏳ 불러오는 중...</div>';
+
+  try {
+    var r = await fetch('https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams/10/schedule');
+    var data = await r.json();
+    _lfcMatches = {};
+    (data.events || []).forEach(function(ev) {
+      if (!ev.date) return;
+      var utc = new Date(ev.date);
+      var kst = new Date(utc.getTime() + 9 * 3600000);
+      var dateKey = kst.getUTCFullYear() + '-' + String(kst.getUTCMonth()+1).padStart(2,'0') + '-' + String(kst.getUTCDate()).padStart(2,'0');
+      var comp = ev.competitions && ev.competitions[0];
+      if (!comp) return;
+      var competitors = comp.competitors || [];
+      var lfcComp = competitors.find(function(c){ return c.team && c.team.id === '10'; });
+      var oppComp = competitors.find(function(c){ return !c.team || c.team.id !== '10'; });
+      if (!oppComp) return;
+      var isHome = lfcComp && lfcComp.homeAway === 'home';
+      var timeStr = String(kst.getUTCHours()).padStart(2,'0') + ':' + String(kst.getUTCMinutes()).padStart(2,'0');
+      var isFinished = ev.status && ev.status.type && ev.status.type.completed;
+      _lfcMatches[dateKey] = {
+        opponent: (oppComp.team && (oppComp.team.shortDisplayName || oppComp.team.displayName)) || '?',
+        opponentLogo: (oppComp.team && oppComp.team.logo) || '',
+        isHome: isHome,
+        time: timeStr,
+        isFinished: !!isFinished,
+        lfcScore: lfcComp && lfcComp.score,
+        oppScore: oppComp && oppComp.score,
+      };
+    });
+    renderLFCCalendar();
+  } catch(e) {
+    if (calEl) calEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--danger);font-size:.85rem">불러오기 실패: ' + e.message + '</div>';
+  }
+
+  try {
+    var sr = await fetch('https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/standings');
+    var sdata = await sr.json();
+    renderEPLStandings(sdata);
+  } catch(e) {
+    var standEl = document.getElementById('epl-standings');
+    if (standEl) standEl.innerHTML = '<div style="color:var(--danger);font-size:.85rem;text-align:center;padding:1rem">순위 불러오기 실패</div>';
+  }
+}
+
+function renderLFCCalendar() {
+  var el = document.getElementById('lfc-calendar');
+  if (!el) return;
+  var y = _lfcYear, m = _lfcMonth;
+  var monthNames = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  var label = document.getElementById('lfc-month-label');
+  if (label) label.textContent = y + '년 ' + monthNames[m];
+  var firstDay = new Date(y, m, 1).getDay();
+  var daysInMonth = new Date(y, m+1, 0).getDate();
+  var today = new Date();
+  var todayKey = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+
+  var html = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">';
+  ['일','월','화','수','목','금','토'].forEach(function(d, i) {
+    var c = i===0?'var(--danger)':i===6?'#60a5fa':'var(--muted)';
+    html += '<div style="text-align:center;font-size:.7rem;font-weight:600;color:'+c+';padding:.3rem 0">'+d+'</div>';
+  });
+  for (var i = 0; i < firstDay; i++) html += '<div></div>';
+  for (var d = 1; d <= daysInMonth; d++) {
+    var dk = y + '-' + String(m+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    var match = _lfcMatches[dk];
+    var isToday = dk === todayKey;
+    var dow = new Date(y, m, d).getDay();
+    var dayC = dow===0?'var(--danger)':dow===6?'#60a5fa':'var(--text)';
+    var cellBg = isToday ? 'rgba(108,138,255,.12)' : match ? 'rgba(200,16,46,.06)' : 'var(--surface)';
+    html += '<div style="min-height:64px;padding:3px 2px;border:1px solid '+(isToday?'var(--accent)':'var(--border)')+';border-radius:6px;background:'+cellBg+'">';
+    html += '<div style="font-size:.75rem;font-weight:'+(isToday?700:400)+';color:'+(isToday?'var(--accent)':dayC)+'">'+d+'</div>';
+    if (match) {
+      html += '<div style="display:flex;justify-content:center;align-items:center;gap:2px;margin-top:2px">';
+      html += '<img src="https://a.espncdn.com/i/teamlogos/soccer/500/10.png" style="width:16px;height:16px;object-fit:contain" onerror="this.style.display=\'none\'">';
+      if (match.opponentLogo) html += '<img src="'+match.opponentLogo+'" style="width:14px;height:14px;object-fit:contain" onerror="this.style.display=\'none\'">';
+      html += '</div>';
+      var oppShort = match.opponent.length > 9 ? match.opponent.slice(0,8)+'…' : match.opponent;
+      html += '<div style="font-size:.58rem;color:var(--muted);text-align:center;line-height:1.3;margin-top:1px">';
+      html += (match.isHome ? '🏠' : '✈️') + ' ' + oppShort + '</div>';
+      if (match.isFinished && match.lfcScore !== null && match.lfcScore !== undefined) {
+        var lS = Number(match.lfcScore), oS = Number(match.oppScore);
+        var sc = lS > oS ? '#52d9a3' : lS === oS ? '#fb923c' : 'var(--danger)';
+        html += '<div style="font-size:.65rem;font-weight:700;color:'+sc+';text-align:center">'+lS+' - '+oS+'</div>';
+      } else {
+        html += '<div style="font-size:.6rem;color:var(--accent);text-align:center">'+match.time+' KST</div>';
+      }
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function renderEPLStandings(data) {
+  var el = document.getElementById('epl-standings');
+  if (!el) return;
+  var entries = [];
+  (data.children || []).forEach(function(g) {
+    if (g.standings && g.standings.entries) entries = entries.concat(g.standings.entries);
+  });
+  entries.sort(function(a, b) {
+    var ra = (a.stats||[]).find(function(s){return s.name==='rank';}), rb = (b.stats||[]).find(function(s){return s.name==='rank';});
+    return ((ra&&ra.value)||99) - ((rb&&rb.value)||99);
+  });
+  var getStat = function(stats, name) { var s = (stats||[]).find(function(s){return s.name===name;}); return s ? s.value : '-'; };
+  var html = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.78rem">';
+  html += '<thead><tr style="border-bottom:2px solid var(--border)">';
+  ['#','팀','경기','승','무','패','득실차','승점'].forEach(function(h, i) {
+    html += '<th style="text-align:'+(i<=1?'left':'center')+';padding:.4rem .3rem;color:var(--muted);font-weight:500;white-space:nowrap">'+h+'</th>';
+  });
+  html += '</tr></thead><tbody>';
+  entries.forEach(function(entry) {
+    var stats = entry.stats || [];
+    var rank = getStat(stats,'rank'), gp = getStat(stats,'gamesPlayed');
+    var wins = getStat(stats,'wins'), losses = getStat(stats,'losses'), ties = getStat(stats,'ties');
+    var gd = getStat(stats,'pointDifferential'), pts = getStat(stats,'points');
+    var isLFC = entry.team && entry.team.id === '10';
+    var teamName = entry.team && (entry.team.shortDisplayName || entry.team.displayName || '');
+    var logos = entry.team && entry.team.logos;
+    var logo = logos && logos[0] && logos[0].href;
+    var rankN = Number(rank);
+    var rankColor = rankN <= 4 ? '#60a5fa' : rankN >= 18 ? 'var(--danger)' : rankN <= 6 ? '#a78bfa' : 'var(--muted)';
+    var rowBg = isLFC ? 'rgba(200,16,46,.08)' : '';
+    html += '<tr style="border-bottom:1px solid var(--border);background:'+rowBg+'">';
+    html += '<td style="padding:.4rem .3rem;text-align:center;color:'+rankColor+';font-weight:700;font-size:.8rem">'+rank+'</td>';
+    html += '<td style="padding:.4rem .35rem;white-space:nowrap">';
+    if (logo) html += '<img src="'+logo+'" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:.3rem" onerror="this.style.display=\'none\'">';
+    html += '<span style="color:'+(isLFC?'#c8102e':'var(--text)')+';font-weight:'+(isLFC?700:400)+'">'+teamName+'</span></td>';
+    html += '<td style="text-align:center;padding:.4rem .2rem;color:var(--muted)">'+gp+'</td>';
+    html += '<td style="text-align:center;padding:.4rem .2rem;color:#52d9a3">'+wins+'</td>';
+    html += '<td style="text-align:center;padding:.4rem .2rem;color:var(--muted)">'+ties+'</td>';
+    html += '<td style="text-align:center;padding:.4rem .2rem;color:var(--danger)">'+losses+'</td>';
+    html += '<td style="text-align:center;padding:.4rem .2rem;color:var(--muted)">'+(Number(gd)>=0?'+':'')+gd+'</td>';
+    html += '<td style="text-align:center;padding:.4rem .3rem;font-weight:700;color:'+(isLFC?'#c8102e':'var(--text)')+'">'+pts+'</td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  html += '<div style="display:flex;gap:1rem;margin-top:.7rem;font-size:.68rem;color:var(--muted);flex-wrap:wrap">';
+  html += '<span><span style="color:#60a5fa">■</span> UCL(1-4위)</span>';
+  html += '<span><span style="color:#a78bfa">■</span> UEL(5-6위)</span>';
+  html += '<span><span style="color:var(--danger)">■</span> 강등권(18-20위)</span>';
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function changeLFCMonth(dir) {
+  _lfcMonth += dir;
+  if (_lfcMonth > 11) { _lfcMonth = 0; _lfcYear++; }
+  if (_lfcMonth < 0) { _lfcMonth = 11; _lfcYear--; }
+  renderLFCCalendar();
+}
 
 // ── CALENDAR ──
 let calYear = new Date().getFullYear();
@@ -6782,7 +6986,7 @@ function onAuthSuccess(user, fromLogin) {
   if (userEl) userEl.style.display = 'flex';
   hideLockScreen();
   enforceGuestMode();
-  var _validPages = ['dashboard','budget','assets','market','sectormap','calendar','youtube','journal','mock-invest','invest-terms','realty','gifts','condolences','stock-analysis'];
+  var _validPages = ['dashboard','budget','assets','market','sectormap','calendar','youtube','journal','mock-invest','invest-terms','realty','gifts','condolences','stock-analysis','hobby'];
   function navigateToHash(hash) {
     var h = (hash || location.hash).replace('#', '');
     if (!h || _validPages.indexOf(h) === -1) return;
