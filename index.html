@@ -3390,6 +3390,7 @@ loadCondolences();
 var _lfcYear = new Date().getFullYear();
 var _lfcMonth = new Date().getMonth();
 var _lfcMatches = {};
+var _lfcBadge = '';
 
 async function loadLiverpool() {
   var calEl = document.getElementById('lfc-calendar');
@@ -3398,31 +3399,25 @@ async function loadLiverpool() {
   document.getElementById('epl-standings').innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:.85rem">⏳ 불러오는 중...</div>';
 
   try {
-    var r = await fetch('https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams/10/schedule');
+    var r = await fetch('/api/economic-calendar?action=liverpool');
     var data = await r.json();
+    if (data.error) throw new Error(data.error);
     _lfcMatches = {};
     (data.events || []).forEach(function(ev) {
-      if (!ev.date) return;
-      var utc = new Date(ev.date);
+      if (!ev.timestamp && !ev.date) return;
+      var utc = new Date(ev.timestamp || (ev.date + 'T00:00:00Z'));
       var kst = new Date(utc.getTime() + 9 * 3600000);
       var dateKey = kst.getUTCFullYear() + '-' + String(kst.getUTCMonth()+1).padStart(2,'0') + '-' + String(kst.getUTCDate()).padStart(2,'0');
-      var comp = ev.competitions && ev.competitions[0];
-      if (!comp) return;
-      var competitors = comp.competitors || [];
-      var lfcComp = competitors.find(function(c){ return c.team && c.team.id === '10'; });
-      var oppComp = competitors.find(function(c){ return !c.team || c.team.id !== '10'; });
-      if (!oppComp) return;
-      var isHome = lfcComp && lfcComp.homeAway === 'home';
       var timeStr = String(kst.getUTCHours()).padStart(2,'0') + ':' + String(kst.getUTCMinutes()).padStart(2,'0');
-      var isFinished = ev.status && ev.status.type && ev.status.type.completed;
+      var isFinished = ev.lfcScore !== null && ev.lfcScore !== undefined && ev.lfcScore !== '';
       _lfcMatches[dateKey] = {
-        opponent: (oppComp.team && (oppComp.team.shortDisplayName || oppComp.team.displayName)) || '?',
-        opponentLogo: (oppComp.team && oppComp.team.logo) || '',
-        isHome: isHome,
+        opponent: ev.opponent || '?',
+        opponentLogo: ev.opponentBadge || '',
+        isHome: ev.isHome,
         time: timeStr,
-        isFinished: !!isFinished,
-        lfcScore: lfcComp && lfcComp.score,
-        oppScore: oppComp && oppComp.score,
+        isFinished: isFinished,
+        lfcScore: ev.lfcScore,
+        oppScore: ev.oppScore,
       };
     });
     renderLFCCalendar();
@@ -3431,8 +3426,11 @@ async function loadLiverpool() {
   }
 
   try {
-    var sr = await fetch('https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/standings');
+    var sr = await fetch('/api/economic-calendar?action=epl-table');
     var sdata = await sr.json();
+    if (sdata.error) throw new Error(sdata.error);
+    var lfcEntry = (sdata.table || []).find(function(e) { return String(e.idTeam) === '133602'; });
+    if (lfcEntry && lfcEntry.strBadge) { _lfcBadge = lfcEntry.strBadge; renderLFCCalendar(); }
     renderEPLStandings(sdata);
   } catch(e) {
     var standEl = document.getElementById('epl-standings');
@@ -3469,7 +3467,8 @@ function renderLFCCalendar() {
     html += '<div style="font-size:.75rem;font-weight:'+(isToday?700:400)+';color:'+(isToday?'var(--accent)':dayC)+'">'+d+'</div>';
     if (match) {
       html += '<div style="display:flex;justify-content:center;align-items:center;gap:2px;margin-top:2px">';
-      html += '<img src="https://a.espncdn.com/i/teamlogos/soccer/500/10.png" style="width:16px;height:16px;object-fit:contain" onerror="this.style.display=\'none\'">';
+      if (_lfcBadge) html += '<img src="'+_lfcBadge+'" style="width:16px;height:16px;object-fit:contain" onerror="this.style.display=\'none\'">';
+      else html += '<span style="font-size:.75rem">⚽</span>';
       if (match.opponentLogo) html += '<img src="'+match.opponentLogo+'" style="width:14px;height:14px;object-fit:contain" onerror="this.style.display=\'none\'">';
       html += '</div>';
       var oppShort = match.opponent.length > 9 ? match.opponent.slice(0,8)+'…' : match.opponent;
@@ -3492,15 +3491,11 @@ function renderLFCCalendar() {
 function renderEPLStandings(data) {
   var el = document.getElementById('epl-standings');
   if (!el) return;
-  var entries = [];
-  (data.children || []).forEach(function(g) {
-    if (g.standings && g.standings.entries) entries = entries.concat(g.standings.entries);
-  });
-  entries.sort(function(a, b) {
-    var ra = (a.stats||[]).find(function(s){return s.name==='rank';}), rb = (b.stats||[]).find(function(s){return s.name==='rank';});
-    return ((ra&&ra.value)||99) - ((rb&&rb.value)||99);
-  });
-  var getStat = function(stats, name) { var s = (stats||[]).find(function(s){return s.name===name;}); return s ? s.value : '-'; };
+  var entries = (data.table || []).slice().sort(function(a, b) { return Number(a.intRank) - Number(b.intRank); });
+  if (!entries.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:1rem">순위 데이터 없음 (시즌 준비 중)</div>';
+    return;
+  }
   var html = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.78rem">';
   html += '<thead><tr style="border-bottom:2px solid var(--border)">';
   ['#','팀','경기','승','무','패','득실차','승점'].forEach(function(h, i) {
@@ -3508,16 +3503,17 @@ function renderEPLStandings(data) {
   });
   html += '</tr></thead><tbody>';
   entries.forEach(function(entry) {
-    var stats = entry.stats || [];
-    var rank = getStat(stats,'rank'), gp = getStat(stats,'gamesPlayed');
-    var wins = getStat(stats,'wins'), losses = getStat(stats,'losses'), ties = getStat(stats,'ties');
-    var gd = getStat(stats,'pointDifferential'), pts = getStat(stats,'points');
-    var isLFC = entry.team && entry.team.id === '10';
-    var teamName = entry.team && (entry.team.shortDisplayName || entry.team.displayName || '');
-    var logos = entry.team && entry.team.logos;
-    var logo = logos && logos[0] && logos[0].href;
-    var rankN = Number(rank);
-    var rankColor = rankN <= 4 ? '#60a5fa' : rankN >= 18 ? 'var(--danger)' : rankN <= 6 ? '#a78bfa' : 'var(--muted)';
+    var rank = Number(entry.intRank);
+    var isLFC = String(entry.idTeam) === '133602';
+    var teamName = entry.strTeam || '';
+    var logo = entry.strBadge || '';
+    var gp = entry.intPlayed || '-';
+    var wins = entry.intWin || '0';
+    var draws = entry.intDraw || '0';
+    var losses = entry.intLoss || '0';
+    var gd = entry.intGoalDifference || '0';
+    var pts = entry.intPoints || '0';
+    var rankColor = rank <= 4 ? '#60a5fa' : rank >= 18 ? 'var(--danger)' : rank <= 6 ? '#a78bfa' : 'var(--muted)';
     var rowBg = isLFC ? 'rgba(200,16,46,.08)' : '';
     html += '<tr style="border-bottom:1px solid var(--border);background:'+rowBg+'">';
     html += '<td style="padding:.4rem .3rem;text-align:center;color:'+rankColor+';font-weight:700;font-size:.8rem">'+rank+'</td>';
@@ -3526,7 +3522,7 @@ function renderEPLStandings(data) {
     html += '<span style="color:'+(isLFC?'#c8102e':'var(--text)')+';font-weight:'+(isLFC?700:400)+'">'+teamName+'</span></td>';
     html += '<td style="text-align:center;padding:.4rem .2rem;color:var(--muted)">'+gp+'</td>';
     html += '<td style="text-align:center;padding:.4rem .2rem;color:#52d9a3">'+wins+'</td>';
-    html += '<td style="text-align:center;padding:.4rem .2rem;color:var(--muted)">'+ties+'</td>';
+    html += '<td style="text-align:center;padding:.4rem .2rem;color:var(--muted)">'+draws+'</td>';
     html += '<td style="text-align:center;padding:.4rem .2rem;color:var(--danger)">'+losses+'</td>';
     html += '<td style="text-align:center;padding:.4rem .2rem;color:var(--muted)">'+(Number(gd)>=0?'+':'')+gd+'</td>';
     html += '<td style="text-align:center;padding:.4rem .3rem;font-weight:700;color:'+(isLFC?'#c8102e':'var(--text)')+'">'+pts+'</td>';

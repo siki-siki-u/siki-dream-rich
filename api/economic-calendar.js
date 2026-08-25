@@ -613,6 +613,61 @@ async function handleTestPush(req, res) {
 }
 
 // ── 메인 라우터 ──
+function getSeasonStr() {
+  var now = new Date();
+  var y = now.getUTCFullYear(), m = now.getUTCMonth();
+  return m >= 7 ? y + '-' + (y+1) : (y-1) + '-' + y;
+}
+
+function getSportsDB(path) {
+  return new Promise(function(resolve, reject) {
+    var u = new URL('https://www.thesportsdb.com' + path);
+    var opts = { hostname: u.hostname, path: u.pathname + u.search, method: 'GET',
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' }, timeout: 10000 };
+    var r = https.request(opts, function(res) {
+      var chunks = [];
+      res.on('data', function(c) { chunks.push(c); });
+      res.on('end', function() { resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString('utf8') }); });
+    });
+    r.on('error', reject);
+    r.on('timeout', function() { r.destroy(); reject(new Error('timeout')); });
+    r.end();
+  });
+}
+
+async function handleLiverpool(req, res) {
+  var season = getSeasonStr();
+  var r = await getSportsDB('/api/v1/json/3/eventsseason.php?id=4328&s=' + season);
+  if (r.status !== 200) return res.status(502).json({ error: 'thesportsdb 오류: ' + r.status });
+  var data = JSON.parse(r.body);
+  var LFC = '133602';
+  var events = (data.events || [])
+    .filter(function(ev) { return ev.idHomeTeam === LFC || ev.idAwayTeam === LFC; })
+    .map(function(ev) {
+      var isHome = ev.idHomeTeam === LFC;
+      return {
+        date: ev.dateEvent,
+        timestamp: ev.strTimestamp || (ev.dateEvent + 'T' + (ev.strTime || '00:00:00') + '+00:00'),
+        opponent: isHome ? ev.strAwayTeam : ev.strHomeTeam,
+        opponentBadge: isHome ? (ev.strAwayTeamBadge || '') : (ev.strHomeTeamBadge || ''),
+        isHome: isHome,
+        homeScore: ev.intHomeScore,
+        awayScore: ev.intAwayScore,
+        lfcScore: isHome ? ev.intHomeScore : ev.intAwayScore,
+        oppScore: isHome ? ev.intAwayScore : ev.intHomeScore,
+      };
+    });
+  res.json({ events: events, season: season });
+}
+
+async function handleEPLTable(req, res) {
+  var season = getSeasonStr();
+  var r = await getSportsDB('/api/v1/json/3/lookuptable.php?l=4328&s=' + season);
+  if (r.status !== 200) return res.status(502).json({ error: 'thesportsdb 오류: ' + r.status });
+  var data = JSON.parse(r.body);
+  res.json({ table: data.table || [], season: season });
+}
+
 module.exports = async function(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -629,6 +684,8 @@ module.exports = async function(req, res) {
     if (action === 'earnings-add')    return await handleEarningsAdd(req, res);
     if (action === 'earnings-sync')   return await handleEarningsSync(req, res);
     if (action === 'earnings-search') return await handleEarningsSearch(req, res);
+    if (action === 'liverpool')       return await handleLiverpool(req, res);
+    if (action === 'epl-table')       return await handleEPLTable(req, res);
 
     // 기본: 경제 캘린더 조회
     var period = req.query.period || 'thisweek';
