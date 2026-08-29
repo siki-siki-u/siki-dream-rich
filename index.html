@@ -7481,6 +7481,7 @@ function toggleSectorMapDemo() {
 var _irType = 'US';
 var _irSelTicker = '';
 var _irSelName = '';
+var _irSelExchange = '';
 var _irSelInfo = null;
 var _irSearchTimer = null;
 var _irRecordsCache = [];
@@ -7501,26 +7502,33 @@ function onIrSearch(q) {
   _irSearchTimer = setTimeout(function() { doIrSearch(q); }, 300);
 }
 
+var _irSearchItems = [];
+
 async function doIrSearch(q) {
   var box = document.getElementById('ir-search-results');
   try {
     var res = await fetchWithTimeout('/api/stock-search?q=' + encodeURIComponent(q) + '&type=' + _irType, 6000);
     var data = await res.json();
     var items = (data.results || []).slice(0, 8);
+    _irSearchItems = items;
     if (!items.length) { box.style.display = 'none'; return; }
-    box.innerHTML = items.map(function(it) {
+    box.innerHTML = items.map(function(it, i) {
       var sym = pEsc(it.ticker || '');
       var nm = pEsc(it.name || sym);
-      return '<div onclick="selectIrTicker(&quot;' + sym + '&quot;,&quot;' + nm.replace(/"/g, '') + '&quot;)" style="padding:.55rem .8rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:.5rem">' +
+      return '<div onclick="selectIrTicker(' + i + ')" style="padding:.55rem .8rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:.5rem">' +
         '<span>' + nm + '</span><span style="color:var(--muted);font-family:JetBrains Mono,monospace;font-size:.73rem">' + sym + '</span></div>';
     }).join('');
     box.style.display = 'block';
   } catch (e) { box.style.display = 'none'; }
 }
 
-function selectIrTicker(ticker, name) {
+function selectIrTicker(idx) {
+  var it = _irSearchItems[idx];
+  if (!it) return;
+  var ticker = it.ticker, name = it.name || ticker;
   _irSelTicker = ticker;
   _irSelName = name;
+  _irSelExchange = it.sub || '';
   document.getElementById('ir-search-results').style.display = 'none';
   document.getElementById('ir-search-input').value = '';
   document.getElementById('ir-sel-name').textContent = name;
@@ -7535,14 +7543,14 @@ function selectIrTicker(ticker, name) {
 }
 
 function clearIrSelection() {
-  _irSelTicker = ''; _irSelName = ''; _irSelInfo = null;
+  _irSelTicker = ''; _irSelName = ''; _irSelInfo = null; _irSelExchange = '';
   var box = document.getElementById('ir-selected-box');
   if (box) box.style.display = 'none';
 }
 
 async function fetchIrStockInfo(ticker) {
   try {
-    var yfTicker = _irType === 'KR' ? ticker + '.KS' : ticker;
+    var yfTicker = _irType === 'KR' ? ticker + (_irSelExchange === '코스닥' || _irSelExchange === 'KOSDAQ' ? '.KQ' : '.KS') : ticker;
     var res = await fetchWithTimeout('/api/stock-analysis?ticker=' + encodeURIComponent(yfTicker) + '&basic=1', 15000);
     var d = await res.json();
     if (d.error) { document.getElementById('ir-info-loading').textContent = '정보 불러오기 실패: ' + d.error; return; }
@@ -7574,10 +7582,11 @@ async function buyIrStock() {
   var targetPrice = parseFloat(document.getElementById('ir-target-price').value);
   if (!buyPrice || buyPrice <= 0) { showToast('매수가를 입력해주세요', 'error'); return; }
   if (!supa) { showToast('DB 연결이 안 되어 있어요', 'error'); return; }
+  var isKosdaq = _irType === 'KR' && (_irSelExchange === '코스닥' || _irSelExchange === 'KOSDAQ');
   var row = {
     ticker: _irSelTicker,
     name: _irSelName,
-    market: _irType,
+    market: isKosdaq ? 'KRQ' : _irType,
     status: 'holding',
     buy_price: buyPrice,
     target_price: isNaN(targetPrice) ? null : targetPrice,
@@ -7624,7 +7633,7 @@ async function renderIrHoldings(holdings) {
     var curPrice = p ? p.price : null;
     var pl = curPrice ? ((curPrice - h.buy_price) / h.buy_price * 100) : null;
     var plColor = pl == null ? 'var(--muted)' : (pl >= 0 ? '#52d9a3' : '#f87171');
-    var cur = h.market === 'KR' ? '₩' : '$';
+    var cur = (h.market === 'KR' || h.market === 'KRQ') ? '₩' : '$';
     return '<div style="padding:.7rem;background:var(--surface2);border-radius:10px">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem;gap:.5rem">' +
       '<div><span style="font-weight:700;color:var(--text)">' + h.name + '</span> <span style="color:var(--muted);font-size:.72rem">' + h.ticker + '</span></div>' +
@@ -7730,7 +7739,7 @@ function renderIrClosedTable() {
   var rows = closed.map(function(h) {
     var pct = irReturnPct(h);
     var pctColor = pct >= 0 ? '#52d9a3' : '#f87171';
-    var cur = h.market === 'KR' ? '₩' : '$';
+    var cur = (h.market === 'KR' || h.market === 'KRQ') ? '₩' : '$';
     var targetTxt = h.target_price ? cur + Number(h.target_price).toLocaleString() : '-';
     var progressTxt = '-';
     if (h.target_price && Number(h.target_price) !== Number(h.buy_price)) {

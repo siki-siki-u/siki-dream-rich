@@ -1,6 +1,6 @@
 const https = require('https');
 
-// 한글 종목명 → 영어 매핑
+// 한글 종목명 → 영어 매핑 (US/CRYPTO 전용. KR은 네이버 증권 자동완성이 한글을 그대로 처리함)
 var KO_MAP = {
   '애플':'apple','삼성':'samsung','테슬라':'tesla','엔비디아':'nvidia',
   '마이크로소프트':'microsoft','구글':'google','알파벳':'alphabet',
@@ -8,11 +8,6 @@ var KO_MAP = {
   '브로드컴':'broadcom','TSMC':'tsmc','코카콜라':'coca cola','존슨앤존슨':'johnson johnson',
   '비자':'visa','마스터카드':'mastercard','JP모건':'jpmorgan','버크셔':'berkshire',
   '유나이티드헬스':'unitedhealth','엑손모빌':'exxon','쉐브론':'chevron',
-  '하이닉스':'hynix','LG전자':'lg electronics','카카오':'kakao','네이버':'naver',
-  '셀트리온':'celltrion','현대차':'hyundai','기아':'kia','포스코':'posco',
-  '삼성바이오':'samsung bio','SK하이닉스':'sk hynix','SK텔레콤':'sk telecom',
-  '신한':'shinhan','KB금융':'kb financial','국민은행':'kb financial','하나금융':'hana financial','하나은행':'hana financial',
-  '우리금융':'woori','우리은행':'woori','기업은행':'industrial bank of korea',
   '비트코인':'bitcoin','이더리움':'ethereum','리플':'ripple','솔라나':'solana',
   '도지':'dogecoin','에이다':'cardano',
 };
@@ -50,13 +45,28 @@ module.exports = async function(req, res) {
 
   if (!q) return res.status(400).json({ error: '검색어 누락' });
 
-  // 한글 → 영어 변환
-  var searchQ = q;
-  for (var ko in KO_MAP) {
-    if (q.includes(ko)) { searchQ = KO_MAP[ko]; break; }
-  }
-
   try {
+    // ── 국내 주식: 네이버 증권 자동완성 (한글 이름 그대로 검색, 인증/IP 제한 없음) ──
+    if (type === 'KR') {
+      var naverUrl = 'https://ac.stock.naver.com/ac?q=' + encodeURIComponent(q) + '&target=stock';
+      var naverRes = await get(naverUrl);
+      if (naverRes.status !== 200) return res.json({ results: [], debug: 'Naver status: ' + naverRes.status });
+      var naverData = JSON.parse(naverRes.body);
+      var items = (naverData.items || [])
+        .filter(function(it) { return it.category === 'stock' && it.nationCode === 'KOR'; })
+        .slice(0, 8)
+        .map(function(it) {
+          return { ticker: it.code, name: it.name, sub: it.typeName || it.typeCode };
+        });
+      return res.json({ results: items });
+    }
+
+    // 한글 → 영어 변환 (US/CRYPTO)
+    var searchQ = q;
+    for (var ko in KO_MAP) {
+      if (q.includes(ko)) { searchQ = KO_MAP[ko]; break; }
+    }
+
     if (type === 'CRYPTO') {
       var cgRes = await get('https://api.coingecko.com/api/v3/search?query=' + encodeURIComponent(searchQ));
       var cgData = JSON.parse(cgRes.body);
@@ -81,11 +91,8 @@ module.exports = async function(req, res) {
       if (!item.symbol) return;
       if (item.quoteType === 'MUTUALFUND' || item.quoteType === 'INDEX') return;
       var isKR = item.symbol.endsWith('.KS') || item.symbol.endsWith('.KQ');
-      if (type === 'KR' && !isKR) return;
-      if (type === 'US' && isKR) return;
-      var ticker = isKR ? item.symbol.replace(/\.(KS|KQ)$/, '') : item.symbol;
-      var exchange = isKR ? (item.symbol.endsWith('.KS') ? 'KOSPI' : 'KOSDAQ') : (item.exchange || item.exchDisp || '');
-      results.push({ ticker: ticker, name: item.shortname || item.longname || ticker, sub: exchange });
+      if (isKR) return; // KR은 위에서 네이버로 처리
+      results.push({ ticker: item.symbol, name: item.shortname || item.longname || item.symbol, sub: item.exchange || item.exchDisp || '' });
     });
 
     res.json({ results: results.slice(0, 8) });
