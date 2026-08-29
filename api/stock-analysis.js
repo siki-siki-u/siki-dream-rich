@@ -206,6 +206,22 @@ module.exports = async function(req, res) {
   try {
     var { crumb, cookie } = await getCrumb();
 
+    // basic=1: 검색 후 선택 시 보여줄 요약 정보 (현재가/시가총액/PER/EPS)
+    if (req.query.basic === '1') {
+      var qsC = await fetchQuoteSummary(ticker, 'summaryDetail,defaultKeyStatistics,price', crumb, cookie);
+      var sdC = qsC.summaryDetail, ksC = qsC.defaultKeyStatistics, prC = qsC.price;
+      return res.json({
+        source: 'yahoo',
+        name: (prC && (prC.longName || prC.shortName)) || ticker,
+        price: r2(prC && prC.regularMarketPrice && prC.regularMarketPrice.raw),
+        changePct: r2(prC && prC.regularMarketChangePercent && prC.regularMarketChangePercent.raw),
+        currency: (prC && prC.currency) || 'USD',
+        marketCap: (prC && prC.marketCap && prC.marketCap.raw) || null,
+        per: r2(sdC && sdC.trailingPE && sdC.trailingPE.raw),
+        eps: r2(ksC && ksC.trailingEps && ksC.trailingEps.raw),
+      });
+    }
+
     // lite=1: P/E only mode (replaces pe-ratio.js)
     if (req.query.lite === '1') {
       var qs = await fetchQuoteSummary(ticker, 'summaryDetail,defaultKeyStatistics', crumb, cookie);

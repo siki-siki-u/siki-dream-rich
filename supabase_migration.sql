@@ -104,6 +104,23 @@ create table if not exists sector_map_stocks (
   unique(symbol, theme)
 );
 
+-- 9. investment_records (투자 기록 — 매수/매도 추적)
+create table if not exists investment_records (
+  id           uuid primary key default gen_random_uuid(),
+  ticker       text not null,
+  name         text not null default '',
+  market       text not null default 'US',
+  status       text not null default 'holding',
+  target_price numeric,
+  buy_price    numeric not null,
+  buy_date     date not null,
+  sell_price   numeric,
+  sell_date    date,
+  note         text not null default '',
+  created_at   timestamptz default now(),
+  updated_at   timestamptz default now()
+);
+
 -- RLS (Row Level Security) 비활성화 — 퍼블릭 접근 허용
 alter table portfolio_holdings  disable row level security;
 alter table portfolio_snapshots disable row level security;
@@ -113,3 +130,4 @@ alter table stock_notes          disable row level security;
 alter table realized_profits     disable row level security;
 alter table push_subscriptions   disable row level security;
 alter table sector_map_stocks    disable row level security;
+alter table investment_records   disable row level security;
