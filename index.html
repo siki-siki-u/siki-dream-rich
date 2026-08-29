@@ -7542,7 +7542,8 @@ function clearIrSelection() {
 
 async function fetchIrStockInfo(ticker) {
   try {
-    var res = await fetchWithTimeout('/api/stock-analysis?ticker=' + encodeURIComponent(ticker) + '&basic=1', 15000);
+    var yfTicker = _irType === 'KR' ? ticker + '.KS' : ticker;
+    var res = await fetchWithTimeout('/api/stock-analysis?ticker=' + encodeURIComponent(yfTicker) + '&basic=1', 15000);
     var d = await res.json();
     if (d.error) { document.getElementById('ir-info-loading').textContent = '정보 불러오기 실패: ' + d.error; return; }
     _irSelInfo = d;
