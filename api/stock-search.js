@@ -11,7 +11,7 @@ var KO_MAP = {
   '하이닉스':'hynix','LG전자':'lg electronics','카카오':'kakao','네이버':'naver',
   '셀트리온':'celltrion','현대차':'hyundai','기아':'kia','포스코':'posco',
   '삼성바이오':'samsung bio','SK하이닉스':'sk hynix','SK텔레콤':'sk telecom',
-  '신한':'shinhan','KB금융':'kb','하나금융':'hana','우리금융':'woori',
+  '신한':'shinhan','KB금융':'kb financial','하나금융':'hana financial','우리금융':'woori',
   '비트코인':'bitcoin','이더리움':'ethereum','리플':'ripple','솔라나':'solana',
   '도지':'dogecoin','에이다':'cardano',
 };

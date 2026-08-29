@@ -1591,7 +1591,7 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
     <div class="card" style="margin-bottom:1rem;padding:.9rem 1rem;position:relative">
       <div style="font-weight:700;margin-bottom:.5rem">🔍 종목 검색해서 매수 등록</div>
       <div style="display:flex;gap:.4rem;margin-bottom:.5rem">
-        <button class="btn btn-ghost active" id="ir-type-US" onclick="setIrType('US')" style="flex:1;font-size:.75rem;padding:.35rem .25rem">🇺🇸 해외</button>
+        <button class="btn btn-primary" id="ir-type-US" onclick="setIrType('US')" style="flex:1;font-size:.75rem;padding:.35rem .25rem">🇺🇸 해외</button>
         <button class="btn btn-ghost" id="ir-type-KR" onclick="setIrType('KR')" style="flex:1;font-size:.75rem;padding:.35rem .25rem">🇰🇷 국내</button>
       </div>
       <div style="position:relative">
@@ -7487,8 +7487,10 @@ var _irRecordsCache = [];
 
 function setIrType(t) {
   _irType = t;
-  document.getElementById('ir-type-US').classList.toggle('active', t === 'US');
-  document.getElementById('ir-type-KR').classList.toggle('active', t === 'KR');
+  ['US', 'KR'].forEach(function(k) {
+    var b = document.getElementById('ir-type-' + k);
+    if (b) { b.className = k === t ? 'btn btn-primary' : 'btn btn-ghost'; b.style.cssText = 'flex:1;font-size:.75rem;padding:.35rem .25rem'; }
+  });
   clearIrSelection();
 }
 
