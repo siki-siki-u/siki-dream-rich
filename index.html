@@ -550,7 +550,6 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
       <div class="nav-item" onclick="showPage('budget',this);closeSidebar()"><span class="icon">💰</span> 가계부</div>
       <div class="nav-item" onclick="showPage('assets',this);closeSidebar()"><span class="icon">🏦</span> 자산현황</div>
       <div class="nav-item" onclick="showPage('market',this);closeSidebar()"><span class="icon">📊</span> 마켓 현황</div>
-      <div class="nav-item" onclick="showPage('sectormap',this);closeSidebar()"><span class="icon">🧪</span> 토스증권API 테스트</div>
 
       <div class="nav-label">투자공부</div>
       <div class="nav-item" onclick="showPage('inv-records',this);closeSidebar()"><span class="icon">💹</span> 투자기록</div>
@@ -558,8 +557,6 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
       <div class="nav-item" onclick="showPage('stock-analysis',this);closeSidebar()"><span class="icon">🔍</span> 주식 가치 분석</div>
       <div class="nav-item" onclick="showPage('stock-notes',this);closeSidebar()"><span class="icon">📌</span> 종목 분석 노트</div>
       <div class="nav-item" onclick="showPage('journal',this);closeSidebar()"><span class="icon">📝</span> 투자 일지</div>
-      <div class="nav-item" onclick="showPage('mock-invest',this);closeSidebar()"><span class="icon">🎯</span> 모의 투자</div>
-      <div class="nav-item" onclick="showPage('invest-terms',this);closeSidebar()"><span class="icon">📖</span> 투자 용어</div>
     </div>
     <div class="nav-section">
       <div class="nav-label">내집마련</div>
@@ -7049,7 +7046,7 @@ function onAuthSuccess(user, fromLogin) {
   if (userEl) userEl.style.display = 'flex';
   hideLockScreen();
   enforceGuestMode();
-  var _validPages = ['dashboard','budget','assets','market','sectormap','inv-records','calendar','youtube','journal','mock-invest','invest-terms','realty','gifts','condolences','stock-analysis','hobby'];
+  var _validPages = ['dashboard','budget','assets','market','inv-records','calendar','youtube','journal','realty','gifts','condolences','stock-analysis','hobby'];
   function navigateToHash(hash) {
     var h = (hash || location.hash).replace('#', '');
     if (!h || _validPages.indexOf(h) === -1) return;
