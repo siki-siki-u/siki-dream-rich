@@ -113,6 +113,7 @@ create table if not exists investment_records (
   status       text not null default 'holding',
   target_price numeric,
   buy_price    numeric not null,
+  quantity     numeric not null default 1,
   buy_date     date not null,
   sell_price   numeric,
   sell_date    date,
@@ -120,6 +121,9 @@ create table if not exists investment_records (
   created_at   timestamptz default now(),
   updated_at   timestamptz default now()
 );
+
+-- 이미 investment_records를 만드셨다면 이 줄만 추가로 실행하세요:
+-- alter table investment_records add column if not exists quantity numeric not null default 1;
 
 -- RLS (Row Level Security) 비활성화 — 퍼블릭 접근 허용
 alter table portfolio_holdings  disable row level security;
