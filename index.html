@@ -4074,7 +4074,7 @@ function showCatPopup(catName) {
   }).sort(function(a,b){ return b.date.localeCompare(a.date); });
   var total = items.reduce(function(s,t){ return s + Math.abs(t.amount); }, 0);
   var catColors = {
-    '식료품':'var(--accent)','생활용품':'#22d3ee','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
+    '식료품':'var(--accent)','생활용품':'#22d3ee','식비(외식)':'var(--accent2)','식비(배달)':'#fb7185','취미여가':'var(--accent3)',
     '교통/자동차':'var(--accent4)','편의점':'#a78bfa','의료':'#f87171',
     '구독비':'#34d399','관리비':'#60a5fa','경조사':'#f472b6',
     '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'#fb923c','입금/환급':'var(--success)'
@@ -4220,7 +4220,7 @@ function renderTransactions() {
   });
   const total = txs.reduce(function(s,t){return s+t.amount;},0);
   const catColors = {
-    '식료품':'var(--accent)','생활용품':'#22d3ee','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
+    '식료품':'var(--accent)','생활용품':'#22d3ee','식비(외식)':'var(--accent2)','식비(배달)':'#fb7185','취미여가':'var(--accent3)',
     '교통/자동차':'var(--accent4)','편의점':'#a78bfa','의료':'#f87171',
     '구독비':'#34d399','관리비':'#60a5fa','경조사':'#f472b6',
     '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'var(--muted)',
@@ -4297,7 +4297,7 @@ function renderTransactions() {
 
   const tbody = document.getElementById('tx-body');
   const txListEl = document.getElementById('tx-card-list');
-  var catOpts = ['식료품','생활용품','식비(외식)','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
+  var catOpts = ['식료품','생활용품','식비(외식)','식비(배달)','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
   var srcColors = {'공용생활비':'#60a5fa','여분통장':'#34d399','관리비':'#f472b6','경조사':'#f472b6','가족 선물/지원':'#a78bfa','여행비':'#fb923c'};
   // 카드형 (모바일 CSS가 제어) — 항상 렌더링
   if(txListEl) {
@@ -8914,7 +8914,8 @@ function classifyTx(desc) {
   desc = (desc||'').toLowerCase();
   if(/코스트코|마트|이마트|홈플러스|롯데마트|쿠팡|gs25|cu |세븐|편의점/.test(desc)) return '식료품';
   if(/다이소|생활용품|생필품|세제|청소|욕실|주방용품|화장지|샴푸|치약/.test(desc)) return '생활용품';
-  if(/배달|배민|요기|쿠팡이츠|식당|카페|맥도|버거|피자|치킨|스타벅스/.test(desc)) return '식비(외식)';
+  if(/배달|배민|요기|쿠팡이츠/.test(desc)) return '식비(배달)';
+  if(/식당|카페|맥도|버거|피자|치킨|스타벅스/.test(desc)) return '식비(외식)';
   if(/주차|하이패스|주유|자동차|카세|세차/.test(desc)) return '교통/자동차';
   if(/지하철|버스|택시|카카오t/.test(desc)) return '교통/자동차';
   if(/넷플|티빙|왓챠|유튜브|애플|구독|멜론|스포티/.test(desc)) return '구독비';
@@ -9050,7 +9051,7 @@ function renderExcelPreview(detectedHeaders) {
     return;
   }
   var catColors = {
-    '식료품':'var(--accent)','생활용품':'#22d3ee','식비(외식)':'var(--accent2)','취미여가':'var(--accent3)',
+    '식료품':'var(--accent)','생활용품':'#22d3ee','식비(외식)':'var(--accent2)','식비(배달)':'#fb7185','취미여가':'var(--accent3)',
     '교통/자동차':'var(--accent4)','편의점':'#a78bfa','의료':'#f87171',
     '구독비':'#34d399','관리비':'#60a5fa','경조사':'#f472b6',
     '여행비':'#fbbf24','부모님':'#c084fc','대출/충당':'#94a3b8','기타':'#fb923c','입금/환급':'var(--success)'
@@ -9092,7 +9093,7 @@ function renderExcelPreview(detectedHeaders) {
     '</tr></thead><tbody>'+
     parsedExcelRows.map(function(r,i){
       var clr = catColors[r.cat]||'var(--muted)';
-      var catOpts = ['식료품','생활용품','식비(외식)','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
+      var catOpts = ['식료품','생활용품','식비(외식)','식비(배달)','취미여가','교통/자동차','편의점','의료','구독비','관리비','경조사','여행비','부모님','대출/충당','기타','입금/환급'];
       var isIncome = r.amount < 0;
       var isOffset = offsetIdx.has(i);
       var amtClr = isOffset ? '#f59e0b' : (isIncome ? 'var(--success)' : 'var(--danger)');
