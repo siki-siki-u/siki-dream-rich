@@ -9663,11 +9663,21 @@ function openPortDirectEditPopup(id) {
   overlay.id = 'port-direct-edit-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
   overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
+  var isKrType = h.type === 'KR' || h.type === 'KRQ';
+  var marketToggleHtml = isKrType ?
+    '<div>'+
+      '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">시장 유형</div>'+
+      '<div style="display:flex;gap:.4rem">'+
+        '<button id="pde-mkt-KS" onclick="pdeSetMarket(\'KR\')" style="flex:1;padding:.4rem;border-radius:6px;font-size:.78rem;font-weight:600;cursor:pointer;border:1px solid '+(h.type==='KR'?'var(--accent)':'var(--border)')+';background:'+(h.type==='KR'?'rgba(108,138,255,.15)':'transparent')+';color:'+(h.type==='KR'?'var(--accent)':'var(--muted)')+'">🏛 코스피</button>'+
+        '<button id="pde-mkt-KQ" onclick="pdeSetMarket(\'KRQ\')" style="flex:1;padding:.4rem;border-radius:6px;font-size:.78rem;font-weight:600;cursor:pointer;border:1px solid '+(h.type==='KRQ'?'var(--accent)':'var(--border)')+';background:'+(h.type==='KRQ'?'rgba(108,138,255,.15)':'transparent')+';color:'+(h.type==='KRQ'?'var(--accent)':'var(--muted)')+'">📊 코스닥</button>'+
+      '</div>'+
+    '</div>' : '';
   overlay.innerHTML =
     '<div style="background:var(--surface);border-radius:16px;padding:1.5rem;width:100%;max-width:320px;box-shadow:0 20px 60px rgba(0,0,0,.5)" onclick="event.stopPropagation()">'+
       '<div style="font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:.2rem">✏️ 직접 수정</div>'+
       '<div style="font-size:.75rem;color:var(--muted);margin-bottom:1rem">'+pEsc(h.alias||h.name)+' · 브로커 앱 기준으로 덮어쓰기</div>'+
       '<div style="display:flex;flex-direction:column;gap:.75rem">'+
+        marketToggleHtml+
         '<div>'+
           '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">현재 보유 수량 (주)</div>'+
           '<input id="pde-qty" type="number" value="'+h.qty+'" min="0" step="any"'+
@@ -9711,6 +9721,24 @@ function pdeCalc() {
   if(totalEl) totalEl.textContent = '₩' + krw.toLocaleString();
 }
 
+function pdeSetMarket(mkt) {
+  var ksBtn = document.getElementById('pde-mkt-KS');
+  var kqBtn = document.getElementById('pde-mkt-KQ');
+  if(!ksBtn||!kqBtn) return;
+  var active = 'border:1px solid var(--accent);background:rgba(108,138,255,.15);color:var(--accent)';
+  var inactive = 'border:1px solid var(--border);background:transparent;color:var(--muted)';
+  ksBtn.style.cssText = ksBtn.style.cssText + (mkt==='KR' ? ';border-color:var(--accent);background:rgba(108,138,255,.15);color:var(--accent)' : '');
+  [ksBtn, kqBtn].forEach(function(b){ b.style.borderColor=''; b.style.backgroundColor=''; b.style.color=''; });
+  if(mkt==='KR'){ ksBtn.style.borderColor='var(--accent)'; ksBtn.style.backgroundColor='rgba(108,138,255,.15)'; ksBtn.style.color='var(--accent)';
+    kqBtn.style.borderColor='var(--border)'; kqBtn.style.backgroundColor='transparent'; kqBtn.style.color='var(--muted)';
+  } else {
+    kqBtn.style.borderColor='var(--accent)'; kqBtn.style.backgroundColor='rgba(108,138,255,.15)'; kqBtn.style.color='var(--accent)';
+    ksBtn.style.borderColor='var(--border)'; ksBtn.style.backgroundColor='transparent'; ksBtn.style.color='var(--muted)';
+  }
+  var overlay = document.getElementById('port-direct-edit-overlay');
+  if(overlay) overlay._market = mkt;
+}
+
 function savePortDirectEdit(id) {
   var qty = parseFloat(document.getElementById('pde-qty').value);
   var avg = parseFloat(document.getElementById('pde-avg').value);
@@ -9723,6 +9751,7 @@ function savePortDirectEdit(id) {
   if(!h) return;
   h.qty        = qty;
   h.investedKRW = investedKRW;
+  if(overlay._market && (h.type==='KR'||h.type==='KRQ')) h.type = overlay._market;
   S.set('portfolio_holdings', holdings);
   _holdings = holdings;
   dbUpsert('settings', {key:'portfolio_holdings', value:JSON.stringify(holdings)});
