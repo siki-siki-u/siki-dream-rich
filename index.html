@@ -1019,6 +1019,7 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
         <button class="btn btn-ghost" id="port-type-PENSION" onclick="setPortType('PENSION')" style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🛡️ 연금</button>
         <button class="btn btn-ghost" id="port-type-FUND"    onclick="setPortType('FUND')"    style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">📈 펀드</button>
         <button class="btn btn-ghost" id="port-type-ETC"     onclick="setPortType('ETC')"     style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px">🗂 기타</button>
+        <button class="btn btn-ghost" id="port-type-STUDY"   onclick="setPortType('STUDY')"   style="flex:1;font-size:.75rem;padding:.35rem .25rem;min-width:60px;display:none">📚 스터디</button>
       </div>
 
       <!-- 검색 폼 (US/KR/CRYPTO) -->
@@ -9325,7 +9326,7 @@ function deleteJournal(id){
 // ── 포트폴리오 관리 ──
 var _portType='US', _portOwner='윤식', _portSelTicker=null, _portPrices={}, _portUsdKrw=1380, _portSearchTimer=null;
 var _portDirectTypes={'GOLD':true,'PENSION':true,'FUND':true,'ETC':true};
-var _VOLATILE_TYPES=['US','KR','CRYPTO','GOLD','FUND'];
+var _VOLATILE_TYPES=['US','KR','CRYPTO','GOLD','FUND','STUDY'];
 var _LOCKED_TYPES=['PENSION','HOUSING']; // 주택청약은 해지해야 꺼낼 수 있는 묶인 자산
 var _FIXED_TYPES=['SAVINGS','LEASE','ETC'];
 
@@ -9335,11 +9336,14 @@ function setPortOwner(o){
     var b=document.getElementById('port-owner-'+x);
     if(b) b.className='btn '+(x===o?'btn-primary':'btn-ghost');
   });
+  var studyBtn=document.getElementById('port-type-STUDY');
+  if(studyBtn) studyBtn.style.display=o==='윤식'?'':'none';
+  if(o!=='윤식'&&_portType==='STUDY') setPortType('US');
 }
 
 function setPortType(t){
   _portType=t;
-  ['US','KR','CRYPTO','GOLD','PENSION','FUND','ETC'].forEach(function(x){
+  ['US','KR','CRYPTO','GOLD','PENSION','FUND','ETC','STUDY'].forEach(function(x){
     var b=document.getElementById('port-type-'+x);
     if(b) b.className='btn '+(x===t?'btn-primary':'btn-ghost');
   });
@@ -9356,7 +9360,7 @@ function setPortType(t){
     if(etcDiv) etcDiv.style.display=isEtc?'block':'none';
     if(!isEtc&&dn) dn.value=t==='GOLD'?'금 현물':t==='PENSION'?'퇴직연금':t==='FUND'?'펀드':'';
   } else {
-    var ph={'US':'티커 또는 종목명 (예: AAPL, 애플, NVDA)','KR':'티커 또는 종목명 (예: 005930, 삼성전자)','CRYPTO':'코인명 (예: bitcoin, ethereum)'};
+    var ph={'US':'티커 또는 종목명 (예: AAPL, 애플, NVDA)','KR':'티커 또는 종목명 (예: 005930, 삼성전자)','CRYPTO':'코인명 (예: bitcoin, ethereum)','STUDY':'공부할 종목 검색 (예: AAPL, NVDA, 삼성전자)'};
     var si=document.getElementById('port-search');
     if(si){si.placeholder=ph[t]||'검색'; si.value='';}
     _portSelTicker=null;
