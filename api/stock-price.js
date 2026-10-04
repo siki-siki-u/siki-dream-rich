@@ -98,24 +98,28 @@ module.exports = async function(req, res) {
           }
         } catch (_) {}
 
-        // 배치에서 못 받은 종목만 개별 chart 폴백 (병렬)
+        // 배치에서 못 받은 종목만 개별 chart 폴백 (병렬) — KR 타입은 .KS 실패 시 .KQ 재시도
         var missing = stockItems.filter(function(it) { return !results[it.ticker]; });
         if (missing.length) {
           await Promise.all(missing.map(async function(it) {
-            try {
-              var sym2 = it.type === 'KR' ? it.ticker + '.KS' : it.type === 'KRQ' ? it.ticker + '.KQ' : it.ticker;
-              var yfUrl2 = 'https://query2.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym2) + '?interval=1d&range=1d';
-              var yfRes2 = await get(yfUrl2);
-              if (yfRes2.status !== 200) return;
-              var yfData2 = JSON.parse(yfRes2.body);
-              var meta2 = yfData2 && yfData2.chart && yfData2.chart.result && yfData2.chart.result[0] && yfData2.chart.result[0].meta;
-              if (!meta2 || !meta2.regularMarketPrice) return;
-              var price2 = meta2.regularMarketPrice;
-              var prev2 = meta2.chartPreviousClose || meta2.previousClose || price2;
-              var change2 = price2 - prev2;
-              var changeP2 = prev2 ? (change2 / prev2) * 100 : 0;
-              results[it.ticker] = { price: price2, change: change2, changeP: changeP2, currency: meta2.currency || (it.type === 'US' ? 'USD' : 'KRW'), source: 'chart' };
-            } catch (_) {}
+            var suffixes = it.type === 'KR' ? ['.KS', '.KQ'] : it.type === 'KRQ' ? ['.KQ'] : [''];
+            for (var si = 0; si < suffixes.length; si++) {
+              try {
+                var sym2 = it.ticker + suffixes[si];
+                var yfUrl2 = 'https://query2.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym2) + '?interval=1d&range=1d';
+                var yfRes2 = await get(yfUrl2);
+                if (yfRes2.status !== 200) continue;
+                var yfData2 = JSON.parse(yfRes2.body);
+                var meta2 = yfData2 && yfData2.chart && yfData2.chart.result && yfData2.chart.result[0] && yfData2.chart.result[0].meta;
+                if (!meta2 || !meta2.regularMarketPrice) continue;
+                var price2 = meta2.regularMarketPrice;
+                var prev2 = meta2.chartPreviousClose || meta2.previousClose || price2;
+                var change2 = price2 - prev2;
+                var changeP2 = prev2 ? (change2 / prev2) * 100 : 0;
+                results[it.ticker] = { price: price2, change: change2, changeP: changeP2, currency: meta2.currency || 'KRW', source: 'chart' };
+                break;
+              } catch (_) {}
+            }
           }));
         }
       }
@@ -139,43 +143,52 @@ module.exports = async function(req, res) {
       });
     }
 
-    var sym = type === 'KR' ? ticker + '.KS' : type === 'KRQ' ? ticker + '.KQ' : ticker;
+    // KR 타입은 .KS 실패 시 .KQ 자동 재시도
+    var symCandidates = type === 'KR' ? [ticker + '.KS', ticker + '.KQ'] : type === 'KRQ' ? [ticker + '.KQ'] : [ticker];
 
-    // ── 1차 시도: v7/finance/quote (더 실시간에 가까운 데이터) ──
-    try {
-      var quoteUrl = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=' +
-        encodeURIComponent(sym) +
-        '&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent,currency';
-      var qRes = await get(quoteUrl);
-      if (qRes.status === 200) {
-        var qData = JSON.parse(qRes.body);
-        var qResult = qData && qData.quoteResponse && qData.quoteResponse.result && qData.quoteResponse.result[0];
-        if (qResult && qResult.regularMarketPrice) {
-          return res.json({
-            price:   qResult.regularMarketPrice,
-            change:  qResult.regularMarketChange  || 0,
-            changeP: qResult.regularMarketChangePercent || 0,
-            currency: qResult.currency || (type === 'US' ? 'USD' : 'KRW'),
-            source: 'quote',
-          });
+    for (var ci = 0; ci < symCandidates.length; ci++) {
+      var sym = symCandidates[ci];
+
+      // ── 1차 시도: v7/finance/quote ──
+      try {
+        var quoteUrl = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=' +
+          encodeURIComponent(sym) +
+          '&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent,currency';
+        var qRes = await get(quoteUrl);
+        if (qRes.status === 200) {
+          var qData = JSON.parse(qRes.body);
+          var qResult = qData && qData.quoteResponse && qData.quoteResponse.result && qData.quoteResponse.result[0];
+          if (qResult && qResult.regularMarketPrice) {
+            return res.json({
+              price:   qResult.regularMarketPrice,
+              change:  qResult.regularMarketChange  || 0,
+              changeP: qResult.regularMarketChangePercent || 0,
+              currency: qResult.currency || (type === 'US' ? 'USD' : 'KRW'),
+              source: 'quote',
+            });
+          }
         }
-      }
-    } catch (_) { /* quote 실패 시 chart로 폴백 */ }
+      } catch (_) {}
 
-    // ── 2차 폴백: v8/finance/chart ──
-    var yfUrl = 'https://query2.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym) + '?interval=1d&range=1d';
-    var yfRes = await get(yfUrl);
-    if (yfRes.status !== 200) return res.status(500).json({ error: 'Yahoo Finance 오류: ' + yfRes.status });
+      // ── 2차 폴백: v8/finance/chart ──
+      try {
+        var yfUrl = 'https://query2.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym) + '?interval=1d&range=1d';
+        var yfRes = await get(yfUrl);
+        if (yfRes.status === 200) {
+          var yfData = JSON.parse(yfRes.body);
+          var meta = yfData && yfData.chart && yfData.chart.result && yfData.chart.result[0] && yfData.chart.result[0].meta;
+          if (meta && meta.regularMarketPrice) {
+            var price   = meta.regularMarketPrice;
+            var prev    = meta.chartPreviousClose || meta.previousClose || price;
+            var change  = price - prev;
+            var changeP = prev ? (change / prev) * 100 : 0;
+            return res.json({ price, change, changeP, currency: meta.currency || (type === 'US' ? 'USD' : 'KRW'), source: 'chart' });
+          }
+        }
+      } catch (_) {}
+    }
 
-    var yfData = JSON.parse(yfRes.body);
-    var meta = yfData && yfData.chart && yfData.chart.result && yfData.chart.result[0] && yfData.chart.result[0].meta;
-    if (!meta || !meta.regularMarketPrice) return res.status(404).json({ error: '시세 없음' });
-
-    var price   = meta.regularMarketPrice;
-    var prev    = meta.chartPreviousClose || meta.previousClose || price;
-    var change  = price - prev;
-    var changeP = prev ? (change / prev) * 100 : 0;
-    res.json({ price, change, changeP, currency: meta.currency || (type === 'US' ? 'USD' : 'KRW'), source: 'chart' });
+    return res.status(404).json({ error: '시세 없음' });
 
   } catch (e) {
     res.status(500).json({ error: e.message });
