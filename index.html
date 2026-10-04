@@ -1142,6 +1142,7 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
           <button id="pf-cat-volatile" onclick="setPortHoldingsCat('volatile')" style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">📈 변동자산</button>
           <button id="pf-cat-locked"   onclick="setPortHoldingsCat('locked')"   style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">🔒 묶인 자산</button>
           <button id="pf-cat-fixed"    onclick="setPortHoldingsCat('fixed')"    style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">🏦 고정자산</button>
+          <button id="pf-cat-study"    onclick="setPortHoldingsCat('study')"    style="font-size:.68rem;padding:.18rem .5rem;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer">📚 스터디</button>
         </div>
         <!-- 묶인 자산 설명 -->
         <div id="pf-locked-desc" style="display:none;font-size:.68rem;color:#ffbe5c;background:rgba(255,190,92,.07);border:1px solid rgba(255,190,92,.2);border-radius:7px;padding:.3rem .55rem;line-height:1.5">
@@ -9854,8 +9855,9 @@ function setPortHoldingsCat(v){
     'volatile':{bg:'rgba(34,211,238,.15)',  bd:'rgba(34,211,238,.6)',    cl:'#22d3ee'},
     'locked':  {bg:'rgba(255,190,92,.15)',  bd:'rgba(255,190,92,.6)',    cl:'#ffbe5c'},
     'fixed':   {bg:'rgba(134,239,172,.15)', bd:'rgba(134,239,172,.6)',   cl:'#86efac'},
+    'study':   {bg:'rgba(212,175,55,.15)',  bd:'rgba(212,175,55,.6)',    cl:'#D4AF37'},
   };
-  ['all','volatile','locked','fixed'].forEach(function(k){
+  ['all','volatile','locked','fixed','study'].forEach(function(k){
     var el=document.getElementById('pf-cat-'+k);
     if(!el) return;
     var on=k===v, c=cfg[k];
@@ -10182,9 +10184,10 @@ function renderPortHoldings(){
   // 필터 - 계좌
   var holdings=_portHoldingsOwner==='all'?all:all.filter(function(h){return (h.owner||'윤식')===_portHoldingsOwner;});
   // 필터 - 자산유형
-  if(_portHoldingsCat==='volatile') holdings=holdings.filter(function(h){return _VOLATILE_TYPES.indexOf(h.type)>=0;});
+  if(_portHoldingsCat==='volatile') holdings=holdings.filter(function(h){return _VOLATILE_TYPES.indexOf(h.type)>=0&&h.type!=='STUDY';});
   else if(_portHoldingsCat==='locked') holdings=holdings.filter(function(h){return _LOCKED_TYPES.indexOf(h.type)>=0;});
   else if(_portHoldingsCat==='fixed')  holdings=holdings.filter(function(h){return _FIXED_TYPES.indexOf(h.type)>=0;});
+  else if(_portHoldingsCat==='study')  holdings=holdings.filter(function(h){return h.type==='STUDY';});
   // 정렬
   if(_portHoldingsSort!=='default'){
     holdings=holdings.slice().sort(function(a,b){
@@ -10215,7 +10218,7 @@ function renderPortHoldings(){
     var valStr=vKRW!=null?'₩'+vKRW.toLocaleString():'–';
     var pStr=profit!=null?(profit>=0?'+':'')+'₩'+Math.round(profit).toLocaleString():'–';
     var rStr=roi!=null?(roi>=0?'+':'')+roi.toFixed(2)+'%':'–';
-    var typeTag={'US':'🇺🇸','KR':'🇰🇷','GOLD':'🥇','PENSION':'🛡️','CRYPTO':'💰','HOUSING':'🏠','SAVINGS':'🏦','LEASE':'🔑','ETC':'🗂','FUND':'📈'}[h.type]||h.type;
+    var typeTag={'US':'🇺🇸','KR':'🇰🇷','GOLD':'🥇','PENSION':'🛡️','CRYPTO':'💰','HOUSING':'🏠','SAVINGS':'🏦','LEASE':'🔑','ETC':'🗂','FUND':'📈','STUDY':'📚'}[h.type]||h.type;
     var isVolatile=_VOLATILE_TYPES.indexOf(h.type)>=0;
     var isLocked=_LOCKED_TYPES.indexOf(h.type)>=0;
     var isFixed=_FIXED_TYPES.indexOf(h.type)>=0;
