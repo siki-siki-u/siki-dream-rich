@@ -9333,7 +9333,7 @@ function deleteJournal(id){
 // ── 포트폴리오 관리 ──
 var _portType='US', _portOwner='윤식', _portSelTicker=null, _portPrices={}, _portUsdKrw=1380, _portSearchTimer=null;
 var _portDirectTypes={'GOLD':true,'PENSION':true,'FUND':true,'ETC':true};
-var _VOLATILE_TYPES=['US','KR','CRYPTO','GOLD','FUND','STUDY_US','STUDY_KR'];
+var _VOLATILE_TYPES=['US','KR','KRQ','CRYPTO','GOLD','FUND','STUDY_US','STUDY_KR','STUDY_KRQ'];
 var _LOCKED_TYPES=['PENSION','HOUSING']; // 주택청약은 해지해야 꺼낼 수 있는 묶인 자산
 var _FIXED_TYPES=['SAVINGS','LEASE','ETC'];
 
@@ -9396,9 +9396,11 @@ async function doPortSearch(q){
     var items=d.results||[];
     if(!items.length){r.innerHTML='<div style="padding:.6rem 1rem;color:var(--muted);font-size:.82rem">결과 없음</div>';return;}
     r.innerHTML=items.map(function(it){
+      var mkt=_portType;
+      if(_portType==='KR'&&it.sub){var sub=it.sub.toLowerCase();if(sub.indexOf('코스닥')>=0||sub.indexOf('kosdaq')>=0)mkt='KRQ';}
       return '<div style="padding:.5rem 1rem;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center" '+
         'onmouseover="this.style.background=\'var(--surface)\'" onmouseout="this.style.background=\'\'" '+
-        'onclick="selectPortTicker(\''+pEsc(it.ticker)+'\',\''+pEsc(it.name)+'\',\''+_portType+'\')">'+
+        'onclick="selectPortTicker(\''+pEsc(it.ticker)+'\',\''+pEsc(it.name)+'\',\''+mkt+'\')">'+
         '<div><div style="font-size:.85rem;font-weight:600;color:var(--text)">'+pEsc(it.name)+'</div>'+
         '<div style="font-size:.72rem;color:var(--muted);font-family:JetBrains Mono,monospace">'+pEsc(it.ticker)+(it.sub?' · '+pEsc(it.sub):'')+'</div></div>'+
         '<span style="font-size:.75rem;color:var(--accent);font-family:JetBrains Mono,monospace">'+pEsc(it.ticker)+'</span></div>';
@@ -9620,7 +9622,8 @@ function addPortHolding(){
       syncTarget=ex;
     }else{
       var isStudy=!!(document.getElementById('port-is-study')&&document.getElementById('port-is-study').checked);
-      var saveType=isStudy?'STUDY_'+_portType:(_portSelTicker.type||_portType);
+      var baseType=_portSelTicker.type||_portType;
+      var saveType=isStudy?'STUDY_'+baseType:baseType;
       var newH={id:Date.now(),ticker:_portSelTicker.ticker,name:_portSelTicker.name,type:saveType,owner:_portOwner,qty:qty,investedKRW:inv,addedAt:today()};
       holdings.push(newH);
       syncTarget=newH;
@@ -10193,10 +10196,10 @@ function renderPortHoldings(){
   // 필터 - 계좌
   var holdings=_portHoldingsOwner==='all'?all:all.filter(function(h){return (h.owner||'윤식')===_portHoldingsOwner;});
   // 필터 - 자산유형
-  if(_portHoldingsCat==='volatile') holdings=holdings.filter(function(h){return _VOLATILE_TYPES.indexOf(h.type)>=0&&h.type!=='STUDY'&&h.type!=='STUDY_US'&&h.type!=='STUDY_KR';});
+  if(_portHoldingsCat==='volatile') holdings=holdings.filter(function(h){return _VOLATILE_TYPES.indexOf(h.type)>=0&&h.type!=='STUDY'&&!h.type.startsWith('STUDY_');});
   else if(_portHoldingsCat==='locked') holdings=holdings.filter(function(h){return _LOCKED_TYPES.indexOf(h.type)>=0;});
   else if(_portHoldingsCat==='fixed')  holdings=holdings.filter(function(h){return _FIXED_TYPES.indexOf(h.type)>=0;});
-  else if(_portHoldingsCat==='study')  holdings=holdings.filter(function(h){return h.type==='STUDY_US'||h.type==='STUDY_KR'||h.type==='STUDY';});
+  else if(_portHoldingsCat==='study')  holdings=holdings.filter(function(h){return h.type==='STUDY'||h.type.startsWith('STUDY_');});
   // 정렬
   if(_portHoldingsSort!=='default'){
     holdings=holdings.slice().sort(function(a,b){
@@ -10227,7 +10230,7 @@ function renderPortHoldings(){
     var valStr=vKRW!=null?'₩'+vKRW.toLocaleString():'–';
     var pStr=profit!=null?(profit>=0?'+':'')+'₩'+Math.round(profit).toLocaleString():'–';
     var rStr=roi!=null?(roi>=0?'+':'')+roi.toFixed(2)+'%':'–';
-    var typeTag={'US':'🇺🇸','KR':'🇰🇷','GOLD':'🥇','PENSION':'🛡️','CRYPTO':'💰','HOUSING':'🏠','SAVINGS':'🏦','LEASE':'🔑','ETC':'🗂','FUND':'📈','STUDY':'📚','STUDY_US':'📚🇺🇸','STUDY_KR':'📚🇰🇷'}[h.type]||h.type;
+    var typeTag={'US':'🇺🇸','KR':'🇰🇷','KRQ':'🇰🇷','GOLD':'🥇','PENSION':'🛡️','CRYPTO':'💰','HOUSING':'🏠','SAVINGS':'🏦','LEASE':'🔑','ETC':'🗂','FUND':'📈','STUDY':'📚','STUDY_US':'📚🇺🇸','STUDY_KR':'📚🇰🇷','STUDY_KRQ':'📚🇰🇷'}[h.type]||h.type;
     var isVolatile=_VOLATILE_TYPES.indexOf(h.type)>=0;
     var isLocked=_LOCKED_TYPES.indexOf(h.type)>=0;
     var isFixed=_FIXED_TYPES.indexOf(h.type)>=0;
