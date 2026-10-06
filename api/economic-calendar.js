@@ -312,11 +312,11 @@ async function handlePushSend(req,res){
     var kstH = kstNow.getUTCHours();
     var kstToday = kstNow.toISOString().slice(0,10);
 
-    var ewRes = await supaRest('GET', '/rest/v1/earnings_watchlist?select=ticker,company_name&notify=eq.true', null);
+    var ewRes = await supaRest('GET', '/rest/v1/earnings_watchlist?select=ticker,company_name,market&notify=eq.true', null);
     var ew = []; try { var ewp=JSON.parse(ewRes.body); ew=Array.isArray(ewp)?ewp:[]; } catch(_) {}
 
     if (ew.length) {
-      var tMap = {}; ew.forEach(function(w) { tMap[w.ticker] = w.company_name; });
+      var tMap = {}; var mMap = {}; ew.forEach(function(w) { tMap[w.ticker] = w.company_name; mMap[w.ticker] = w.market; });
       var inList = Object.keys(tMap).join(',');
       var eeRes = await supaRest('GET', '/rest/v1/earnings_events?select=*&ticker=in.('+inList+')&order=report_date.desc', null);
       var eeAll = []; try { var eep=JSON.parse(eeRes.body); eeAll=Array.isArray(eep)?eep:[]; } catch(_) {}
@@ -331,7 +331,7 @@ async function handlePushSend(req,res){
         return !e || e.report_date < kstToday;
       });
       for (var st of staleTickers) {
-        var fresh = await fetchNextEarningsDate(st, kstToday);
+        var fresh = await fetchNextEarningsDate(yahooTickerFor(st, mMap[st]), kstToday);
         if (fresh) {
           await storeEarningsResult(st, fresh);
           latestByTicker[st] = { ticker: st, report_date: fresh.date, report_time: earningsTimeLabel(fresh.hour), eps_estimate: null };
@@ -484,6 +484,26 @@ function finnhubGet(path) {
   });
 }
 
+// ── 네이버 증권 자동완성 (국내 종목 검색 — 인증/IP 제한 없음) ──
+function naverSearchGet(q) {
+  return new Promise(function(resolve, reject) {
+    var path = '/ac?q=' + encodeURIComponent(q) + '&target=stock';
+    var req2 = https.request({ hostname: 'ac.stock.naver.com', path: path, method: 'GET',
+      headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' }, timeout: 8000,
+    }, function(resp) {
+      var c = []; resp.on('data', function(x){c.push(x);}); resp.on('end', function(){ resolve({status:resp.statusCode,body:Buffer.concat(c).toString('utf8')}); });
+    });
+    req2.on('error', reject); req2.on('timeout', function(){req2.destroy();reject(new Error('timeout'));}); req2.end();
+  });
+}
+
+// market('KR'=코스피, 'KRQ'=코스닥)에 맞춰 Yahoo Finance 조회용 심볼로 변환
+function yahooTickerFor(ticker, market) {
+  if (market === 'KR') return ticker + '.KS';
+  if (market === 'KRQ') return ticker + '.KQ';
+  return ticker;
+}
+
 // ── 실적 캘린더 핸들러 ──
 async function handleEarningsList(req, res) {
   var wRes = await supaRest('GET', '/rest/v1/earnings_watchlist?select=*&order=ticker.asc', null);
@@ -531,8 +551,15 @@ async function handleEarningsAdd(req, res) {
       var errBody = ''; try { errBody = JSON.parse(insertRes.body).message || insertRes.body; } catch(_) { errBody = insertRes.body; }
       return res.status(500).json({ error: 'DB 저장 실패: ' + errBody });
     }
-    if (market === 'KR' && body.report_date) {
+    if (body.report_date) {
       await supaRest('POST', '/rest/v1/earnings_events?on_conflict=ticker,report_date', { ticker, report_date: body.report_date, report_time: body.report_time || null, is_manual: true });
+    } else {
+      // 추가 즉시 다음 실적일 자동 조회 (US/KR/KRQ 공통, Yahoo Finance)
+      try {
+        var today0 = new Date().toISOString().slice(0,10);
+        var found = await fetchNextEarningsDate(yahooTickerFor(ticker, market), today0);
+        if (found) await storeEarningsResult(ticker, found);
+      } catch(_) {}
     }
     return res.json({ ok: true, company_name: name });
   }
@@ -542,6 +569,22 @@ async function handleEarningsAdd(req, res) {
 async function handleEarningsSearch(req, res) {
   var q = (req.query.q || '').trim();
   if (!q) return res.json({ results: [] });
+
+  if ((req.query.market || 'US') === 'KR') {
+    try {
+      var nr = await naverSearchGet(q);
+      if (nr.status !== 200) return res.json({ results: [] });
+      var ndata = JSON.parse(nr.body);
+      var results = (ndata.items || [])
+        .filter(function(it) { return it.category === 'stock' && it.nationCode === 'KOR'; })
+        .slice(0, 8)
+        .map(function(it) { return { ticker: it.code, name: it.name, sub: it.typeName || it.typeCode }; });
+      return res.json({ results: results });
+    } catch (e) {
+      return res.status(500).json({ error: '네이버 검색 실패: ' + e.message });
+    }
+  }
+
   var key = process.env.FINNHUB_KEY || '';
   if (!key) return res.status(500).json({ error: 'FINNHUB_KEY 환경변수 없음' });
 
@@ -650,15 +693,15 @@ async function storeEarningsResult(ticker, result) {
 }
 
 async function handleEarningsSync(req, res) {
-  var wRes = await supaRest('GET', '/rest/v1/earnings_watchlist?select=ticker&market=eq.US', null);
+  var wRes = await supaRest('GET', '/rest/v1/earnings_watchlist?select=ticker,market', null);
   var watchlist = []; try { var wp = JSON.parse(wRes.body); watchlist = Array.isArray(wp) ? wp : []; } catch(_) {}
-  if (!watchlist.length) return res.json({ synced: 0, found: 0, message: '등록된 미국 주식 없음' });
+  if (!watchlist.length) return res.json({ synced: 0, found: 0, message: '등록된 종목 없음' });
 
   var today = new Date().toISOString().slice(0,10);
   var synced = 0, found = 0;
 
   for (var w of watchlist) {
-    var result = await fetchNextEarningsDate(w.ticker, today);
+    var result = await fetchNextEarningsDate(yahooTickerFor(w.ticker, w.market), today);
     if (!result) continue;
     found++;
     var r = await storeEarningsResult(w.ticker, result);
