@@ -703,9 +703,13 @@ async function fetchNextEarningsDate(ticker, today) {
         var dates = yres.calendarEvents.earnings.earningsDate;
         if (dates && dates.length) {
           var raw = dates[0];
-          var dateStr = (typeof raw === 'object' && raw.fmt) ? raw.fmt
-                      : (typeof raw === 'object' && raw.raw) ? new Date(raw.raw*1000).toISOString().slice(0,10)
-                      : null;
+          // formatted=false 여도 Yahoo가 가끔 {raw,fmt} 객체 대신 epoch 숫자를 그대로 줄 때가 있어 둘 다 처리
+          var dateStr = null;
+          if (typeof raw === 'number') dateStr = new Date(raw*1000).toISOString().slice(0,10);
+          else if (raw && typeof raw === 'object') {
+            if (raw.fmt) dateStr = raw.fmt;
+            else if (raw.raw) dateStr = new Date(raw.raw*1000).toISOString().slice(0,10);
+          }
           if (dateStr && dateStr >= today) yahooDate = dateStr;
         }
       }
