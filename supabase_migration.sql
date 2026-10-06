@@ -150,3 +150,7 @@ alter table push_subscriptions   disable row level security;
 alter table sector_map_stocks    disable row level security;
 alter table investment_records   disable row level security;
 alter table compound_goals       disable row level security;
+
+-- 긴급 수정: transactions(가계부) 테이블만 RLS가 켜져 있어서 모든 저장이 막혀 있었음
+-- (anon 키로 insert/upsert 시 "new row violates row-level security policy" 발생 확인)
+alter table transactions         disable row level security;
