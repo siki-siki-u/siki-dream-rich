@@ -559,6 +559,10 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
       <div class="nav-item" onclick="showPage('journal',this);closeSidebar()"><span class="icon">📝</span> 투자 일지</div>
     </div>
     <div class="nav-section">
+      <div class="nav-label">투자 평가</div>
+      <div class="nav-item" onclick="showPage('compound',this);closeSidebar()"><span class="icon">🎯</span> 복리 계산기</div>
+    </div>
+    <div class="nav-section">
       <div class="nav-label">내집마련</div>
       <div class="nav-item" onclick="showPage('realty',this);closeSidebar()"><span class="icon">🏠</span> 부동산 관리</div>
     </div>
@@ -2421,6 +2425,52 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
     <div id="terms-list"></div>
   </div>
 
+  <!-- ── 투자 평가: 복리 계산기 ── -->
+  <div class="page" id="page-compound">
+    <style>@media(max-width:480px){#page-compound .cg-hide-sm{display:none}}</style>
+    <div class="page-header">
+      <h2>🎯 복리 계산기</h2>
+      <p>초기금액·월 추가 투자금·연 예상 수익률·기간을 넣으면 복리로 얼마가 되는지 보여줘요. 저장해두면 목표로 쓸 수 있어요</p>
+    </div>
+
+    <div class="card" style="margin-bottom:1.2rem">
+      <div class="sec-title" style="margin-bottom:.8rem">🧮 조건 입력</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.7rem;margin-bottom:.7rem">
+        <div>
+          <label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">초기금액 (원)</label>
+          <input id="cg-initial" type="number" inputmode="numeric" min="0" step="any" class="input" placeholder="예: 10000000" oninput="cgUpdate()" style="width:100%;box-sizing:border-box"/>
+          <div id="cg-initial-hint" style="font-size:.72rem;color:var(--muted);margin-top:.25rem;min-height:1em"></div>
+        </div>
+        <div>
+          <label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">월 추가 투자금 (원)</label>
+          <input id="cg-monthly" type="number" inputmode="numeric" min="0" step="any" class="input" placeholder="예: 500000 (없으면 비워둠)" oninput="cgUpdate()" style="width:100%;box-sizing:border-box"/>
+          <div id="cg-monthly-hint" style="font-size:.72rem;color:var(--muted);margin-top:.25rem;min-height:1em"></div>
+        </div>
+        <div>
+          <label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">연 예상 수익률 (%)</label>
+          <input id="cg-rate" type="number" inputmode="decimal" step="any" class="input" placeholder="예: 8" oninput="cgUpdate()" style="width:100%;box-sizing:border-box"/>
+        </div>
+        <div>
+          <label style="font-size:.73rem;color:var(--muted);display:block;margin-bottom:.2rem">투자 기간 (년)</label>
+          <input id="cg-years" type="number" inputmode="numeric" min="1" max="100" step="1" class="input" placeholder="예: 10" oninput="cgUpdate()" style="width:100%;box-sizing:border-box"/>
+        </div>
+      </div>
+      <div style="font-size:.72rem;color:var(--muted);margin-bottom:.7rem;line-height:1.5">월 추가 투자금은 매월 말에 넣어 재투자하는 것으로 계산해요. 연 수익률은 월 단위로 환산해 매월 복리로 반영해요(월 추가 투자금이 0원이면 연 1회 복리와 같아요).</div>
+      <div id="cg-error" style="display:none;font-size:.78rem;color:var(--danger);margin-bottom:.6rem"></div>
+      <div class="owner-only" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+        <input id="cg-label" type="text" class="input" placeholder="목표 이름 (선택) 예: 10년 뒤 1억" maxlength="40" style="flex:1 1 200px;min-width:0;box-sizing:border-box" onkeydown="if(event.key==='Enter')saveCompoundGoal()"/>
+        <button class="btn btn-primary" onclick="saveCompoundGoal()">목표로 저장 ＋</button>
+      </div>
+    </div>
+
+    <div id="cg-result" style="margin-bottom:1.2rem"></div>
+
+    <div class="card">
+      <div class="sec-title" style="margin-bottom:.8rem">📌 저장한 목표</div>
+      <div id="cg-saved-list" style="display:flex;flex-direction:column;gap:.6rem;font-size:.82rem;color:var(--muted)">불러오는 중...</div>
+    </div>
+  </div>
+
 </main>
 
 <!-- PORTFOLIO CHANGES MODAL -->
@@ -2887,6 +2937,7 @@ function showPage(id, el) {
   if(id==='inv-records') { renderInvRecords(); }
   if(id==='mock-invest') { syncAndRenderMockInvest(); }
   if(id==='invest-terms') { renderInvestTerms(); }
+  if(id==='compound') { renderCompound(); }
   if(id==='stock-analysis') { loadInvestmentPrinciples(); }
   if(id==='hobby') { loadLiverpool(); }
   if(id==='stock-notes') { renderStockNotes(); }
@@ -12404,6 +12455,217 @@ function renderInvestTerms() {
       '</div>'+
     '</div>';
   }).join('');
+}
+
+// ── 투자 평가: 복리 계산기 ──
+// 저장 데이터(목표)는 Supabase compound_goals 테이블이 단일 소스. 계산 자체는 입력값에서 매번 도출.
+var _cgFormFilled = false;
+
+function cgFmtKRW(n) {
+  if (!isFinite(n)) return '계산 불가';
+  n = Math.round(n);
+  var neg = n < 0; n = Math.abs(n);
+  if (n < 10000) return (neg ? '-' : '') + n.toLocaleString() + '원';
+  var jo = Math.floor(n / 1e12), eok = Math.floor((n % 1e12) / 1e8), man = Math.floor((n % 1e8) / 1e4);
+  var s = '';
+  if (jo) s += jo.toLocaleString() + '조 ';
+  if (eok) s += eok.toLocaleString() + '억 ';
+  if (man) s += man.toLocaleString() + '만';
+  return (neg ? '-' : '') + s.trim() + '원';
+}
+
+function cgParse() {
+  var p = parseFloat(document.getElementById('cg-initial').value);
+  var r = parseFloat(document.getElementById('cg-rate').value);
+  var y = parseInt(document.getElementById('cg-years').value, 10);
+  var mRaw = parseFloat(document.getElementById('cg-monthly').value);
+  var m = isNaN(mRaw) ? 0 : mRaw;
+  return { p: p, r: r, y: y, m: m, empty: isNaN(p) && isNaN(r) && isNaN(y) && m === 0 };
+}
+
+function cgValidate(v) {
+  if (isNaN(v.p) || v.p <= 0) return '초기금액을 0보다 크게 입력해주세요';
+  if (isNaN(v.r)) return '연 예상 수익률을 입력해주세요';
+  if (v.r < -50 || v.r > 100) return '수익률은 -50% ~ 100% 사이로 입력해주세요';
+  if (isNaN(v.y) || v.y < 1 || v.y > 100) return '투자 기간은 1~100년 사이로 입력해주세요';
+  if (v.m < 0 || v.m > 1e10) return '월 추가 투자금은 0원 ~ 100억원 사이로 입력해주세요';
+  return '';
+}
+
+// 연 수익률 r(%)을 월 복리 수익률로 환산((1+r)^(1/12)-1)하고, 매월 말 m원을 추가 투자.
+// m=0이면 연 1회 복리(원금×(1+r)^년)와 동일한 값이 나온다.
+function cgCompute(p, r, y, m) {
+  m = m || 0;
+  var mr = Math.pow(1 + r / 100, 1 / 12) - 1;
+  var rows = [], v = p;
+  for (var i = 1; i <= y; i++) {
+    var start = v;
+    for (var k = 0; k < 12; k++) v = v * (1 + mr) + m;
+    var principal = p + m * 12 * i;
+    rows.push({ year: i, value: v, principal: principal, gain: v - start - m * 12, cum: (v / principal - 1) * 100 });
+  }
+  return rows;
+}
+
+function cgUpdate() {
+  var v = cgParse();
+  var hintEl = document.getElementById('cg-initial-hint');
+  hintEl.textContent = (!isNaN(v.p) && v.p > 0) ? '= ' + cgFmtKRW(v.p) : '';
+  document.getElementById('cg-monthly-hint').textContent = v.m > 0 ? '= 매월 ' + cgFmtKRW(v.m) : '';
+  var errEl = document.getElementById('cg-error');
+  var resEl = document.getElementById('cg-result');
+  if (v.empty) {
+    errEl.style.display = 'none';
+    resEl.innerHTML = '<div class="card" style="text-align:center;padding:2rem;color:var(--muted);font-size:.86rem">초기금액·월 추가 투자금·수익률·기간을 입력하면 복리 결과가 여기에 나와요 🎯</div>';
+    return;
+  }
+  var msg = cgValidate(v);
+  if (msg) {
+    errEl.textContent = msg; errEl.style.display = 'block';
+    resEl.innerHTML = '';
+    return;
+  }
+  errEl.style.display = 'none';
+  var rows = cgCompute(v.p, v.r, v.y, v.m);
+  var last = rows[rows.length - 1];
+  var paidIn = last.principal;                 // 초기금액 + 월 추가 투자금 누적
+  var gain = last.value - paidIn;
+  var mult = last.value / paidIn;
+  var hasM = v.m > 0;
+  var up = gain >= 0;
+  var clr = up ? 'var(--success)' : 'var(--danger)';
+  var doubling = v.r > 0 ? Math.log(2) / Math.log(1 + v.r / 100) : null;
+
+  var stat = function (label, val, sub, color) {
+    return '<div class="card" style="padding:.9rem 1rem"><div style="font-size:.72rem;color:var(--muted);margin-bottom:.25rem">' + label + '</div>' +
+      '<div style="font-family:JetBrains Mono,monospace;font-weight:700;font-size:1.05rem;color:' + (color || 'var(--text)') + ';word-break:keep-all">' + val + '</div>' +
+      (sub ? '<div style="font-size:.72rem;color:var(--muted);margin-top:.2rem;font-family:JetBrains Mono,monospace">' + sub + '</div>' : '') + '</div>';
+  };
+  var html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.7rem;margin-bottom:.9rem">' +
+    stat(v.y + '년 뒤 예상 금액', cgFmtKRW(last.value), '₩' + Math.round(last.value).toLocaleString(), 'var(--accent)') +
+    stat('총 수익금', (up ? '+' : '') + cgFmtKRW(gain), '납입 원금 ' + cgFmtKRW(paidIn), clr) +
+    stat('원금 대비', mult.toFixed(2) + '배', (up ? '+' : '') + last.cum.toFixed(1) + '%', clr) +
+    (hasM
+      ? stat('총 납입 원금', cgFmtKRW(paidIn), '초기 ' + cgFmtKRW(v.p) + ' + 월 ' + cgFmtKRW(v.m) + ' × ' + (v.y * 12) + '개월')
+      : stat('원금 2배까지', doubling ? doubling.toFixed(1) + '년' : '해당 없음', doubling ? '연 ' + v.r + '% 기준' : '수익률이 0 이하예요')) +
+    '</div>';
+
+  // 원금/수익 누적 막대
+  var maxV = Math.max(v.p, rows.reduce(function (m, x) { return Math.max(m, x.value, x.principal); }, 0));
+  var bars = rows.map(function (x) {
+    var princ = Math.min(x.principal, x.value), g = Math.max(x.value - x.principal, 0);
+    var hP = princ / maxV * 100, hG = g / maxV * 100;
+    return '<div title="' + x.year + '년차 ' + pEsc(cgFmtKRW(x.value)) + '" style="flex:1 0 10px;display:flex;flex-direction:column;justify-content:flex-end;height:100%;min-width:10px">' +
+      '<div style="height:' + hG + '%;background:var(--accent);border-radius:3px 3px 0 0"></div>' +
+      '<div style="height:' + hP + '%;background:rgba(108,138,255,.28)"></div></div>';
+  }).join('');
+  html += '<div class="card" style="margin-bottom:.9rem;padding:.9rem 1rem">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem;margin-bottom:.6rem">' +
+    '<div style="font-weight:700;font-size:.9rem">📈 자산 성장</div>' +
+    '<div style="font-size:.7rem;color:var(--muted)"><span style="display:inline-block;width:.7rem;height:.7rem;background:rgba(108,138,255,.28);border-radius:2px;vertical-align:-1px"></span> 납입 원금 &nbsp;<span style="display:inline-block;width:.7rem;height:.7rem;background:var(--accent);border-radius:2px;vertical-align:-1px"></span> 복리 수익</div></div>' +
+    '<div style="overflow-x:auto"><div style="display:flex;gap:2px;align-items:flex-end;height:150px;min-width:' + Math.min(rows.length * 12, 1200) + 'px">' + bars + '</div></div>' +
+    '<div style="display:flex;justify-content:space-between;font-size:.68rem;color:var(--muted);margin-top:.3rem"><span>1년</span><span>' + rows.length + '년</span></div></div>';
+
+  // 연도별 표
+  html += '<div class="card" style="padding:.9rem 1rem"><div style="font-weight:700;font-size:.9rem;margin-bottom:.6rem">🗓 연도별 평가금액</div>' +
+    '<div style="overflow-x:auto;max-height:420px;overflow-y:auto"><table style="width:100%;min-width:0;border-collapse:collapse;font-size:.74rem;white-space:nowrap;font-family:JetBrains Mono,monospace">' +
+    '<thead><tr style="color:var(--muted);text-align:right;position:sticky;top:0;background:var(--surface)"><th style="text-align:left;padding:.35rem .3rem">연차</th>' + (hasM ? '<th class="cg-hide-sm" style="text-align:right;padding:.35rem .3rem">납입원금</th>' : '') + '<th style="text-align:right;padding:.35rem .3rem">평가금액</th><th class="cg-hide-sm" style="text-align:right;padding:.35rem .3rem">수익</th><th style="text-align:right;padding:.35rem .3rem">누적 수익률</th></tr></thead><tbody>' +
+    rows.map(function (x) {
+      var c = x.gain >= 0 ? 'var(--success)' : 'var(--danger)';
+      return '<tr style="border-top:1px solid var(--border);text-align:right"><td style="text-align:left;padding:.35rem .3rem;color:var(--muted)">' + x.year + '년</td>' +
+        (hasM ? '<td class="cg-hide-sm" style="padding:.35rem .3rem;color:var(--muted)">' + cgFmtKRW(x.principal) + '</td>' : '') +
+        '<td style="padding:.35rem .3rem">' + cgFmtKRW(x.value) + '</td>' +
+        '<td class="cg-hide-sm" style="padding:.35rem .3rem;color:' + c + '">' + (x.gain >= 0 ? '+' : '') + cgFmtKRW(x.gain) + '</td>' +
+        '<td style="padding:.35rem .3rem;color:' + c + '">' + (x.cum >= 0 ? '+' : '') + x.cum.toFixed(1) + '%</td></tr>';
+    }).join('') + '</tbody></table></div></div>';
+  resEl.innerHTML = html;
+}
+
+async function loadCompoundGoals() {
+  var listEl = document.getElementById('cg-saved-list');
+  if (!supa) { if (listEl) listEl.textContent = 'Supabase에 연결되지 않았어요'; return; }
+  var res = await supa.from('compound_goals').select('*').order('created_at', { ascending: false });
+  if (res.error) {
+    console.warn('[compound_goals]', res.error.message);
+    S.set('compound_goals', null);
+    if (listEl) listEl.innerHTML = '<span style="color:var(--danger)">목표를 불러오지 못했어요.</span> compound_goals 테이블이 아직 없다면 <code>supabase_migration.sql</code>의 10번 블록을 Supabase SQL Editor에서 실행해주세요.';
+    return;
+  }
+  S.set('compound_goals', res.data || []);
+  // 처음 열 때는 가장 최근 저장 목표를 입력칸에 채워서 이어서 볼 수 있게
+  if (!_cgFormFilled && res.data && res.data.length && cgParse().empty) {
+    cgFillForm(res.data[0]);
+  }
+  _cgFormFilled = true;
+  renderCompoundGoals();
+}
+
+function cgFillForm(g) {
+  document.getElementById('cg-initial').value = g.initial_amount;
+  document.getElementById('cg-monthly').value = g.monthly_contribution ? g.monthly_contribution : '';
+  document.getElementById('cg-rate').value = g.annual_rate;
+  document.getElementById('cg-years').value = g.years;
+  document.getElementById('cg-label').value = g.label || '';
+  cgUpdate();
+}
+
+function renderCompoundGoals() {
+  var listEl = document.getElementById('cg-saved-list');
+  if (!listEl) return;
+  var list = S.get('compound_goals');
+  if (list === null) return;
+  if (!list.length) { listEl.innerHTML = '아직 저장한 목표가 없어요. 위에서 조건을 넣고 “목표로 저장”을 눌러보세요.'; return; }
+  listEl.innerHTML = list.map(function (g) {
+    var gm = Number(g.monthly_contribution) || 0;
+    var proj = cgCompute(Number(g.initial_amount), Number(g.annual_rate), Number(g.years), gm);
+    var fv = proj.length ? proj[proj.length - 1].value : Number(g.initial_amount);
+    return '<div style="background:var(--surface2);border-radius:10px;padding:.7rem .85rem;display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap">' +
+      '<div style="min-width:0;flex:1 1 200px"><div style="font-weight:700;color:var(--text);font-size:.86rem">' + pEsc(g.label || '이름 없는 목표') + '</div>' +
+      '<div style="font-size:.74rem;color:var(--muted);margin-top:.15rem;font-family:JetBrains Mono,monospace">' + pEsc(cgFmtKRW(Number(g.initial_amount))) + (gm > 0 ? ' + 월 ' + pEsc(cgFmtKRW(gm)) : '') + ' · 연 ' + Number(g.annual_rate) + '% · ' + Number(g.years) + '년</div>' +
+      '<div style="font-size:.8rem;color:var(--accent);margin-top:.15rem;font-family:JetBrains Mono,monospace">→ ' + pEsc(cgFmtKRW(fv)) + '</div></div>' +
+      '<div style="display:flex;gap:.35rem;flex-shrink:0">' +
+        '<button class="btn btn-ghost" onclick="loadCompoundGoalById(\'' + g.id + '\')" style="font-size:.72rem;padding:.25rem .55rem">불러오기</button>' +
+        '<button class="btn btn-ghost owner-only" onclick="deleteCompoundGoal(\'' + g.id + '\')" style="font-size:.72rem;padding:.25rem .5rem;color:var(--danger)">🗑</button>' +
+      '</div></div>';
+  }).join('');
+}
+
+function loadCompoundGoalById(id) {
+  var g = (S.get('compound_goals') || []).find(function (x) { return x.id === id; });
+  if (g) cgFillForm(g);
+}
+
+async function saveCompoundGoal() {
+  if (isGuest()) { showToast('게스트는 저장할 수 없어요', 'error'); return; }
+  var v = cgParse();
+  var msg = cgValidate(v);
+  if (msg) { showToast(msg, 'error'); return; }
+  var id = crypto.randomUUID();
+  var row = {
+    id: id,
+    label: (document.getElementById('cg-label').value || '').trim(),
+    initial_amount: Math.round(v.p),
+    monthly_contribution: Math.round(v.m),
+    annual_rate: v.r,
+    years: v.y,
+    created_at: new Date().toISOString()
+  };
+  await dbUpsert('compound_goals', row);
+  await loadCompoundGoals();
+  var saved = (S.get('compound_goals') || []).some(function (x) { return x.id === id; });
+  if (saved) { document.getElementById('cg-label').value = ''; showToast('목표로 저장했어요 🎯', 'success'); }
+}
+
+async function deleteCompoundGoal(id) {
+  if (isGuest()) return;
+  if (!confirm('이 목표를 삭제할까요?')) return;
+  await dbDelete('compound_goals', id);
+  await loadCompoundGoals();
+}
+
+function renderCompound() {
+  cgUpdate();
+  loadCompoundGoals();
 }
 </script>
 </body>

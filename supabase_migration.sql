@@ -125,6 +125,20 @@ create table if not exists investment_records (
 -- 이미 investment_records를 만드셨다면 이 줄만 추가로 실행하세요:
 -- alter table investment_records add column if not exists quantity numeric not null default 1;
 
+-- 10. compound_goals (투자 평가 — 복리 계산기 저장 목표)
+create table if not exists compound_goals (
+  id             uuid primary key default gen_random_uuid(),
+  label          text not null default '',
+  initial_amount bigint not null check (initial_amount > 0),
+  monthly_contribution bigint not null default 0 check (monthly_contribution between 0 and 10000000000),
+  annual_rate    numeric not null check (annual_rate between -50 and 100),
+  years          int not null check (years between 1 and 100),
+  created_at     timestamptz default now()
+);
+
+-- 이미 compound_goals를 만드셨다면 이 줄만 추가로 실행하세요 (월 추가 투자금):
+-- alter table compound_goals add column if not exists monthly_contribution bigint not null default 0 check (monthly_contribution between 0 and 10000000000);
+
 -- RLS (Row Level Security) 비활성화 — 퍼블릭 접근 허용
 alter table portfolio_holdings  disable row level security;
 alter table portfolio_snapshots disable row level security;
@@ -135,3 +149,4 @@ alter table realized_profits     disable row level security;
 alter table push_subscriptions   disable row level security;
 alter table sector_map_stocks    disable row level security;
 alter table investment_records   disable row level security;
+alter table compound_goals       disable row level security;
