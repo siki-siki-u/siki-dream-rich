@@ -618,17 +618,22 @@ async function handleEarningsSearch(req, res) {
 }
 
 // Yahoo Finance로 종목별 다음 실적 날짜 조회
-function getYahooEarnings(ticker) {
+function getYahooEarnings(ticker, crumbInfo) {
   return new Promise(function(resolve, reject) {
     var path = '/v10/finance/quoteSummary/' + encodeURIComponent(ticker) +
                '?modules=calendarEvents&corsDomain=finance.yahoo.com&formatted=false';
+    var headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0',
+      'Accept': 'application/json',
+      'Accept-Language': 'en-US,en;q=0.9',
+    };
+    if (crumbInfo && crumbInfo.crumb) {
+      path += '&crumb=' + encodeURIComponent(crumbInfo.crumb);
+      headers['Cookie'] = crumbInfo.cookie;
+    }
     var req2 = https.request({
       hostname: 'query1.finance.yahoo.com', path: path, method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0',
-        'Accept': 'application/json',
-        'Accept-Language': 'en-US,en;q=0.9',
-      }, timeout: 10000,
+      headers: headers, timeout: 10000,
     }, function(resp) {
       var c = []; resp.on('data', function(x){c.push(x);}); resp.on('end', function(){ resolve({status:resp.statusCode,body:Buffer.concat(c).toString('utf8')}); });
     });
@@ -636,14 +641,61 @@ function getYahooEarnings(ticker) {
   });
 }
 
+// Yahoo는 crumb 없이도 될 때가 있고 "Invalid Crumb" 401을 낼 때도 있어 불안정함 → 실패 시 crumb 발급해서 재시도
+var _yahooCrumbCache = { crumb: null, cookie: null, at: 0 };
+var YAHOO_CRUMB_TTL_MS = 30 * 60 * 1000;
+
+function httpsGetRaw(hostname, path, headers) {
+  return new Promise(function(resolve, reject) {
+    var req2 = https.request({ hostname: hostname, path: path, method: 'GET', headers: headers, timeout: 10000 }, function(resp) {
+      if ((resp.statusCode === 301 || resp.statusCode === 302) && resp.headers.location) {
+        try {
+          var u = new URL(resp.headers.location);
+          return httpsGetRaw(u.hostname, u.pathname + u.search, headers).then(resolve).catch(reject);
+        } catch (e) { return reject(e); }
+      }
+      var c = []; resp.on('data', function(x){c.push(x);});
+      resp.on('end', function(){ resolve({ status: resp.statusCode, headers: resp.headers, body: Buffer.concat(c).toString('utf8') }); });
+    });
+    req2.on('error', reject); req2.on('timeout', function(){req2.destroy(); reject(new Error('timeout'));}); req2.end();
+  });
+}
+
+function extractCookieHeader(h) {
+  if (!h) return '';
+  var arr = Array.isArray(h) ? h : [h];
+  return arr.map(function(c){ return c.split(';')[0]; }).join('; ');
+}
+
+async function getYahooCrumb() {
+  if (_yahooCrumbCache.crumb && Date.now() - _yahooCrumbCache.at < YAHOO_CRUMB_TTL_MS) return _yahooCrumbCache;
+  var r1 = await httpsGetRaw('fc.yahoo.com', '/', { 'User-Agent': 'Mozilla/5.0' });
+  var cookie = extractCookieHeader(r1.headers['set-cookie']);
+  if (!cookie) {
+    r1 = await httpsGetRaw('finance.yahoo.com', '/', { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' });
+    cookie = extractCookieHeader(r1.headers['set-cookie']);
+  }
+  var r2 = await httpsGetRaw('query2.finance.yahoo.com', '/v1/test/getcrumb', { 'User-Agent': 'Mozilla/5.0', 'Cookie': cookie });
+  var crumb = (r2.body || '').trim();
+  if (!crumb || crumb.length < 3 || crumb.length > 20) throw new Error('Yahoo crumb 발급 실패');
+  _yahooCrumbCache = { crumb: crumb, cookie: cookie, at: Date.now() };
+  return _yahooCrumbCache;
+}
+
 // 종목 하나의 다음 실적 날짜 조회 (Yahoo 1차 → Finnhub 2차 폴백)
 async function fetchNextEarningsDate(ticker, today) {
   var result = null;
   var yahooDate = null;
 
-  // 1단계: Yahoo에서 날짜 가져오기 (날짜 기준으로 신뢰도 높음)
+  // 1단계: Yahoo에서 날짜 가져오기 (날짜 기준으로 신뢰도 높음). crumb 없이 먼저 시도하고, 401이면 crumb 발급 후 재시도
   try {
     var yr = await getYahooEarnings(ticker);
+    if (yr.status === 401) {
+      try {
+        var crumbInfo = await getYahooCrumb();
+        yr = await getYahooEarnings(ticker, crumbInfo);
+      } catch (_) {}
+    }
     if (yr.status === 200) {
       var ydata = JSON.parse(yr.body);
       var yres = ydata.quoteSummary && ydata.quoteSummary.result && ydata.quoteSummary.result[0];
