@@ -4469,14 +4469,13 @@ async function analyzeBudgetAI() {
     '딱딱하지 않고 친근한 어투로, 숫자는 만원 단위로 표기해주세요.';
 
   try {
-    const apiKey = S.get('settings')?.claudeKey || S.get('claude_api_key') || '';
     const res = await fetch('/api/claude', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ key: apiKey, prompt, max_tokens: 600 })
+      body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens: 600, messages:[{role:'user', content: prompt}] })
     });
     const data = await res.json();
-    if(data.error) throw new Error(data.error.message || data.error);
+    if(data.error) throw new Error(data.detail || data.error.message || data.error);
     const text = data.content?.[0]?.text || '';
     if(!text) throw new Error('응답 없음');
     result.style.color = 'var(--text)';
