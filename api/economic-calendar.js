@@ -1074,6 +1074,11 @@ module.exports = async function(req, res) {
     if (action === 'epl-table')       return await handleEPLTable(req, res);
     if (action === 'push-lfc')        return await handlePushLFC(req, res);
     if (action === 'dart-search')     return await handleDartSearch(req, res);
+    if (action === 'dart-debug') {
+      var dbgKey = dartKey();
+      var dbgR = await dartGetJson('/api/list.json?crtfc_key=' + encodeURIComponent(dbgKey) + '&corp_code=00126380&bgn_de=20261001&end_de=20261017&page_count=1');
+      return res.json({ keyLen: dbgKey.length, status: dbgR.status, body: dbgR.body.slice(0, 300) });
+    }
     if (action === 'dart-list')       return await handleDartList(req, res);
     if (action === 'dart-add')        return await handleDartAdd(req, res);
     if (action === 'dart-check')      return await handleDartCheck(req, res);
