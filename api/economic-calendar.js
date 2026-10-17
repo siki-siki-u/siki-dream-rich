@@ -866,6 +866,186 @@ async function handleEPLTable(req, res) {
   res.json({ table: table, season: season });
 }
 
+// ── DART 공시 알림 ──
+function dartKey() { return process.env.DART_API_KEY || ''; }
+
+function httpsGetBuffer(hostname, path) {
+  return new Promise(function(resolve, reject) {
+    var req2 = https.request({ hostname: hostname, path: path, method: 'GET', timeout: 25000 }, function(resp) {
+      var chunks = [];
+      resp.on('data', function(c) { chunks.push(c); });
+      resp.on('end', function() { resolve({ status: resp.statusCode, buffer: Buffer.concat(chunks) }); });
+    });
+    req2.on('error', reject);
+    req2.on('timeout', function() { req2.destroy(); reject(new Error('timeout')); });
+    req2.end();
+  });
+}
+
+function dartGetJson(path) {
+  return new Promise(function(resolve, reject) {
+    var req2 = https.request({ hostname: 'opendart.fss.or.kr', path: path, method: 'GET', timeout: 15000 }, function(resp) {
+      var chunks = [];
+      resp.on('data', function(c) { chunks.push(c); });
+      resp.on('end', function() { resolve({ status: resp.statusCode, body: Buffer.concat(chunks).toString('utf8') }); });
+    });
+    req2.on('error', reject);
+    req2.on('timeout', function() { req2.destroy(); reject(new Error('timeout')); });
+    req2.end();
+  });
+}
+
+// DART corpCode.xml(zip) 다운로드 → stock_code(6자리) → {corpCode, corpName} 매핑. 24시간 캐시 (약 3천개 상장사만 보관)
+var _dartCorpMapCache = { map: null, at: 0 };
+var DART_MAP_TTL_MS = 24 * 60 * 60 * 1000;
+
+async function getDartStockCodeMap() {
+  if (_dartCorpMapCache.map && Date.now() - _dartCorpMapCache.at < DART_MAP_TTL_MS) return _dartCorpMapCache.map;
+  var key = dartKey();
+  if (!key) throw new Error('DART_API_KEY 환경변수 없음');
+  var r = await httpsGetBuffer('opendart.fss.or.kr', '/api/corpCode.xml?crtfc_key=' + encodeURIComponent(key));
+  if (r.status !== 200) throw new Error('corpCode 다운로드 실패: HTTP ' + r.status);
+  var AdmZip = require('adm-zip');
+  var zip = new AdmZip(r.buffer);
+  var entries = zip.getEntries();
+  if (!entries.length) throw new Error('corpCode.xml zip이 비어있음');
+  var xml = zip.readAsText(entries[0]);
+  var map = {};
+  var re = /<list>([\s\S]*?)<\/list>/g, m;
+  while ((m = re.exec(xml)) !== null) {
+    var block = m[1];
+    var corpCode = (block.match(/<corp_code>(.*?)<\/corp_code>/) || [])[1];
+    var corpName = (block.match(/<corp_name>(.*?)<\/corp_name>/) || [])[1];
+    var stockCode = (block.match(/<stock_code>(.*?)<\/stock_code>/) || [])[1];
+    if (stockCode && stockCode.trim() && corpCode) {
+      map[stockCode.trim()] = { corpCode: corpCode, corpName: (corpName || '').trim() };
+    }
+  }
+  _dartCorpMapCache = { map: map, at: Date.now() };
+  return map;
+}
+
+// 종목명/티커 검색 (네이버 자동완성) → DART corp_code 매핑 붙여서 반환 (비상장 등 DART 매핑 없는 종목은 제외)
+async function handleDartSearch(req, res) {
+  var q = (req.query.q || '').trim();
+  if (!q) return res.json({ results: [] });
+  try {
+    var nr = await naverSearchGet(q);
+    if (nr.status !== 200) return res.json({ results: [] });
+    var ndata = JSON.parse(nr.body);
+    var items = (ndata.items || [])
+      .filter(function(it) { return it.category === 'stock' && it.nationCode === 'KOR'; })
+      .slice(0, 8);
+    var map = await getDartStockCodeMap();
+    var results = items.map(function(it) {
+      var d = map[it.code];
+      return d ? { ticker: it.code, name: it.name, sub: it.typeName || it.typeCode, corpCode: d.corpCode } : null;
+    }).filter(Boolean);
+    res.json({ results: results });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+async function handleDartList(req, res) {
+  var r = await supaRest('GET', '/rest/v1/dart_watchlist?select=*&order=corp_name.asc', null);
+  var items = []; try { var p = JSON.parse(r.body); items = Array.isArray(p) ? p : []; } catch(_) {}
+  res.json({ items: items });
+}
+
+async function handleDartAdd(req, res) {
+  var body = req.body || {};
+  if (req.method === 'DELETE') {
+    var delCorpCode = body.corp_code || '';
+    if (!delCorpCode) return res.status(400).json({ error: 'corp_code 필요' });
+    await supaRest('DELETE', '/rest/v1/dart_watchlist?corp_code=eq.' + encodeURIComponent(delCorpCode), null);
+    return res.json({ ok: true });
+  }
+  if (req.method === 'POST') {
+    var corpCode = body.corp_code || '';
+    var corpName = body.corp_name || '';
+    var stockCode = body.stock_code || null;
+    if (!corpCode || !corpName) return res.status(400).json({ error: 'corp_code/corp_name 필요' });
+
+    // 등록 시점에 최근 공시 중 가장 최신 rcept_no를 커서로 저장 → 과거 공시로 알림 스팸 방지, 이후 새 공시만 알림
+    var lastRceptNo = null;
+    try {
+      var key = dartKey();
+      var end0 = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      var bgn0 = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10).replace(/-/g, '');
+      var lr = await dartGetJson('/api/list.json?crtfc_key=' + encodeURIComponent(key) + '&corp_code=' + encodeURIComponent(corpCode) +
+        '&bgn_de=' + bgn0 + '&end_de=' + end0 + '&page_count=1&sort=date&sort_mth=desc');
+      if (lr.status === 200) {
+        var ld = JSON.parse(lr.body);
+        if (ld.status === '000' && ld.list && ld.list.length) lastRceptNo = ld.list[0].rcept_no;
+      }
+    } catch (_) {}
+
+    var insertRes = await supaRest('POST', '/rest/v1/dart_watchlist?on_conflict=corp_code', {
+      corp_code: corpCode, corp_name: corpName, stock_code: stockCode, notify: true, last_rcept_no: lastRceptNo,
+    });
+    if (insertRes.status >= 300) {
+      var errBody = ''; try { errBody = JSON.parse(insertRes.body).message || insertRes.body; } catch(_) { errBody = insertRes.body; }
+      return res.status(500).json({ error: 'DB 저장 실패: ' + errBody });
+    }
+    return res.json({ ok: true });
+  }
+  res.status(405).json({ error: 'Method not allowed' });
+}
+
+// 신규 공시 확인 + 알림 발송 (수동 "지금 확인" 버튼과 cron 둘 다 이 핸들러를 씀)
+async function handleDartCheck(req, res) {
+  var key = dartKey();
+  if (!key) return res.json({ checked: 0, notified: 0, error: 'DART_API_KEY 없음' });
+
+  var vapidPub = await getSetting('vapid_public_key'), vapidPriv = await getSetting('vapid_private_key');
+  var subRes = await supaRest('GET', '/rest/v1/push_subscriptions?select=*', null);
+  var subs = []; try { var sp = JSON.parse(subRes.body); subs = Array.isArray(sp) ? sp : []; } catch(_) {}
+
+  async function sendToAll(payload) {
+    if (!vapidPub || !vapidPriv) return;
+    for (var sub of subs) {
+      try { await sendPushNotif(sub.endpoint, sub.p256dh, sub.auth, vapidPub, vapidPriv, payload); } catch(_) {}
+    }
+  }
+
+  var wRes = await supaRest('GET', '/rest/v1/dart_watchlist?select=*&notify=eq.true', null);
+  var watch = []; try { var wp = JSON.parse(wRes.body); watch = Array.isArray(wp) ? wp : []; } catch(_) {}
+  if (!watch.length) return res.json({ checked: 0, notified: 0 });
+
+  var end0 = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  var bgn0 = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10).replace(/-/g, '');
+  var notified = 0;
+
+  for (var w of watch) {
+    try {
+      var lr = await dartGetJson('/api/list.json?crtfc_key=' + encodeURIComponent(key) + '&corp_code=' + encodeURIComponent(w.corp_code) +
+        '&bgn_de=' + bgn0 + '&end_de=' + end0 + '&page_count=20&sort=date&sort_mth=desc');
+      if (lr.status !== 200) continue;
+      var ld = JSON.parse(lr.body);
+      if (ld.status !== '000' || !ld.list || !ld.list.length) continue;
+
+      var newOnes = ld.list.filter(function(it) { return !w.last_rcept_no || it.rcept_no > w.last_rcept_no; });
+      if (!newOnes.length) continue;
+      newOnes.sort(function(a, b) { return a.rcept_no.localeCompare(b.rcept_no); });
+
+      for (var it of newOnes) {
+        await sendToAll({
+          title: '📢 ' + it.corp_name + ' 새 공시',
+          body: it.report_nm.replace(/\s+/g, ' ').trim(),
+          tag: 'dart-' + it.rcept_no,
+          url: 'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=' + it.rcept_no,
+        });
+        notified++;
+      }
+
+      var maxRcept = newOnes[newOnes.length - 1].rcept_no;
+      await supaRest('PATCH', '/rest/v1/dart_watchlist?corp_code=eq.' + encodeURIComponent(w.corp_code), { last_rcept_no: maxRcept });
+    } catch (_) {}
+  }
+  res.json({ checked: watch.length, notified: notified });
+}
+
 module.exports = async function(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -885,6 +1065,10 @@ module.exports = async function(req, res) {
     if (action === 'liverpool')       return await handleLiverpool(req, res);
     if (action === 'epl-table')       return await handleEPLTable(req, res);
     if (action === 'push-lfc')        return await handlePushLFC(req, res);
+    if (action === 'dart-search')     return await handleDartSearch(req, res);
+    if (action === 'dart-list')       return await handleDartList(req, res);
+    if (action === 'dart-add')        return await handleDartAdd(req, res);
+    if (action === 'dart-check')      return await handleDartCheck(req, res);
 
     // 기본: 경제 캘린더 조회
     var period = req.query.period || 'thisweek';

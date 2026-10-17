@@ -557,6 +557,7 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
       <div class="nav-item" onclick="showPage('stock-analysis',this);closeSidebar()"><span class="icon">🔍</span> 주식 가치 분석</div>
       <div class="nav-item" onclick="showPage('stock-notes',this);closeSidebar()"><span class="icon">📌</span> 종목 분석 노트</div>
       <div class="nav-item" onclick="showPage('journal',this);closeSidebar()"><span class="icon">📝</span> 투자 일지</div>
+      <div class="nav-item" onclick="showPage('dart-alerts',this);closeSidebar()"><span class="icon">📢</span> 공시 알림</div>
     </div>
     <div class="nav-section">
       <div class="nav-label">투자 평가</div>
@@ -1552,6 +1553,32 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
       <div id="earnings-list-body" style="padding:.25rem .5rem 1rem">
         <div style="text-align:center;padding:2.5rem;color:var(--muted);font-size:.85rem">로딩 중...</div>
       </div>
+    </div>
+  </div>
+
+  <!-- DART 공시 알림 -->
+  <div class="page" id="page-dart-alerts">
+    <div class="page-header">
+      <h2>📢 공시 알림</h2>
+      <p>관심 기업을 등록하면 새 공시가 올라올 때 푸시로 알려드려요 (매일 자동 확인 + 수동 확인 가능)</p>
+    </div>
+
+    <div class="card" style="margin-bottom:1rem;padding:.9rem 1rem;position:relative">
+      <div style="font-weight:700;margin-bottom:.5rem">🔍 기업 검색해서 등록</div>
+      <div style="position:relative">
+        <input id="dart-search-input" placeholder="기업명 또는 티커 (예: 삼성전자, 005930)" autocomplete="off"
+          style="width:100%;padding:.55rem .7rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.83rem;font-family:inherit"
+          oninput="onDartSearch(this.value)">
+        <div id="dart-search-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:260px;overflow-y:auto;z-index:20;box-shadow:0 4px 16px rgba(0,0,0,.25)"></div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:.9rem 1rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+        <div style="font-weight:700">📌 등록된 기업</div>
+        <button onclick="checkDartNow()" id="dart-check-btn" style="padding:.3rem .75rem;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:.78rem;cursor:pointer;font-family:inherit">🔄 지금 확인</button>
+      </div>
+      <div id="dart-watchlist-body" style="display:flex;flex-direction:column;gap:.5rem;font-size:.82rem;color:var(--muted)">불러오는 중...</div>
     </div>
   </div>
 
@@ -2929,6 +2956,7 @@ function showPage(id, el) {
   if(id==='assets') { initPortfolio(); }
   if(id==='youtube') { renderYtLibrary(); }
   if(id==='journal') { renderJournal(); fetchFearGreed(); showJnTab('list'); }
+  if(id==='dart-alerts') { renderDartList(); }
   if(id==='realty')  { renderRealty(); initCheongak(); }
   if(id==='gifts')       { renderGiftList(); }
   if(id==='condolences') { renderCondolenceList(); }
@@ -7104,7 +7132,7 @@ function onAuthSuccess(user, fromLogin) {
   if (userEl) userEl.style.display = 'flex';
   hideLockScreen();
   enforceGuestMode();
-  var _validPages = ['dashboard','budget','assets','market','inv-records','calendar','youtube','journal','realty','gifts','condolences','stock-analysis','hobby'];
+  var _validPages = ['dashboard','budget','assets','market','inv-records','calendar','youtube','journal','dart-alerts','realty','gifts','condolences','stock-analysis','hobby'];
   function navigateToHash(hash) {
     var h = (hash || location.hash).replace('#', '');
     if (!h || _validPages.indexOf(h) === -1) return;
@@ -7535,6 +7563,99 @@ function toggleSectorMapDemo() {
   var btn = document.getElementById('sectormap-demo-btn');
   if (btn) btn.textContent = _sectorMapDemo ? '샘플 끄기' : '샘플로 미리보기';
   renderSectorMap();
+}
+
+// ── DART 공시 알림 ──
+var _dartSearchTimer = null;
+var _dartSearchItems = [];
+
+function onDartSearch(q) {
+  clearTimeout(_dartSearchTimer);
+  var box = document.getElementById('dart-search-dropdown');
+  if (!q || !q.trim()) { box.style.display = 'none'; return; }
+  _dartSearchTimer = setTimeout(function() { doDartSearch(q.trim()); }, 300);
+}
+
+async function doDartSearch(q) {
+  var box = document.getElementById('dart-search-dropdown');
+  box.innerHTML = '<div style="padding:.6rem 1rem;font-size:.8rem;color:var(--muted)">검색 중...</div>';
+  box.style.display = '';
+  try {
+    var res = await fetchWithTimeout('/api/economic-calendar?action=dart-search&q=' + encodeURIComponent(q), 15000);
+    var d = await res.json();
+    var items = d.results || [];
+    _dartSearchItems = items;
+    if (!items.length) { box.innerHTML = '<div style="padding:.6rem 1rem;font-size:.8rem;color:var(--muted)">검색 결과 없음 (DART에 없는 종목일 수 있어요)</div>'; return; }
+    box.innerHTML = items.map(function(it, i) {
+      return '<div onclick="addDartWatch(' + i + ')" style="padding:.55rem .8rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:.5rem">' +
+        '<span style="color:var(--text)">' + pEsc(it.name) + (it.sub ? ' <span style="color:var(--muted);font-size:.72rem">(' + pEsc(it.sub) + ')</span>' : '') + '</span>' +
+        '<span style="color:var(--accent);font-family:JetBrains Mono,monospace;font-size:.75rem">' + pEsc(it.ticker) + '</span>' +
+        '</div>';
+    }).join('');
+  } catch (e) {
+    box.innerHTML = '<div style="padding:.6rem 1rem;font-size:.8rem;color:var(--danger)">오류: ' + e.message + '</div>';
+  }
+}
+
+async function addDartWatch(idx) {
+  var it = _dartSearchItems[idx];
+  if (!it) return;
+  document.getElementById('dart-search-dropdown').style.display = 'none';
+  document.getElementById('dart-search-input').value = '';
+  showToast(it.name + ' 등록 중...');
+  try {
+    var res = await fetchWithTimeout('/api/economic-calendar?action=dart-add', 20000, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ corp_code: it.corpCode, corp_name: it.name, stock_code: it.ticker }),
+    });
+    var d = await res.json();
+    if (d.error) throw new Error(d.error);
+    showToast('✅ ' + it.name + ' 등록 완료!');
+    renderDartList();
+  } catch (e) { showToast('등록 실패: ' + e.message, 'error'); }
+}
+
+async function removeDartWatch(corpCode, name) {
+  if (!confirm(name + '을(를) 공시 알림 목록에서 삭제할까요?')) return;
+  try {
+    await fetchWithTimeout('/api/economic-calendar?action=dart-add', 15000, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ corp_code: corpCode }),
+    });
+    showToast('🗑️ 삭제됐어요');
+    renderDartList();
+  } catch (e) { showToast('삭제 실패: ' + e.message, 'error'); }
+}
+
+async function renderDartList() {
+  var body = document.getElementById('dart-watchlist-body');
+  if (!body) return;
+  try {
+    var res = await fetchWithTimeout('/api/economic-calendar?action=dart-list', 15000);
+    var d = await res.json();
+    var items = d.items || [];
+    if (!items.length) { body.innerHTML = '<div>등록된 기업이 없어요. 위에서 검색해서 추가해보세요</div>'; return; }
+    body.innerHTML = items.map(function(it) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.55rem .7rem;background:var(--surface2);border-radius:8px">' +
+        '<span style="color:var(--text);font-weight:600">' + pEsc(it.corp_name) + '</span>' +
+        '<button onclick="removeDartWatch(&quot;' + it.corp_code + '&quot;,&quot;' + pEsc(it.corp_name) + '&quot;)" style="border:none;background:none;color:var(--muted);cursor:pointer;font-size:.9rem">✕</button>' +
+        '</div>';
+    }).join('');
+  } catch (e) {
+    body.innerHTML = '<div style="color:var(--danger)">불러오기 실패: ' + e.message + '</div>';
+  }
+}
+
+async function checkDartNow() {
+  var btn = document.getElementById('dart-check-btn');
+  btn.disabled = true; btn.textContent = '⏳ 확인 중...';
+  try {
+    var res = await fetchWithTimeout('/api/economic-calendar?action=dart-check', 25000, { method: 'POST' });
+    var d = await res.json();
+    if (d.error) throw new Error(d.error);
+    showToast(d.notified > 0 ? '📢 새 공시 ' + d.notified + '건 알림 보냈어요' : '📭 새 공시 없어요');
+  } catch (e) { showToast('확인 실패: ' + e.message, 'error'); }
+  btn.disabled = false; btn.textContent = '🔄 지금 확인';
 }
 
 // ── 투자기록 ──

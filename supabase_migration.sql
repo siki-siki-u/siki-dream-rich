@@ -154,3 +154,15 @@ alter table compound_goals       disable row level security;
 -- 긴급 수정: transactions(가계부) 테이블만 RLS가 켜져 있어서 모든 저장이 막혀 있었음
 -- (anon 키로 insert/upsert 시 "new row violates row-level security policy" 발생 확인)
 alter table transactions         disable row level security;
+
+-- 11. dart_watchlist (DART 공시 알림 — 관심 기업의 신규 공시를 푸시로 알림)
+create table if not exists dart_watchlist (
+  id            uuid primary key default gen_random_uuid(),
+  corp_code     text not null unique,
+  corp_name     text not null,
+  stock_code    text,
+  notify        boolean not null default true,
+  last_rcept_no text,
+  created_at    timestamptz default now()
+);
+alter table dart_watchlist disable row level security;
