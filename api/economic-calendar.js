@@ -882,7 +882,7 @@ function httpsGetBuffer(hostname, path, redirectsLeft) {
       }
       var chunks = [];
       resp.on('data', function(c) { chunks.push(c); });
-      resp.on('end', function() { resolve({ status: resp.statusCode, buffer: Buffer.concat(chunks) }); });
+      resp.on('end', function() { resolve({ status: resp.statusCode, buffer: Buffer.concat(chunks), headers: resp.headers }); });
     });
     req2.on('error', reject);
     req2.on('timeout', function() { req2.destroy(); reject(new Error('timeout')); });
@@ -912,7 +912,7 @@ async function getDartStockCodeMap() {
   var key = dartKey();
   if (!key) throw new Error('DART_API_KEY 환경변수 없음');
   var r = await httpsGetBuffer('opendart.fss.or.kr', '/api/corpCode.xml?crtfc_key=' + encodeURIComponent(key));
-  if (r.status !== 200) throw new Error('corpCode 다운로드 실패: HTTP ' + r.status);
+  if (r.status !== 200) throw new Error('corpCode 다운로드 실패: HTTP ' + r.status + ' headers=' + JSON.stringify(r.headers) + ' body=' + r.buffer.toString('utf8').slice(0, 200));
   var AdmZip = require('adm-zip');
   var zip = new AdmZip(r.buffer);
   var entries = zip.getEntries();
