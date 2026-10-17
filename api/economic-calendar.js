@@ -869,9 +869,17 @@ async function handleEPLTable(req, res) {
 // ── DART 공시 알림 ──
 function dartKey() { return process.env.DART_API_KEY || ''; }
 
-function httpsGetBuffer(hostname, path) {
+function httpsGetBuffer(hostname, path, redirectsLeft) {
+  if (redirectsLeft == null) redirectsLeft = 3;
   return new Promise(function(resolve, reject) {
     var req2 = https.request({ hostname: hostname, path: path, method: 'GET', timeout: 25000 }, function(resp) {
+      if ((resp.statusCode === 301 || resp.statusCode === 302) && resp.headers.location && redirectsLeft > 0) {
+        resp.resume();
+        try {
+          var u = new URL(resp.headers.location, 'https://' + hostname + path);
+          return httpsGetBuffer(u.hostname, u.pathname + u.search, redirectsLeft - 1).then(resolve).catch(reject);
+        } catch (e) { return reject(e); }
+      }
       var chunks = [];
       resp.on('data', function(c) { chunks.push(c); });
       resp.on('end', function() { resolve({ status: resp.statusCode, buffer: Buffer.concat(chunks) }); });
