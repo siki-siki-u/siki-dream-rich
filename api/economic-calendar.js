@@ -912,7 +912,7 @@ async function getDartStockCodeMap() {
   var key = dartKey();
   if (!key) throw new Error('DART_API_KEY 환경변수 없음');
   var r = await httpsGetBuffer('opendart.fss.or.kr', '/api/corpCode.xml?crtfc_key=' + encodeURIComponent(key));
-  if (r.status !== 200) throw new Error('corpCode 다운로드 실패: HTTP ' + r.status + ' headers=' + JSON.stringify(r.headers) + ' body=' + r.buffer.toString('utf8').slice(0, 200));
+  if (r.status !== 200) throw new Error('corpCode 다운로드 실패: HTTP ' + r.status);
   var AdmZip = require('adm-zip');
   var zip = new AdmZip(r.buffer);
   var entries = zip.getEntries();
@@ -1074,11 +1074,6 @@ module.exports = async function(req, res) {
     if (action === 'epl-table')       return await handleEPLTable(req, res);
     if (action === 'push-lfc')        return await handlePushLFC(req, res);
     if (action === 'dart-search')     return await handleDartSearch(req, res);
-    if (action === 'dart-debug') {
-      var dbgKey = dartKey();
-      var dbgR = await dartGetJson('/api/list.json?crtfc_key=' + encodeURIComponent(dbgKey) + '&corp_code=00126380&bgn_de=20261001&end_de=20261017&page_count=1');
-      return res.json({ keyLen: dbgKey.length, status: dbgR.status, body: dbgR.body.slice(0, 300) });
-    }
     if (action === 'dart-list')       return await handleDartList(req, res);
     if (action === 'dart-add')        return await handleDartAdd(req, res);
     if (action === 'dart-check')      return await handleDartCheck(req, res);
