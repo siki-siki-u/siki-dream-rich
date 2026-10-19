@@ -7218,7 +7218,7 @@ async function doLogout() {
 }
 
 // ── WebAuthn (지문 / Face ID) ──
-// 서버(/api/webauthn)가 챌린지 발급·서명 검증을 하고 Supabase 일회용 로그인 토큰을 내려줌.
+// 서버(/api/economic-calendar?action=webauthn-*)가 챌린지 발급·서명 검증을 하고 Supabase 일회용 로그인 토큰을 내려줌.
 // 비밀번호는 저장하지 않음. 기기 공개키는 Supabase webauthn_credentials 테이블에 저장.
 var _webauthnUsername = '';
 
@@ -7238,7 +7238,7 @@ function webauthnSupported() {
 async function webauthnApi(action, body, accessToken) {
   var headers = { 'Content-Type': 'application/json' };
   if (accessToken) headers.Authorization = 'Bearer ' + accessToken;
-  var r = await fetch('/api/webauthn?action=' + action, { method: 'POST', headers: headers, body: JSON.stringify(body || {}) });
+  var r = await fetch('/api/economic-calendar?action=webauthn-' + action, { method: 'POST', headers: headers, body: JSON.stringify(body || {}) });
   var json = {};
   try { json = await r.json(); } catch(e) {}
   if (!r.ok) throw new Error(json.error || ('서버 오류 ' + r.status));
