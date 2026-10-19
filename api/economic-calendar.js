@@ -1,4 +1,5 @@
 const https = require('https');
+const handleWebAuthn = require('../lib/webauthn');
 
 // 경제 지표 한국어 번역 맵
 var EVENT_KO = {
@@ -1077,6 +1078,7 @@ module.exports = async function(req, res) {
     if (action === 'dart-list')       return await handleDartList(req, res);
     if (action === 'dart-add')        return await handleDartAdd(req, res);
     if (action === 'dart-check')      return await handleDartCheck(req, res);
+    if (action && action.indexOf('webauthn-') === 0) return await handleWebAuthn(req, res, action.slice('webauthn-'.length));
 
     // 기본: 경제 캘린더 조회
     var period = req.query.period || 'thisweek';
