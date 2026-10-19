@@ -16,6 +16,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Gugi&display=swap" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/gh/webfontworld/SCoreDream/SCoreDream.css" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@14.0.0/dist/bundle/index.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
 <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" defer></script>
 <style>
@@ -7095,12 +7096,12 @@ var AUTH_MAP = {
 var _currentUser = null;
 var _userRole = null;
 var _loginUsername = '';
-var _loginPw = '';
 
 function isOwner() { return _userRole === 'owner'; }
 function isGuest() { return _userRole === 'guest'; }
 
 (function initAuth() {
+  clearLegacyWebAuthnStorage();
   if (!supa) return;
   supa.auth.getSession().then(function(r) {
     var session = r.data && r.data.session;
@@ -7152,7 +7153,7 @@ function onAuthSuccess(user, fromLogin) {
 
 function onAuthSignOut() {
   _currentUser = null; _userRole = null;
-  _loginUsername = ''; _loginPw = '';
+  _loginUsername = '';
   var userEl = document.getElementById('sidebar-user');
   if (userEl) userEl.style.display = 'none';
   document.body.classList.remove('guest-mode');
@@ -7202,12 +7203,11 @@ async function doLogin() {
   var email = AUTH_MAP[id];
   if (!email) { if (errEl) errEl.textContent = '❌ 아이디를 확인해 주세요'; return; }
   if (errEl) errEl.textContent = '로그인 중...';
-  _loginUsername = id; _loginPw = pw;
+  _loginUsername = id;
   var result = await supa.auth.signInWithPassword({ email: email, password: pw });
   if (result.error) {
     if (errEl) errEl.textContent = '❌ 비밀번호가 틀렸어요';
     if (pwEl) pwEl.value = '';
-    _loginPw = '';
   }
   // 성공 시 onAuthStateChange → SIGNED_IN → onAuthSuccess
 }
@@ -7218,91 +7218,100 @@ async function doLogout() {
 }
 
 // ── WebAuthn (지문 / Face ID) ──
+// 서버(/api/webauthn)가 챌린지 발급·서명 검증을 하고 Supabase 일회용 로그인 토큰을 내려줌.
+// 비밀번호는 저장하지 않음. 기기 공개키는 Supabase webauthn_credentials 테이블에 저장.
 var _webauthnUsername = '';
-var _webauthnPw = '';
 
-function checkWebAuthnAutoLogin() {
-  if (!window.PublicKeyCredential) return;
-  for (var uname in AUTH_MAP) {
-    if (localStorage.getItem('wa_cred_' + uname)) {
-      var btn = document.getElementById('login-biometric-btn');
-      if (btn) { btn.style.display = 'block'; btn.dataset.username = uname; }
-      break;
-    }
-  }
+// 예전 버전이 localStorage에 base64로 저장해 둔 비밀번호(wa_cred_*) 삭제
+function clearLegacyWebAuthnStorage() {
+  try {
+    Object.keys(window.localStorage).forEach(function(k) {
+      if (k.indexOf('wa_cred_') === 0 || k.indexOf('wa_declined_') === 0) window.localStorage.removeItem(k);
+    });
+  } catch(e) {}
+}
+
+function webauthnSupported() {
+  return !!(window.PublicKeyCredential && window.SimpleWebAuthnBrowser);
+}
+
+async function webauthnApi(action, body, accessToken) {
+  var headers = { 'Content-Type': 'application/json' };
+  if (accessToken) headers.Authorization = 'Bearer ' + accessToken;
+  var r = await fetch('/api/webauthn?action=' + action, { method: 'POST', headers: headers, body: JSON.stringify(body || {}) });
+  var json = {};
+  try { json = await r.json(); } catch(e) {}
+  if (!r.ok) throw new Error(json.error || ('서버 오류 ' + r.status));
+  return json;
+}
+
+async function checkWebAuthnAutoLogin() {
+  if (!webauthnSupported()) return;
+  try {
+    if (!(await SimpleWebAuthnBrowser.platformAuthenticatorIsAvailable())) return;
+  } catch(e) { return; }
+  var btn = document.getElementById('login-biometric-btn');
+  if (btn) btn.style.display = 'block';
 }
 
 async function doWebAuthnLogin() {
-  var btn = document.getElementById('login-biometric-btn');
-  var username = btn ? btn.dataset.username : '';
   var errEl = document.getElementById('login-error');
-  var storedStr = username ? localStorage.getItem('wa_cred_' + username) : null;
-  if (!storedStr) { if (errEl) errEl.textContent = '등록된 지문이 없어요'; return; }
+  if (!webauthnSupported()) { if (errEl) errEl.textContent = '이 브라우저는 지문 로그인을 지원하지 않아요'; return; }
   try {
-    var stored = JSON.parse(storedStr);
-    var credId = Uint8Array.from(atob(stored.cid), function(c){ return c.charCodeAt(0); });
-    var challenge = crypto.getRandomValues(new Uint8Array(32));
+    var start = await webauthnApi('login-options');
     if (errEl) errEl.textContent = '지문을 인식해 주세요...';
-    await navigator.credentials.get({
-      publicKey: {
-        challenge: challenge, rpId: location.hostname,
-        allowCredentials: [{ id: credId, type: 'public-key' }],
-        userVerification: 'required', timeout: 60000
-      }
-    });
+    var response = await SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: start.options });
     if (errEl) errEl.textContent = '로그인 중...';
-    var r = await supa.auth.signInWithPassword({ email: AUTH_MAP[username], password: atob(stored.pw) });
+    var result = await webauthnApi('login-verify', { challengeId: start.challengeId, response: response });
+    var r = await supa.auth.verifyOtp({ token_hash: result.tokenHash, type: result.type });
     if (r.error) { if (errEl) errEl.textContent = '❌ 자동 로그인 실패. 비밀번호로 로그인해 주세요.'; }
+    // 성공 시 onAuthStateChange → SIGNED_IN → onAuthSuccess
   } catch(e) {
-    if (errEl) errEl.textContent = e.name === 'NotAllowedError' ? '지문 인식이 취소됐어요' : '지문 인식 실패. 비밀번호로 로그인해 주세요.';
+    if (!errEl) return;
+    errEl.textContent = e.name === 'NotAllowedError'
+      ? '지문 인식이 취소됐거나 이 기기에 등록된 지문이 없어요'
+      : (e.message || '지문 인식 실패. 비밀번호로 로그인해 주세요.');
   }
 }
 
 async function maybeOfferWebAuthn(username) {
-  if (!window.PublicKeyCredential) return;
-  if (localStorage.getItem('wa_cred_' + username)) return;
-  var declinedAt = +localStorage.getItem('wa_declined_' + username);
-  if (declinedAt && Date.now() - declinedAt < 7 * 24 * 60 * 60 * 1000) return;
+  if (!webauthnSupported() || !supa) return;
   try {
-    var supported = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-    if (!supported) return;
+    if (!(await SimpleWebAuthnBrowser.platformAuthenticatorIsAvailable())) return;
+    var res = await supa.from('settings').select('value').eq('key', 'webauthn_declined_' + username).maybeSingle();
+    var declinedAt = +((res.data && res.data.value) || 0);
+    if (declinedAt && Date.now() - declinedAt < 7 * 24 * 60 * 60 * 1000) return;
   } catch(e) { return; }
-  _webauthnUsername = username; _webauthnPw = _loginPw;
+  _webauthnUsername = username;
   var offer = document.getElementById('webauthn-offer');
   if (offer) offer.classList.add('show');
 }
 
 async function registerWebAuthn() {
   try {
-    var challenge = crypto.getRandomValues(new Uint8Array(32));
-    var cred = await navigator.credentials.create({
-      publicKey: {
-        challenge: challenge,
-        rp: { name: '식식징구월드', id: location.hostname },
-        user: { id: new TextEncoder().encode(_webauthnUsername), name: _webauthnUsername, displayName: _webauthnUsername },
-        pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
-        authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
-        timeout: 60000
-      }
-    });
-    var credB64 = btoa(String.fromCharCode.apply(null, new Uint8Array(cred.rawId)));
-    localStorage.setItem('wa_cred_' + _webauthnUsername, JSON.stringify({ cid: credB64, pw: btoa(_webauthnPw) }));
+    var sess = await supa.auth.getSession();
+    var token = sess.data && sess.data.session && sess.data.session.access_token;
+    if (!token) throw new Error('로그인 세션이 없어요');
+    var start = await webauthnApi('register-options', {}, token);
+    var response = await SimpleWebAuthnBrowser.startRegistration({ optionsJSON: start.options });
+    var deviceName = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+    await webauthnApi('register-verify', { challengeId: start.challengeId, response: response, deviceName: deviceName }, token);
     dismissWebAuthn();
     showToast('지문 등록 완료! 다음 접속부터 지문으로 바로 로그인할 수 있어요 🎉');
   } catch(e) {
     dismissWebAuthn();
-    if (e.name !== 'NotAllowedError') showToast('지문 등록 실패: ' + e.message);
+    if (e.name === 'InvalidStateError') showToast('이 기기는 이미 지문이 등록돼 있어요');
+    else if (e.name !== 'NotAllowedError') showToast('지문 등록 실패: ' + e.message);
   }
 }
 
 function dismissWebAuthn() {
   var offer = document.getElementById('webauthn-offer');
   if (offer) offer.classList.remove('show');
-  _webauthnPw = '';
 }
 
 function declineWebAuthn() {
-  if (_webauthnUsername) localStorage.setItem('wa_declined_' + _webauthnUsername, String(Date.now()));
+  if (_webauthnUsername) dbUpsert('settings', { key: 'webauthn_declined_' + _webauthnUsername, value: String(Date.now()) });
   dismissWebAuthn();
 }
 

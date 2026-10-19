@@ -166,3 +166,31 @@ create table if not exists dart_watchlist (
   created_at    timestamptz default now()
 );
 alter table dart_watchlist disable row level security;
+
+-- 12. webauthn_credentials / webauthn_challenges (지문·Face ID 로그인)
+--     공개키만 저장하고 비밀번호는 어디에도 저장하지 않음.
+--     RLS를 켜고 정책을 만들지 않아서 anon 키로는 읽기/쓰기 불가.
+--     /api/webauthn 서버리스 함수가 service_role 키로만 접근함.
+create table if not exists webauthn_credentials (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references auth.users(id) on delete cascade,
+  credential_id text not null unique,
+  public_key    text not null,
+  counter       bigint not null default 0,
+  transports    text[] not null default '{}',
+  device_name   text,
+  created_at    timestamptz default now(),
+  last_used_at  timestamptz
+);
+create index if not exists webauthn_credentials_user_idx on webauthn_credentials(user_id);
+alter table webauthn_credentials enable row level security;
+
+create table if not exists webauthn_challenges (
+  id         uuid primary key default gen_random_uuid(),
+  challenge  text not null,
+  kind       text not null,
+  user_id    uuid references auth.users(id) on delete cascade,
+  expires_at timestamptz not null,
+  created_at timestamptz default now()
+);
+alter table webauthn_challenges enable row level security;
