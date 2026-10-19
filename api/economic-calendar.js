@@ -186,7 +186,9 @@ function get(url) {
 
 // ── Supabase REST 헬퍼 ──
 const SUPA_URL = 'https://boyhppqnwtxedicxbfpz.supabase.co';
-const SUPA_KEY = 'sb_publishable_Uh-YK_wDgAgQMO_CZwnyRw_SrRyQ-Tq';
+// RLS가 켜진 뒤에는 서버 전용 테이블(push_subscriptions, dart_watchlist, earnings_*, VAPID 키)에
+// service_role 키로만 접근 가능. 환경변수가 없으면 예전처럼 공개 키로 동작 (RLS 적용 전 호환)
+const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'sb_publishable_Uh-YK_wDgAgQMO_CZwnyRw_SrRyQ-Tq';
 const VAPID_EMAIL = 'mailto:yoonsik092609@gmail.com';
 
 function supaRest(method, path, body) {

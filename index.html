@@ -2645,8 +2645,12 @@ async function recoverFromLocalStorage() {
   if(recovered > 0) showToast('💾 '+recovered+'건 데이터 복구 완료! 새로고침 하면 보여요', 'success');
 }
 
+// RLS가 켜져 있어서 로그인 전에는 DB가 빈 결과를 줌 → 로그인 직후 다시 동기화하기 위해 기록
+// undefined: 아직 확인 전 / null: 로그인 없이 동기화함 / 문자열: 해당 사용자로 동기화함
+var _syncUserId;
 async function syncFromSupabase() {
   if(!supa) return;
+  try { var _sr = await supa.auth.getSession(); _syncUserId = (_sr.data.session && _sr.data.session.user.id) || null; } catch(e) { _syncUserId = null; }
   await recoverFromLocalStorage();
   showSyncBadge('🔄 동기화 중...');
   try {
@@ -7114,6 +7118,7 @@ function isGuest() { return _userRole === 'guest'; }
   supa.auth.onAuthStateChange(function(event, session) {
     if (event === 'SIGNED_IN' && session && session.user) {
       onAuthSuccess(session.user, false);
+      if (_syncUserId === null) syncFromSupabase();
     } else if (event === 'SIGNED_OUT') {
       onAuthSignOut();
     }
