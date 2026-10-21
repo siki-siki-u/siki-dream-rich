@@ -7857,7 +7857,7 @@ function renderBotTabs() {
   renderBotPanel();
 }
 
-function setBotTab(t) { _bot.tab = t; renderBotTabs(); }
+async function setBotTab(t) { await flushAllBotDrafts(); _bot.tab = t; renderBotTabs(); }
 
 function botHourSelect(id, val) {
   var h = '';
@@ -7908,7 +7908,9 @@ function renderBotPanel() {
       '<div style="display:flex;flex-wrap:wrap;gap:.3rem">' + tp.vars.map(function(v) {
         return '<button class="bot-chip" onclick="insertBotVar(\'' + k + '\',\'' + v + '\')">{' + v + '}</button>';
       }).join('') + '</div>' +
-      '<textarea id="bot-tpl-' + k + '" class="bot-input bot-textarea">' + pEsc(s.templates[k]) + '</textarea>' +
+      '<textarea id="bot-tpl-' + k + '" class="bot-input bot-textarea" oninput="onBotTplInput(\'' + k + '\')">' +
+        pEsc(botDraft(t, k) != null ? botDraft(t, k) : s.templates[k]) + '</textarea>' +
+      '<div id="bot-draft-' + k + '" style="display:none;font-size:.76rem;color:#fbbf24">✏️ 저장 안 된 수정본이에요 (자동 보관 중) — <b>💾 저장</b>을 눌러야 실제 알림에 반영돼요</div>' +
       '<div class="bot-muted">{변수}는 실제 값으로 바뀌어요 · 값이 없는 변수가 있는 줄은 통째로 빠져요 · [[ ]] 안은 값이 없을 때 그 부분만 빠져요 · **굵게**</div>' +
       '<div style="display:flex;gap:.4rem;flex-wrap:wrap">' +
         '<button class="bot-pill" onclick="resetBotTpl(\'' + k + '\')">기본값으로</button>' +
@@ -7918,7 +7920,38 @@ function renderBotPanel() {
   });
   h += '<div style="display:flex;justify-content:flex-end"><button class="btn btn-primary" onclick="saveBotPanel()">💾 저장</button></div>';
   document.getElementById('bot-panel').innerHTML = h;
+  Object.keys(m.templates).forEach(updateBotDraftBadge);
 }
+
+// 저장 전 수정본은 options.drafts에 자동 보관 — 텔레그램 확인하고 돌아오다 페이지가 새로 열려도 그대로 남음
+var _botDraftPending = {};
+function botDraft(type, key) { var d = botSetting(type).options.drafts; return d ? d[key] : null; }
+
+function updateBotDraftBadge(key) {
+  var ta = document.getElementById('bot-tpl-' + key), badge = document.getElementById('bot-draft-' + key);
+  if (ta && badge) badge.style.display = ta.value !== botSetting(_bot.tab).templates[key] ? '' : 'none';
+}
+
+function onBotTplInput(key) {
+  updateBotDraftBadge(key);
+  var id = _bot.tab + ':' + key, p = _botDraftPending[id] || {};
+  clearTimeout(p.timer);
+  p.value = document.getElementById('bot-tpl-' + key).value;
+  p.timer = setTimeout(function() { flushBotDraft(id); }, 700);
+  _botDraftPending[id] = p;
+}
+
+async function flushBotDraft(id) {
+  var p = _botDraftPending[id];
+  if (!p) return;
+  clearTimeout(p.timer);
+  delete _botDraftPending[id];
+  var type = id.split(':')[0], key = id.split(':')[1], s = botSetting(type), drafts = Object.assign({}, s.options.drafts || {});
+  if (p.value === s.templates[key]) delete drafts[key]; else drafts[key] = p.value;
+  await saveBotSetting(type, { options: Object.assign({}, s.options, { drafts: drafts }) });
+}
+
+function flushAllBotDrafts() { return Promise.all(Object.keys(_botDraftPending).map(flushBotDraft)); }
 
 function insertBotVar(key, v) {
   var ta = document.getElementById('bot-tpl-' + key), ins = '{' + v + '}';
@@ -7930,6 +7963,7 @@ function insertBotVar(key, v) {
 
 function resetBotTpl(key) {
   document.getElementById('bot-tpl-' + key).value = _bot.meta.meta[_bot.tab].templates[key].def;
+  onBotTplInput(key);
   showToast('기본값으로 바꿨어요 (저장을 눌러야 반영돼요)');
 }
 
@@ -7938,6 +7972,7 @@ async function previewBotTpl(key, send) {
   box.style.display = '';
   box.innerHTML = '<div class="bot-muted">실제 데이터로 만드는 중...</div>';
   try {
+    await flushAllBotDrafts();
     var r = await fetchWithTimeout('/api/economic-calendar?action=bot-preview', 30000, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: _bot.tab, key: key, template: document.getElementById('bot-tpl-' + key).value, send: !!send }),
@@ -7966,8 +8001,16 @@ async function saveBotPanel() {
     timing.hour = +hour.value; timing.days = checked('bot-day');
     options.blocks = Array.prototype.slice.call(document.querySelectorAll('#bot-panel .bot-block:checked')).map(function(x) { return x.value; });
   }
-  Object.keys(_bot.meta.meta[t].templates).forEach(function(k) { templates[k] = document.getElementById('bot-tpl-' + k).value; });
-  if (await saveBotSetting(t, { timing: timing, options: options, templates: templates })) showToast('💾 ' + _bot.meta.meta[t].name + ' 설정을 저장했어요', 'success');
+  Object.keys(_bot.meta.meta[t].templates).forEach(function(k) {
+    templates[k] = document.getElementById('bot-tpl-' + k).value;
+    var p = _botDraftPending[t + ':' + k];
+    if (p) { clearTimeout(p.timer); delete _botDraftPending[t + ':' + k]; }
+  });
+  options.drafts = {};
+  if (await saveBotSetting(t, { timing: timing, options: options, templates: templates })) {
+    Object.keys(templates).forEach(updateBotDraftBadge);
+    showToast('💾 ' + _bot.meta.meta[t].name + ' 설정을 저장했어요', 'success');
+  }
 }
 
 // ── 아침 브리핑 지표 ──
