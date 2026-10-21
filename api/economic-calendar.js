@@ -241,6 +241,115 @@ function sendPushNotif(endpoint,p256dh,auth,vapidPub,vapidPriv,payload){
     .catch(function(err){ return { status: err.statusCode || 500, body: err.body || err.message }; });
 }
 
+// ── 텔레그램 봇 (토큰은 Vercel 환경변수 TELEGRAM_BOT_TOKEN, chat_id는 settings 테이블 telegram_chat_id) ──
+function telegramApi(method, body) {
+  var token = process.env.TELEGRAM_BOT_TOKEN || '';
+  return new Promise(function(resolve, reject) {
+    if (!token) return reject(new Error('TELEGRAM_BOT_TOKEN 환경변수 없음'));
+    var data = JSON.stringify(body || {});
+    var req2 = https.request({ hostname: 'api.telegram.org', path: '/bot' + token + '/' + method, method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }, timeout: 10000,
+    }, function(resp) {
+      var c = []; resp.on('data', function(x){c.push(x);});
+      resp.on('end', function(){ try { resolve(JSON.parse(Buffer.concat(c).toString('utf8'))); } catch(e) { reject(e); } });
+    });
+    req2.on('error', reject); req2.on('timeout', function(){req2.destroy();reject(new Error('timeout'));});
+    req2.write(data); req2.end();
+  });
+}
+
+function tgEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// 성공 시 true. 토큰/chat_id 미설정이면 조용히 false (웹 푸시 등 다른 알림은 계속 진행)
+async function sendTelegram(html) {
+  if (!process.env.TELEGRAM_BOT_TOKEN) return false;
+  var chatId = await getSetting('telegram_chat_id');
+  if (!chatId) return false;
+  try {
+    var r = await telegramApi('sendMessage', { chat_id: chatId, text: html, parse_mode: 'HTML', disable_web_page_preview: true });
+    return !!(r && r.ok);
+  } catch(_) { return false; }
+}
+
+// 봇에게 마지막으로 메시지를 보낸 대화방을 알림 수신처로 저장. 이미 연결돼 있으면 ?secret=CRON_SECRET 있어야 변경 가능
+async function handleTelegramSetup(req, res) {
+  if (!process.env.TELEGRAM_BOT_TOKEN) return res.status(500).json({ error: 'TELEGRAM_BOT_TOKEN 환경변수 없음' });
+  var existing = await getSetting('telegram_chat_id');
+  var secret = process.env.CRON_SECRET;
+  if (existing && secret && req.query.secret !== secret) return res.status(403).json({ error: '이미 연결되어 있어요 (변경하려면 ?secret= 필요)' });
+
+  var up = await telegramApi('getUpdates', { allowed_updates: ['message'] });
+  if (!up.ok) return res.status(502).json({ error: 'getUpdates 실패: ' + (up.description || '') });
+  var msgs = (up.result || []).map(function(u){ return u.message; }).filter(function(m){ return m && m.chat; });
+  if (!msgs.length) return res.status(400).json({ error: '텔레그램에서 봇에게 아무 메시지나 먼저 보내주세요' });
+  var chat = msgs[msgs.length - 1].chat;
+
+  await setSetting('telegram_chat_id', String(chat.id));
+  var ok = await sendTelegram('✅ <b>siki-dream-rich 알림 연결 완료</b>\n\n앞으로 이 대화방으로 보내드릴게요.\n• 관심 기업 새 공시\n• 평일 아침 8시 금리 브리핑\n• 실적 발표 3일 전·하루 전 알림');
+  res.json({ ok: ok, chat: chat.first_name || chat.title || chat.id });
+}
+
+// Yahoo 일봉 마지막 두 종가 → { v, prev }
+function yahooLastTwo(ticker) {
+  return new Promise(function(resolve, reject) {
+    var req2 = https.request({ hostname: 'query1.finance.yahoo.com', method: 'GET',
+      path: '/v8/finance/chart/' + encodeURIComponent(ticker) + '?interval=1d&range=10d',
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept': 'application/json' }, timeout: 8000,
+    }, function(resp) {
+      var c = []; resp.on('data', function(x){c.push(x);});
+      resp.on('end', function() {
+        try {
+          var result = JSON.parse(Buffer.concat(c).toString('utf8')).chart.result[0];
+          var closes = (result.indicators.quote[0].close || []).filter(function(v){ return v != null; });
+          var v = result.meta.regularMarketPrice != null ? result.meta.regularMarketPrice : closes[closes.length - 1];
+          // 장중이면 마지막 종가가 regularMarketPrice와 같으므로 그 전 종가를 비교 대상으로
+          var prev = closes.length >= 2 ? closes[closes.length - 2] : null;
+          resolve({ v: v, prev: prev });
+        } catch(e) { reject(e); }
+      });
+    });
+    req2.on('error', reject); req2.on('timeout', function(){req2.destroy();reject(new Error('timeout'));}); req2.end();
+  });
+}
+
+// 아침 브리핑 메시지 (미국 국채 금리 + 환율 + VIX + 오늘 주요 지표)
+async function buildMorningBrief(kstNow, todayEvents) {
+  var DOW = ['일','월','화','수','목','금','토'];
+  var head = '☀️ <b>' + (kstNow.getUTCMonth()+1) + '/' + kstNow.getUTCDate() + '(' + DOW[kstNow.getUTCDay()] + ') 아침 브리핑</b>';
+  var items = [
+    { t: '^IRX', label: '3개월', kind: 'yield' }, { t: '^FVX', label: '5년', kind: 'yield' },
+    { t: '^TNX', label: '10년', kind: 'yield' },  { t: '^TYX', label: '30년', kind: 'yield' },
+    { t: 'KRW=X', label: '원/달러', kind: 'fx' }, { t: '^VIX', label: 'VIX', kind: 'idx' },
+  ];
+  var got = await Promise.allSettled(items.map(function(it){ return yahooLastTwo(it.t); }));
+  function arrow(d) { return d > 0 ? '▲' : d < 0 ? '▼' : '─'; }
+  function line(it, g) {
+    if (g.status !== 'fulfilled' || g.value.v == null) return it.label + ' 조회 실패';
+    var v = g.value.v, p = g.value.prev;
+    if (it.kind === 'yield') {
+      var bp = p != null ? Math.round((v - p) * 100) : null;
+      return it.label + '  <b>' + v.toFixed(2) + '%</b>' + (bp != null ? '  ' + arrow(bp) + Math.abs(bp) + 'bp' : '');
+    }
+    var d = p != null ? v - p : null;
+    var digits = it.kind === 'fx' ? 1 : 2;
+    return it.label + '  <b>' + v.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits }) + '</b>' +
+      (d != null ? '  ' + arrow(d) + Math.abs(d).toFixed(digits) : '');
+  }
+  var out = [head, '', '🇺🇸 <b>미국 국채 금리</b>'];
+  for (var i = 0; i < 4; i++) out.push(line(items[i], got[i]));
+  out.push('', '💱 ' + line(items[4], got[4]), '😱 ' + line(items[5], got[5]));
+
+  if (todayEvents && todayEvents.length) {
+    var CFLAG = { USD:'🇺🇸', KRW:'🇰🇷', JPY:'🇯🇵' };
+    out.push('', '📅 <b>오늘 주요 지표 (KST)</b>');
+    todayEvents.forEach(function(ev) {
+      out.push((ev.time || '시간 미정') + ' ' + (CFLAG[ev.currency] || '') + ' ' + tgEsc(translateTitle(ev.title)) +
+        (ev.forecast ? ' (예측 ' + tgEsc(ev.forecast) + ')' : ''));
+    });
+  }
+  return out.join('\n');
+}
+
 // ── Push 액션 핸들러 ──
 async function handlePushSetup(req,res){
   var pub=await getSetting('vapid_public_key');
@@ -392,10 +501,53 @@ async function handlePushSend(req,res){
           await sendToAll(payload);
         }
       }
+
+      // 텔레그램: 실적 발표 3일 전·하루 전 (KST 9시 이후 첫 실행에서 하루 1회 — Actions 지연/누락 대비)
+      if (kstH >= 9 && (await getSetting('telegram_earnings_sent')) !== kstToday) {
+        var DOW = ['일','월','화','수','목','금','토'];
+        var tgLines = [];
+        ee.forEach(function(e) {
+          var isAMC = e.report_time && e.report_time.includes('AMC');
+          var isBMO = e.report_time && e.report_time.includes('BMO');
+          var kstEventDate = isAMC
+            ? new Date(new Date(e.report_date+'T00:00:00Z').getTime()+86400000).toISOString().slice(0,10)
+            : e.report_date;
+          var dDay = Math.round((new Date(kstEventDate+'T00:00:00Z') - new Date(kstToday+'T00:00:00Z')) / 86400000);
+          if (dDay !== 3 && dDay !== 1) return;
+          var d = new Date(kstEventDate+'T00:00:00Z');
+          var when = (d.getUTCMonth()+1)+'/'+d.getUTCDate()+'('+DOW[d.getUTCDay()]+')' + (isAMC ? ' 새벽' : isBMO ? ' 밤' : '');
+          tgLines.push({ dDay: dDay, text: '<b>D-'+dDay+'</b>  '+tgEsc(tMap[e.ticker] || e.ticker)+' ('+tgEsc(e.ticker)+') · '+when });
+        });
+        var tgOk = true;
+        if (tgLines.length) {
+          tgLines.sort(function(a, b){ return a.dDay - b.dDay; });
+          tgOk = await sendTelegram('📊 <b>실적 발표 예정</b>\n\n' + tgLines.map(function(l){ return l.text; }).join('\n') + '\n\n<i>날짜·시간은 한국시간 기준</i>');
+        }
+        if (tgOk) await setSetting('telegram_earnings_sent', kstToday);
+      }
     }
   } catch(_) {}
 
-  res.json({sent,errors,econEvents,earningsChecked,subs:subs.length});
+  // ── ③ 텔레그램 아침 브리핑 (평일 KST 8시 이후 첫 실행에서 하루 1회) ──
+  var briefSent = false;
+  try {
+    var kstNow3 = new Date(Date.now() + 9*3600000);
+    var kstToday3 = kstNow3.toISOString().slice(0,10), dow3 = kstNow3.getUTCDay();
+    if (kstNow3.getUTCHours() >= 8 && dow3 >= 1 && dow3 <= 5 && (await getSetting('telegram_brief_sent')) !== kstToday3) {
+      var todayEvents = (typeof allEvents !== 'undefined' ? allEvents : []).filter(function(ev) {
+        if (ev.impact !== 'High') return false;
+        return new Date(new Date(ev.date).getTime() + 9*3600000).toISOString().slice(0,10) === kstToday3;
+      }).sort(function(a, b){ return new Date(a.date) - new Date(b.date); });
+      briefSent = await sendTelegram(await buildMorningBrief(kstNow3, todayEvents));
+      if (briefSent) await setSetting('telegram_brief_sent', kstToday3);
+    }
+  } catch(_) {}
+
+  // ── ④ 관심 기업 신규 공시 (매시간 실행에 함께 태움) ──
+  var dart = null;
+  try { dart = await checkDartDisclosures(); } catch(_) {}
+
+  res.json({sent,errors,econEvents,earningsChecked,subs:subs.length,briefSent,dart});
 }
 
 // ── 리버풀 경기 알림 (Vercel Cron: 매일 23:00 UTC = 익일 08:00 KST) ──
@@ -1012,9 +1164,9 @@ async function handleDartAdd(req, res) {
 }
 
 // 신규 공시 확인 + 알림 발송 (수동 "지금 확인" 버튼과 cron 둘 다 이 핸들러를 씀)
-async function handleDartCheck(req, res) {
+async function checkDartDisclosures() {
   var key = dartKey();
-  if (!key) return res.json({ checked: 0, notified: 0, error: 'DART_API_KEY 없음' });
+  if (!key) return { checked: 0, notified: 0, error: 'DART_API_KEY 없음' };
 
   var vapidPub = await getSetting('vapid_public_key'), vapidPriv = await getSetting('vapid_private_key');
   var subRes = await supaRest('GET', '/rest/v1/push_subscriptions?select=*', null);
@@ -1029,7 +1181,7 @@ async function handleDartCheck(req, res) {
 
   var wRes = await supaRest('GET', '/rest/v1/dart_watchlist?select=*&notify=eq.true', null);
   var watch = []; try { var wp = JSON.parse(wRes.body); watch = Array.isArray(wp) ? wp : []; } catch(_) {}
-  if (!watch.length) return res.json({ checked: 0, notified: 0 });
+  if (!watch.length) return { checked: 0, notified: 0 };
 
   var end0 = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   var bgn0 = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10).replace(/-/g, '');
@@ -1054,6 +1206,8 @@ async function handleDartCheck(req, res) {
           tag: 'dart-' + it.rcept_no,
           url: 'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=' + it.rcept_no,
         });
+        await sendTelegram('📢 <b>' + tgEsc(it.corp_name) + '</b> 새 공시\n' + tgEsc(it.report_nm.replace(/\s+/g, ' ').trim()) +
+          '\n<a href="https://dart.fss.or.kr/dsaf001/main.do?rcpNo=' + it.rcept_no + '">DART에서 보기</a>');
         notified++;
       }
 
@@ -1061,7 +1215,11 @@ async function handleDartCheck(req, res) {
       await supaRest('PATCH', '/rest/v1/dart_watchlist?corp_code=eq.' + encodeURIComponent(w.corp_code), { last_rcept_no: maxRcept });
     } catch (_) {}
   }
-  res.json({ checked: watch.length, notified: notified });
+  return { checked: watch.length, notified: notified };
+}
+
+async function handleDartCheck(req, res) {
+  res.json(await checkDartDisclosures());
 }
 
 module.exports = async function(req, res) {
@@ -1087,6 +1245,7 @@ module.exports = async function(req, res) {
     if (action === 'dart-list')       return await handleDartList(req, res);
     if (action === 'dart-add')        return await handleDartAdd(req, res);
     if (action === 'dart-check')      return await handleDartCheck(req, res);
+    if (action === 'telegram-setup')  return await handleTelegramSetup(req, res);
 
     // 기본: 경제 캘린더 조회
     var period = req.query.period || 'thisweek';
