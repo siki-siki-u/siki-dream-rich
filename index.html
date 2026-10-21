@@ -7894,7 +7894,8 @@ function botTimingHtml(t, s) {
 
 function renderBotPanel() {
   var t = _bot.tab, m = _bot.meta.meta[t], s = botSetting(t);
-  var h = '<div class="bot-muted" style="margin-bottom:.9rem">' + m.desc + (s.enabled ? '' : ' · <b style="color:var(--danger)">지금은 꺼져 있어요</b>') + '</div>';
+  var h = '<div style="font-size:1rem;font-weight:700;color:var(--text);margin-bottom:.2rem">지금 편집 중: ' + m.icon + ' ' + m.name + ' 알림</div>' +
+    '<div class="bot-muted" style="margin-bottom:.9rem">' + m.desc + (s.enabled ? '' : ' · <b style="color:var(--danger)">지금은 꺼져 있어요</b>') + '</div>';
   h += '<div class="bot-field"><div class="bot-field-label">⏰ 받는 시점</div><div class="bot-sub" style="margin:0;align-items:center">' + botTimingHtml(t, s) + '</div></div>';
   if (t === 'morning_brief') {
     var blocks = _bot.meta.blocks;
@@ -7911,6 +7912,7 @@ function renderBotPanel() {
       '<textarea id="bot-tpl-' + k + '" class="bot-input bot-textarea" oninput="onBotTplInput(\'' + k + '\')">' +
         pEsc(botDraft(t, k) != null ? botDraft(t, k) : s.templates[k]) + '</textarea>' +
       '<div id="bot-draft-' + k + '" style="display:none;font-size:.76rem;color:#fbbf24">✏️ 저장 안 된 수정본이에요 (자동 보관 중) — <b>💾 저장</b>을 눌러야 실제 알림에 반영돼요</div>' +
+      '<div id="bot-varwarn-' + k + '" style="display:none;font-size:.78rem;color:var(--danger);line-height:1.5"></div>' +
       '<div class="bot-muted">{변수}는 실제 값으로 바뀌어요 · 값이 없는 변수가 있는 줄은 통째로 빠져요 · [[ ]] 안은 값이 없을 때 그 부분만 빠져요 · **굵게**</div>' +
       '<div style="display:flex;gap:.4rem;flex-wrap:wrap">' +
         '<button class="bot-pill" onclick="resetBotTpl(\'' + k + '\')">기본값으로</button>' +
@@ -7930,6 +7932,32 @@ function botDraft(type, key) { var d = botSetting(type).options.drafts; return d
 function updateBotDraftBadge(key) {
   var ta = document.getElementById('bot-tpl-' + key), badge = document.getElementById('bot-draft-' + key);
   if (ta && badge) badge.style.display = ta.value !== botSetting(_bot.tab).templates[key] ? '' : 'none';
+  updateBotVarWarn(key);
+}
+
+// 이 탭에서 못 쓰는 변수 → 그 변수를 쓰는 탭을 알려줌 (예: 실적 변수를 공시 탭에 넣은 경우)
+function botForeignVars(key) {
+  var ta = document.getElementById('bot-tpl-' + key);
+  if (!ta) return [];
+  var own = _bot.meta.meta[_bot.tab].templates[key].vars;
+  var used = (ta.value.match(/\{[^{}\n]+\}/g) || []).map(function(x) { return x.slice(1, -1); });
+  return used.filter(function(v, i) { return own.indexOf(v) < 0 && used.indexOf(v) === i; });
+}
+
+function updateBotVarWarn(key) {
+  var box = document.getElementById('bot-varwarn-' + key);
+  if (!box) return;
+  var bad = botForeignVars(key);
+  if (!bad.length) { box.style.display = 'none'; return; }
+  var homes = [];
+  BOT_TYPES.forEach(function(t) {
+    var tpls = _bot.meta.meta[t].templates;
+    var fits = Object.keys(tpls).some(function(k) { return bad.some(function(v) { return tpls[k].vars.indexOf(v) >= 0; }); });
+    if (fits && t !== _bot.tab) homes.push(_bot.meta.meta[t].icon + ' ' + _bot.meta.meta[t].name);
+  });
+  box.innerHTML = '⚠️ 이 탭에서 쓸 수 없는 변수: ' + bad.map(function(v) { return '{' + pEsc(v) + '}'; }).join(' ') +
+    (homes.length ? '<br>→ <b>' + homes.join(', ') + '</b> 탭에 넣어야 해요' : '<br>→ 오타인지 확인해 주세요 (그대로 글자로 나가요)');
+  box.style.display = '';
 }
 
 function onBotTplInput(key) {
@@ -7959,6 +7987,7 @@ function insertBotVar(key, v) {
   ta.value = ta.value.slice(0, s) + ins + ta.value.slice(e);
   ta.focus();
   ta.selectionStart = ta.selectionEnd = s + ins.length;
+  onBotTplInput(key);
 }
 
 function resetBotTpl(key) {
@@ -8006,6 +8035,9 @@ async function saveBotPanel() {
     var p = _botDraftPending[t + ':' + k];
     if (p) { clearTimeout(p.timer); delete _botDraftPending[t + ':' + k]; }
   });
+  var foreign = Object.keys(templates).reduce(function(a, k) { return a.concat(botForeignVars(k)); }, []);
+  if (foreign.length && !confirm('이 탭(' + _bot.meta.meta[t].name + ')에서 쓸 수 없는 변수가 있어요:\n' +
+    foreign.map(function(v) { return '{' + v + '}'; }).join(' ') + '\n\n이대로 저장하면 알림에 글자 그대로 나가요. 그래도 저장할까요?')) return;
   options.drafts = {};
   if (await saveBotSetting(t, { timing: timing, options: options, templates: templates })) {
     Object.keys(templates).forEach(updateBotDraftBadge);
