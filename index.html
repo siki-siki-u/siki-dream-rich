@@ -557,7 +557,10 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
       <div class="nav-item" onclick="showPage('stock-analysis',this);closeSidebar()"><span class="icon">🔍</span> 주식 가치 분석</div>
       <div class="nav-item" onclick="showPage('stock-notes',this);closeSidebar()"><span class="icon">📌</span> 종목 분석 노트</div>
       <div class="nav-item" onclick="showPage('journal',this);closeSidebar()"><span class="icon">📝</span> 투자 일지</div>
-      <div class="nav-item" onclick="showPage('dart-alerts',this);closeSidebar()"><span class="icon">📢</span> 공시 알림</div>
+    </div>
+    <div class="nav-section owner-only">
+      <div class="nav-label">알림봇</div>
+      <div class="nav-item" onclick="showPage('bot-settings',this);closeSidebar()"><span class="icon">🤖</span> 봇 설정</div>
     </div>
     <div class="nav-section">
       <div class="nav-label">투자 평가</div>
@@ -1557,28 +1560,98 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
   </div>
 
   <!-- DART 공시 알림 -->
-  <div class="page" id="page-dart-alerts">
+  <div class="page" id="page-bot-settings">
+    <style>
+      .bot-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;align-items:start}
+      .bot-wide{grid-column:1/-1}
+      @media(max-width:900px){.bot-grid{grid-template-columns:minmax(0,1fr)}}
+      .bot-card{padding:1rem 1.1rem}
+      .bot-row{display:flex;align-items:center;gap:.6rem;padding:.55rem .7rem;background:var(--surface2);border-radius:8px;font-size:.82rem}
+      .bot-list{display:flex;flex-direction:column;gap:.45rem}
+      .bot-muted{color:var(--muted);font-size:.76rem;line-height:1.5}
+      .bot-check{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;color:var(--text);cursor:pointer;white-space:nowrap}
+      .bot-check input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+      .bot-pill{padding:.3rem .7rem;border-radius:999px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:.76rem;cursor:pointer;font-family:inherit}
+      .bot-pill.active{background:var(--accent);border-color:transparent;color:#fff}
+      .bot-chip{padding:.18rem .5rem;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--accent);font-size:.72rem;cursor:pointer;font-family:JetBrains Mono,monospace}
+      .bot-input{padding:.5rem .65rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.82rem;font-family:inherit;min-width:0}
+      .bot-textarea{width:100%;min-height:150px;resize:vertical;font-family:JetBrains Mono,monospace;font-size:.8rem;line-height:1.55}
+      .bot-preview{white-space:pre-wrap;word-break:break-word;background:#0e1621;color:#e9eef5;border-radius:10px;padding:.75rem .9rem;font-size:.82rem;line-height:1.55}
+      .bot-preview b{color:#fff}
+      .bot-type{display:flex;gap:.65rem;align-items:flex-start;padding:.6rem .7rem;background:var(--surface2);border-radius:8px}
+      .bot-type .bot-check{align-items:flex-start}
+      .bot-sub{display:flex;flex-wrap:wrap;gap:.35rem .9rem;margin-top:.45rem}
+      .bot-field{display:flex;flex-direction:column;gap:.4rem;margin-bottom:.9rem}
+      .bot-field-label{font-size:.78rem;font-weight:700;color:var(--text)}
+      .bot-x{border:none;background:none;color:var(--muted);cursor:pointer;font-size:.9rem;padding:.1rem .3rem}
+      .bot-badge{font-size:.66rem;padding:.1rem .4rem;border-radius:5px;background:rgba(108,138,255,.15);color:var(--accent);font-weight:700}
+    </style>
     <div class="page-header">
-      <h2>📢 공시 알림</h2>
-      <p>관심 기업을 등록하면 새 공시가 올라올 때 푸시로 알려드려요 (매일 자동 확인 + 수동 확인 가능)</p>
+      <h2>🤖 봇 설정</h2>
+      <p>텔레그램으로 받을 알림과 메시지 모양, 받는 시점을 정해요. 저장하면 1분 안에 반영돼요</p>
     </div>
 
-    <div class="card" style="margin-bottom:1rem;padding:.9rem 1rem;position:relative">
-      <div style="font-weight:700;margin-bottom:.5rem">🔍 기업 검색해서 등록</div>
-      <div style="position:relative">
-        <input id="dart-search-input" placeholder="기업명 또는 티커 (예: 삼성전자, 005930)" autocomplete="off"
-          style="width:100%;padding:.55rem .7rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.83rem;font-family:inherit"
-          oninput="onDartSearch(this.value)">
-        <div id="dart-search-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:260px;overflow-y:auto;z-index:20;box-shadow:0 4px 16px rgba(0,0,0,.25)"></div>
-      </div>
-    </div>
+    <div id="bot-setup-error" class="card bot-card" style="display:none;margin-bottom:1rem;border-color:var(--danger)"></div>
 
-    <div class="card" style="padding:.9rem 1rem">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
-        <div style="font-weight:700">📌 등록된 기업</div>
-        <button onclick="checkDartNow()" id="dart-check-btn" style="padding:.3rem .75rem;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:.78rem;cursor:pointer;font-family:inherit">🔄 지금 확인</button>
+    <div class="bot-grid">
+      <!-- 텔레그램 연결 -->
+      <div class="card bot-card">
+        <div class="sec-title">📨 텔레그램 연결</div>
+        <div id="bot-conn" class="bot-muted">불러오는 중...</div>
       </div>
-      <div id="dart-watchlist-body" style="display:flex;flex-direction:column;gap:.5rem;font-size:.82rem;color:var(--muted)">불러오는 중...</div>
+
+      <!-- 받을 알림 -->
+      <div class="card bot-card">
+        <div class="sec-title">🔔 받을 알림</div>
+        <div id="bot-types" class="bot-list"><div class="bot-muted">불러오는 중...</div></div>
+      </div>
+
+      <!-- 관심 기업 -->
+      <div class="card bot-card bot-wide">
+        <div class="sec-title">🏢 관심 기업</div>
+        <div style="display:flex;gap:.4rem;margin-bottom:.6rem">
+          <button class="bot-pill active" id="bot-mkt-KR" onclick="setBotMarket('KR')">🇰🇷 국내</button>
+          <button class="bot-pill" id="bot-mkt-US" onclick="setBotMarket('US')">🇺🇸 미국</button>
+        </div>
+        <div style="position:relative;margin-bottom:.8rem">
+          <input id="bot-search-input" class="bot-input" style="width:100%" autocomplete="off"
+            placeholder="기업명 또는 종목코드 (예: 삼성전자, 005930)" oninput="onBotSearch(this.value)">
+          <div id="bot-search-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:280px;overflow-y:auto;z-index:20;box-shadow:0 4px 16px rgba(0,0,0,.25)"></div>
+        </div>
+        <div id="bot-companies" class="bot-list"><div class="bot-muted">불러오는 중...</div></div>
+      </div>
+
+      <!-- 알림별 템플릿 · 받는 시점 -->
+      <div class="card bot-card bot-wide">
+        <div class="sec-title">✏️ 알림별 템플릿 · 받는 시점</div>
+        <div id="bot-tabs" style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1rem"></div>
+        <div id="bot-panel"></div>
+      </div>
+
+      <!-- 아침 브리핑 항목 -->
+      <div class="card bot-card">
+        <div class="sec-title">☀️ 아침 브리핑 지표</div>
+        <div class="bot-muted" style="margin-bottom:.6rem">브리핑의 {시장지표}에 들어갈 항목이에요. 위아래 화살표로 순서를 바꿀 수 있어요</div>
+        <div id="bot-items" class="bot-list" style="margin-bottom:.8rem"></div>
+        <div class="bot-field-label" style="margin-bottom:.4rem">자주 쓰는 지표 추가</div>
+        <div id="bot-presets" style="display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.8rem"></div>
+        <div class="bot-field-label" style="margin-bottom:.4rem">직접 추가 (Yahoo Finance 심볼)</div>
+        <div style="display:flex;flex-wrap:wrap;gap:.4rem">
+          <input id="bot-item-label" class="bot-input" style="flex:1 1 110px" placeholder="이름 (예: 엔비디아)">
+          <input id="bot-item-symbol" class="bot-input" style="flex:1 1 110px" placeholder="심볼 (예: NVDA, 005930.KS)">
+          <select id="bot-item-kind" class="bot-input" style="flex:0 0 auto">
+            <option value="price">가격</option><option value="index">지수</option><option value="yield">금리(%)</option><option value="fx">환율</option>
+          </select>
+          <button class="btn btn-primary" style="padding:.45rem .9rem;font-size:.8rem" onclick="addBotItemCustom()">추가</button>
+        </div>
+      </div>
+
+      <!-- 최근 보낸 알림 -->
+      <div class="card bot-card">
+        <div class="sec-title" style="justify-content:space-between">📜 최근 보낸 알림
+          <button class="bot-pill" onclick="renderBotLog()">새로고침</button></div>
+        <div id="bot-log" class="bot-list"><div class="bot-muted">불러오는 중...</div></div>
+      </div>
     </div>
   </div>
 
@@ -2956,7 +3029,7 @@ function showPage(id, el) {
   if(id==='assets') { initPortfolio(); }
   if(id==='youtube') { renderYtLibrary(); }
   if(id==='journal') { renderJournal(); fetchFearGreed(); showJnTab('list'); }
-  if(id==='dart-alerts') { renderDartList(); }
+  if(id==='bot-settings') { renderBotSettings(); }
   if(id==='realty')  { renderRealty(); initCheongak(); }
   if(id==='gifts')       { renderGiftList(); }
   if(id==='condolences') { renderCondolenceList(); }
@@ -7132,9 +7205,10 @@ function onAuthSuccess(user, fromLogin) {
   if (userEl) userEl.style.display = 'flex';
   hideLockScreen();
   enforceGuestMode();
-  var _validPages = ['dashboard','budget','assets','market','inv-records','calendar','youtube','journal','dart-alerts','realty','gifts','condolences','stock-analysis','hobby'];
+  var _validPages = ['dashboard','budget','assets','market','inv-records','calendar','youtube','journal','bot-settings','realty','gifts','condolences','stock-analysis','hobby'];
   function navigateToHash(hash) {
     var h = (hash || location.hash).replace('#', '');
+    if (h === 'dart-alerts') h = 'bot-settings';
     if (!h || _validPages.indexOf(h) === -1) return;
     var navEl = null;
     document.querySelectorAll('.nav-item').forEach(function(n) {
@@ -7565,97 +7639,436 @@ function toggleSectorMapDemo() {
   renderSectorMap();
 }
 
-// ── DART 공시 알림 ──
-var _dartSearchTimer = null;
-var _dartSearchItems = [];
+// ── 봇 설정 (텔레그램 알림) ──
+// 설정·관심 기업·브리핑 지표는 Supabase(bot_* 테이블)에 바로 읽고 쓰고, 기업 검색·미리보기만 서버(lib/bot.js)를 거친다
+var _bot = { meta: null, settings: {}, companies: [], items: [], chat: {}, market: 'KR', tab: 'disclosure', results: [], timer: null };
+var BOT_TYPES = ['disclosure', 'earnings_result', 'earnings_schedule', 'rate_kr', 'rate_us', 'morning_brief'];
+var BOT_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-function onDartSearch(q) {
-  clearTimeout(_dartSearchTimer);
-  var box = document.getElementById('dart-search-dropdown');
-  if (!q || !q.trim()) { box.style.display = 'none'; return; }
-  _dartSearchTimer = setTimeout(function() { doDartSearch(q.trim()); }, 300);
+// 저장된 값 + 기본값 (서버 lib/bot.js의 loadSettings와 같은 규칙)
+function botSetting(type) {
+  var m = _bot.meta.meta[type], row = _bot.settings[type] || {}, tpls = {};
+  Object.keys(m.templates).forEach(function(k) { tpls[k] = (row.templates && row.templates[k]) || m.templates[k].def; });
+  return { enabled: row.enabled != null ? row.enabled : true, templates: tpls,
+    timing: Object.assign({}, m.timing, row.timing || {}), options: Object.assign({}, m.options, row.options || {}) };
 }
 
-async function doDartSearch(q) {
-  var box = document.getElementById('dart-search-dropdown');
+async function renderBotSettings() {
+  var err = document.getElementById('bot-setup-error');
+  try {
+    if (!supa) throw new Error('Supabase 연결 실패');
+    if (!_bot.meta) {
+      var mr = await fetchWithTimeout('/api/economic-calendar?action=bot-meta', 15000);
+      _bot.meta = await mr.json();
+    }
+    var res = await Promise.all([
+      supa.from('bot_alert_settings').select('*'),
+      supa.from('bot_watch_companies').select('*').order('created_at', { ascending: true }),
+      supa.from('bot_brief_items').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
+      supa.from('settings').select('key,value').in('key', ['telegram_chat_id', 'telegram_chat_name']),
+    ]);
+    var bad = res.find(function(r) { return r.error; });
+    if (bad) throw new Error(bad.error.message);
+    _bot.settings = {};
+    res[0].data.forEach(function(r) { _bot.settings[r.alert_type] = r; });
+    _bot.companies = res[1].data;
+    _bot.items = res[2].data;
+    _bot.chat = {};
+    res[3].data.forEach(function(r) { _bot.chat[r.key] = r.value; });
+    err.style.display = 'none';
+  } catch (e) {
+    err.style.display = '';
+    err.innerHTML = '<b style="color:var(--danger)">봇 설정을 불러오지 못했어요</b><div class="bot-muted" style="margin-top:.3rem">' + pEsc(e.message) +
+      '<br>Supabase SQL Editor에서 supabase_migration.sql의 <b>13. 봇 설정</b> 부분을 먼저 실행해 주세요.</div>';
+    return;
+  }
+  renderBotConn(); renderBotTypes(); renderBotCompanies(); renderBotTabs(); renderBotItems(); renderBotLog();
+}
+
+// 템플릿은 기본값과 다를 때만 저장 (기본값이 바뀌면 손대지 않은 알림은 자동으로 따라감)
+async function saveBotSetting(type, patch) {
+  var s = Object.assign(botSetting(type), patch), defs = _bot.meta.meta[type].templates, tpls = {};
+  Object.keys(s.templates).forEach(function(k) { if (s.templates[k] !== defs[k].def) tpls[k] = s.templates[k]; });
+  var r = await supa.from('bot_alert_settings').upsert({ alert_type: type, enabled: s.enabled, templates: tpls, timing: s.timing,
+    options: s.options, updated_at: new Date().toISOString() }, { onConflict: 'alert_type' }).select().single();
+  if (r.error) { showToast('저장 실패: ' + r.error.message, 'error'); return false; }
+  _bot.settings[type] = r.data;
+  return true;
+}
+
+// ── 텔레그램 연결 ──
+function renderBotConn() {
+  var box = document.getElementById('bot-conn');
+  if (!_bot.meta.telegram) { box.innerHTML = 'Vercel 환경변수 <b>TELEGRAM_BOT_TOKEN</b>이 없어요.'; return; }
+  if (_bot.chat.telegram_chat_id) {
+    box.innerHTML = '<div style="font-size:.9rem;color:var(--text);margin-bottom:.4rem">✅ 연결됨' +
+      (_bot.chat.telegram_chat_name ? ' · <b>' + pEsc(_bot.chat.telegram_chat_name) + '</b>' : '') + '</div>' +
+      '<div class="bot-muted">알림은 이 대화방으로 와요. 아래 알림별 설정에서 [텔레그램으로 테스트]를 누르면 실제 메시지를 받아볼 수 있어요.</div>';
+    return;
+  }
+  box.innerHTML = '<div class="bot-muted" style="margin-bottom:.6rem">1) 텔레그램에서 내 봇에게 아무 메시지나 보내고<br>2) 아래 버튼을 누르면 그 대화방으로 연결돼요</div>' +
+    '<button class="btn btn-primary" style="font-size:.8rem;padding:.45rem .9rem" onclick="connectBotTelegram()">연결하기</button>';
+}
+
+async function connectBotTelegram() {
+  try {
+    var r = await fetchWithTimeout('/api/economic-calendar?action=telegram-setup', 20000);
+    var d = await r.json();
+    if (d.error) throw new Error(d.error);
+    showToast('✅ ' + d.chat + ' 대화방에 연결했어요', 'success');
+    renderBotSettings();
+  } catch (e) { showToast('연결 실패: ' + e.message, 'error'); }
+}
+
+// ── 받을 알림 (켜기/끄기 + 공시 종류) ──
+function renderBotTypes() {
+  var m = _bot.meta;
+  document.getElementById('bot-types').innerHTML = BOT_TYPES.map(function(t) {
+    var meta = m.meta[t], s = botSetting(t), sub = '';
+    if (t === 'disclosure') {
+      sub = '<div class="bot-sub">' + Object.keys(m.categories).map(function(c) {
+        return '<label class="bot-check"><input type="checkbox"' + (s.options.categories.indexOf(c) >= 0 ? ' checked' : '') +
+          (s.enabled ? '' : ' disabled') + ' onchange="toggleBotCategory(\'' + c + '\',this.checked)">' + m.categories[c] + '</label>';
+      }).join('') + '</div>';
+    }
+    return '<div class="bot-type"><label class="bot-check" style="padding-top:.1rem"><input type="checkbox"' + (s.enabled ? ' checked' : '') +
+      ' onchange="toggleBotType(\'' + t + '\',this.checked)"></label><div style="flex:1;min-width:0">' +
+      '<div style="font-weight:700;font-size:.85rem;color:var(--text)">' + meta.icon + ' ' + meta.name + '</div>' +
+      '<div class="bot-muted">' + meta.desc + '</div>' + sub + '</div></div>';
+  }).join('');
+}
+
+async function toggleBotType(type, on) {
+  if (await saveBotSetting(type, { enabled: on })) {
+    showToast(_bot.meta.meta[type].name + (on ? ' 알림을 켰어요' : ' 알림을 껐어요'));
+    renderBotTypes(); renderBotTabs();
+  }
+}
+
+async function toggleBotCategory(cat, on) {
+  var cats = botSetting('disclosure').options.categories.filter(function(c) { return c !== cat; });
+  if (on) cats.push(cat);
+  if (await saveBotSetting('disclosure', { options: Object.assign(botSetting('disclosure').options, { categories: cats }) })) showToast('공시 종류를 저장했어요');
+}
+
+// ── 관심 기업 ──
+function setBotMarket(m) {
+  _bot.market = m;
+  ['KR', 'US'].forEach(function(k) { document.getElementById('bot-mkt-' + k).classList.toggle('active', k === m); });
+  var input = document.getElementById('bot-search-input');
+  input.value = '';
+  input.placeholder = m === 'KR' ? '기업명 또는 종목코드 (예: 삼성전자, 005930)' : '티커 또는 영문 회사명 (예: AAPL, Nvidia)';
+  document.getElementById('bot-search-dropdown').style.display = 'none';
+}
+
+function onBotSearch(q) {
+  clearTimeout(_bot.timer);
+  var box = document.getElementById('bot-search-dropdown');
+  if (!q || !q.trim()) { box.style.display = 'none'; return; }
+  _bot.timer = setTimeout(function() { doBotSearch(q.trim()); }, 300);
+}
+
+async function doBotSearch(q) {
+  var box = document.getElementById('bot-search-dropdown');
   box.innerHTML = '<div style="padding:.6rem 1rem;font-size:.8rem;color:var(--muted)">검색 중...</div>';
   box.style.display = '';
   try {
-    var res = await fetchWithTimeout('/api/economic-calendar?action=dart-search&q=' + encodeURIComponent(q), 15000);
-    var d = await res.json();
-    var items = d.results || [];
-    _dartSearchItems = items;
-    if (!items.length) { box.innerHTML = '<div style="padding:.6rem 1rem;font-size:.8rem;color:var(--muted)">검색 결과 없음 (DART에 없는 종목일 수 있어요)</div>'; return; }
-    box.innerHTML = items.map(function(it, i) {
-      return '<div onclick="addDartWatch(' + i + ')" style="padding:.55rem .8rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:.5rem">' +
+    var r = await fetchWithTimeout('/api/economic-calendar?action=bot-search&market=' + _bot.market + '&q=' + encodeURIComponent(q), 20000);
+    var d = await r.json();
+    if (d.error) throw new Error(d.error);
+    _bot.results = d.results || [];
+    if (!_bot.results.length) { box.innerHTML = '<div style="padding:.6rem 1rem;font-size:.8rem;color:var(--muted)">검색 결과 없음</div>'; return; }
+    box.innerHTML = _bot.results.map(function(it, i) {
+      return '<div onclick="addBotCompany(' + i + ')" style="padding:.55rem .8rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:.5rem">' +
         '<span style="color:var(--text)">' + pEsc(it.name) + (it.sub ? ' <span style="color:var(--muted);font-size:.72rem">(' + pEsc(it.sub) + ')</span>' : '') + '</span>' +
-        '<span style="color:var(--accent);font-family:JetBrains Mono,monospace;font-size:.75rem">' + pEsc(it.ticker) + '</span>' +
-        '</div>';
+        '<span style="color:var(--accent);font-family:JetBrains Mono,monospace;font-size:.75rem">' + pEsc(it.ticker) + '</span></div>';
     }).join('');
   } catch (e) {
-    box.innerHTML = '<div style="padding:.6rem 1rem;font-size:.8rem;color:var(--danger)">오류: ' + e.message + '</div>';
+    box.innerHTML = '<div style="padding:.6rem 1rem;font-size:.8rem;color:var(--danger)">오류: ' + pEsc(e.message) + '</div>';
   }
 }
 
-async function addDartWatch(idx) {
-  var it = _dartSearchItems[idx];
+async function addBotCompany(i) {
+  var it = _bot.results[i];
   if (!it) return;
-  document.getElementById('dart-search-dropdown').style.display = 'none';
-  document.getElementById('dart-search-input').value = '';
-  showToast(it.name + ' 등록 중...');
-  try {
-    var res = await fetchWithTimeout('/api/economic-calendar?action=dart-add', 20000, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ corp_code: it.corpCode, corp_name: it.name, stock_code: it.ticker }),
-    });
-    var d = await res.json();
-    if (d.error) throw new Error(d.error);
-    showToast('✅ ' + it.name + ' 등록 완료!');
-    renderDartList();
-  } catch (e) { showToast('등록 실패: ' + e.message, 'error'); }
+  document.getElementById('bot-search-dropdown').style.display = 'none';
+  document.getElementById('bot-search-input').value = '';
+  var r = await supa.from('bot_watch_companies').upsert({ market: it.market, ticker: it.ticker, name: it.name, corp_code: it.corp_code,
+    cik: it.cik, yahoo_symbol: it.yahoo_symbol }, { onConflict: 'market,ticker' }).select().single();
+  if (r.error) { showToast('추가 실패: ' + r.error.message, 'error'); return; }
+  _bot.companies = _bot.companies.filter(function(c) { return c.id !== r.data.id; }).concat([r.data]);
+  renderBotCompanies();
+  showToast('✅ ' + it.name + ' 추가! 실적 일정은 1~2분 안에 채워져요', 'success');
 }
 
-async function removeDartWatch(corpCode, name) {
-  if (!confirm(name + '을(를) 공시 알림 목록에서 삭제할까요?')) return;
-  try {
-    await fetchWithTimeout('/api/economic-calendar?action=dart-add', 15000, {
-      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ corp_code: corpCode }),
-    });
-    showToast('🗑️ 삭제됐어요');
-    renderDartList();
-  } catch (e) { showToast('삭제 실패: ' + e.message, 'error'); }
+function botEarningsLabel(c) {
+  var ne = c.next_earnings;
+  if (!c.alert_earnings) return '';
+  if (!ne) return '실적일 확인 중';
+  if (!ne.date) return ne.error ? '실적일 조회 실패' : '실적일 미정';
+  var dt = new Date(ne.date + 'T00:00:00');
+  return '실적 ' + (dt.getMonth() + 1) + '/' + dt.getDate() + '(' + BOT_DAYS[dt.getDay()] + ')' + (ne.estimate ? ' 예상' : '');
 }
 
-async function renderDartList() {
-  var body = document.getElementById('dart-watchlist-body');
-  if (!body) return;
-  try {
-    var res = await fetchWithTimeout('/api/economic-calendar?action=dart-list', 15000);
-    var d = await res.json();
-    var items = d.items || [];
-    if (!items.length) { body.innerHTML = '<div>등록된 기업이 없어요. 위에서 검색해서 추가해보세요</div>'; return; }
-    body.innerHTML = items.map(function(it) {
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.55rem .7rem;background:var(--surface2);border-radius:8px">' +
-        '<span style="color:var(--text);font-weight:600">' + pEsc(it.corp_name) + '</span>' +
-        '<button onclick="removeDartWatch(&quot;' + it.corp_code + '&quot;,&quot;' + pEsc(it.corp_name) + '&quot;)" style="border:none;background:none;color:var(--muted);cursor:pointer;font-size:.9rem">✕</button>' +
-        '</div>';
-    }).join('');
-  } catch (e) {
-    body.innerHTML = '<div style="color:var(--danger)">불러오기 실패: ' + e.message + '</div>';
+function renderBotCompanies() {
+  var box = document.getElementById('bot-companies');
+  if (!_bot.companies.length) { box.innerHTML = '<div class="bot-muted">아직 관심 기업이 없어요. 위에서 검색해서 추가해보세요</div>'; return; }
+  box.innerHTML = _bot.companies.map(function(c) {
+    var canDisc = c.market === 'KR' ? !!c.corp_code : !!c.cik;
+    return '<div class="bot-row" style="flex-wrap:wrap">' +
+      '<span>' + (c.market === 'KR' ? '🇰🇷' : '🇺🇸') + '</span>' +
+      '<span style="color:var(--text);font-weight:700">' + pEsc(c.name) + '</span>' +
+      '<span style="color:var(--muted);font-family:JetBrains Mono,monospace;font-size:.72rem">' + pEsc(c.ticker) + '</span>' +
+      '<span class="bot-badge">' + pEsc(botEarningsLabel(c)) + '</span>' +
+      '<span style="flex:1"></span>' +
+      '<label class="bot-check" title="' + (canDisc ? '' : '공시 정보가 없는 종목이에요') + '"><input type="checkbox"' + (c.alert_disclosure && canDisc ? ' checked' : '') +
+        (canDisc ? '' : ' disabled') + ' onchange="toggleBotCompany(\'' + c.id + '\',\'alert_disclosure\',this.checked)">공시</label>' +
+      '<label class="bot-check"><input type="checkbox"' + (c.alert_earnings ? ' checked' : '') +
+        ' onchange="toggleBotCompany(\'' + c.id + '\',\'alert_earnings\',this.checked)">실적</label>' +
+      '<button class="bot-x" onclick="removeBotCompany(\'' + c.id + '\')">✕</button></div>';
+  }).join('');
+}
+
+async function toggleBotCompany(id, field, on) {
+  var patch = {}; patch[field] = on;
+  var r = await supa.from('bot_watch_companies').update(patch).eq('id', id).select().single();
+  if (r.error) { showToast('저장 실패: ' + r.error.message, 'error'); return; }
+  _bot.companies = _bot.companies.map(function(c) { return c.id === id ? r.data : c; });
+  renderBotCompanies();
+}
+
+async function removeBotCompany(id) {
+  var c = _bot.companies.find(function(x) { return x.id === id; });
+  if (!c || !confirm(c.name + '을(를) 관심 기업에서 뺄까요?')) return;
+  var r = await supa.from('bot_watch_companies').delete().eq('id', id);
+  if (r.error) { showToast('삭제 실패: ' + r.error.message, 'error'); return; }
+  _bot.companies = _bot.companies.filter(function(x) { return x.id !== id; });
+  renderBotCompanies();
+  showToast('🗑️ 뺐어요');
+}
+
+// ── 알림별 템플릿 · 받는 시점 ──
+function renderBotTabs() {
+  document.getElementById('bot-tabs').innerHTML = BOT_TYPES.map(function(t) {
+    var m = _bot.meta.meta[t];
+    return '<button class="bot-pill' + (t === _bot.tab ? ' active' : '') + '" onclick="setBotTab(\'' + t + '\')">' + m.icon + ' ' + m.name +
+      (botSetting(t).enabled ? '' : ' · 꺼짐') + '</button>';
+  }).join('');
+  renderBotPanel();
+}
+
+function setBotTab(t) { _bot.tab = t; renderBotTabs(); }
+
+function botHourSelect(id, val) {
+  var h = '';
+  for (var i = 0; i < 24; i++) h += '<option value="' + i + '"' + (i === val ? ' selected' : '') + '>' + (i < 12 ? '오전 ' + (i === 0 ? 12 : i) : '오후 ' + (i === 12 ? 12 : i - 12)) + '시</option>';
+  return '<select id="' + id + '" class="bot-input" style="width:auto">' + h + '</select>';
+}
+
+function botOffsetChecks(offsets) {
+  return [7, 3, 1, 0].map(function(o) {
+    return '<label class="bot-check"><input type="checkbox" class="bot-offset" value="' + o + '"' + (offsets.indexOf(o) >= 0 ? ' checked' : '') + '>' + (o === 0 ? '당일' : o + '일 전') + '</label>';
+  }).join('');
+}
+
+function botTimingHtml(t, s) {
+  var tm = s.timing;
+  if (t === 'disclosure') {
+    return '<label class="bot-check"><input type="radio" name="bot-disc-mode" value="realtime"' + (tm.mode !== 'digest' ? ' checked' : '') + '>실시간 (올라오면 1~2분 안에)</label>' +
+      '<label class="bot-check"><input type="radio" name="bot-disc-mode" value="digest"' + (tm.mode === 'digest' ? ' checked' : '') + '>하루 한 번 모아서</label>' +
+      botHourSelect('bot-digest-hour', tm.digest_hour != null ? tm.digest_hour : 18);
   }
+  if (t === 'earnings_result') return '<span class="bot-muted">실시간 — 국내는 잠정실적·정기보고서 공시 즉시, 미국은 실적 공시(8-K) 후 Yahoo에 숫자가 반영되면 5분 안에</span>';
+  if (t === 'earnings_schedule') return botOffsetChecks(tm.offsets || []) + botHourSelect('bot-hour', tm.hour != null ? tm.hour : 9);
+  if (t === 'rate_kr' || t === 'rate_us') {
+    return '<label class="bot-check"><input type="checkbox" id="bot-rate-result"' + (tm.result ? ' checked' : '') + '>결정 발표 즉시</label>' +
+      '<span class="bot-muted">· 회의 전 예고:</span>' + botOffsetChecks(tm.before || []) + botHourSelect('bot-hour', tm.hour != null ? tm.hour : 8);
+  }
+  if (t === 'morning_brief') {
+    return botHourSelect('bot-hour', tm.hour != null ? tm.hour : 8) + [1, 2, 3, 4, 5, 6, 0].map(function(dw) {
+      return '<label class="bot-check"><input type="checkbox" class="bot-day" value="' + dw + '"' + ((tm.days || []).indexOf(dw) >= 0 ? ' checked' : '') + '>' + BOT_DAYS[dw] + '</label>';
+    }).join('');
+  }
+  return '';
 }
 
-async function checkDartNow() {
-  var btn = document.getElementById('dart-check-btn');
-  btn.disabled = true; btn.textContent = '⏳ 확인 중...';
+function renderBotPanel() {
+  var t = _bot.tab, m = _bot.meta.meta[t], s = botSetting(t);
+  var h = '<div class="bot-muted" style="margin-bottom:.9rem">' + m.desc + (s.enabled ? '' : ' · <b style="color:var(--danger)">지금은 꺼져 있어요</b>') + '</div>';
+  h += '<div class="bot-field"><div class="bot-field-label">⏰ 받는 시점</div><div class="bot-sub" style="margin:0;align-items:center">' + botTimingHtml(t, s) + '</div></div>';
+  if (t === 'morning_brief') {
+    var blocks = _bot.meta.blocks;
+    h += '<div class="bot-field"><div class="bot-field-label">🧩 넣을 내용</div><div class="bot-sub" style="margin:0">' + Object.keys(blocks).map(function(b) {
+      return '<label class="bot-check"><input type="checkbox" class="bot-block" value="' + b + '"' + (s.options.blocks.indexOf(b) >= 0 ? ' checked' : '') + '>' + blocks[b] + '</label>';
+    }).join('') + '</div><div class="bot-muted">시장 지표 항목은 아래 [아침 브리핑 지표]에서 고를 수 있어요</div></div>';
+  }
+  Object.keys(m.templates).forEach(function(k) {
+    var tp = m.templates[k];
+    h += '<div class="bot-field"><div class="bot-field-label">📝 ' + tp.label + ' 템플릿</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:.3rem">' + tp.vars.map(function(v) {
+        return '<button class="bot-chip" onclick="insertBotVar(\'' + k + '\',\'' + v + '\')">{' + v + '}</button>';
+      }).join('') + '</div>' +
+      '<textarea id="bot-tpl-' + k + '" class="bot-input bot-textarea">' + pEsc(s.templates[k]) + '</textarea>' +
+      '<div class="bot-muted">{변수}는 실제 값으로 바뀌어요 · 값이 없는 변수가 있는 줄은 통째로 빠져요 · [ ] 안은 값이 없을 때 그 부분만 빠져요 · **굵게**</div>' +
+      '<div style="display:flex;gap:.4rem;flex-wrap:wrap">' +
+        '<button class="bot-pill" onclick="resetBotTpl(\'' + k + '\')">기본값으로</button>' +
+        '<button class="bot-pill" onclick="previewBotTpl(\'' + k + '\',false)">👀 미리보기</button>' +
+        '<button class="bot-pill" onclick="previewBotTpl(\'' + k + '\',true)">📨 텔레그램으로 테스트</button></div>' +
+      '<div id="bot-prev-' + k + '" style="display:none"></div></div>';
+  });
+  h += '<div style="display:flex;justify-content:flex-end"><button class="btn btn-primary" onclick="saveBotPanel()">💾 저장</button></div>';
+  document.getElementById('bot-panel').innerHTML = h;
+}
+
+function insertBotVar(key, v) {
+  var ta = document.getElementById('bot-tpl-' + key), ins = '{' + v + '}';
+  var s = ta.selectionStart != null ? ta.selectionStart : ta.value.length, e = ta.selectionEnd != null ? ta.selectionEnd : s;
+  ta.value = ta.value.slice(0, s) + ins + ta.value.slice(e);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = s + ins.length;
+}
+
+function resetBotTpl(key) {
+  document.getElementById('bot-tpl-' + key).value = _bot.meta.meta[_bot.tab].templates[key].def;
+  showToast('기본값으로 바꿨어요 (저장을 눌러야 반영돼요)');
+}
+
+async function previewBotTpl(key, send) {
+  var box = document.getElementById('bot-prev-' + key);
+  box.style.display = '';
+  box.innerHTML = '<div class="bot-muted">실제 데이터로 만드는 중...</div>';
   try {
-    var res = await fetchWithTimeout('/api/economic-calendar?action=dart-check', 25000, { method: 'POST' });
-    var d = await res.json();
+    var r = await fetchWithTimeout('/api/economic-calendar?action=bot-preview', 30000, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: _bot.tab, key: key, template: document.getElementById('bot-tpl-' + key).value, send: !!send }),
+    });
+    var d = await r.json();
     if (d.error) throw new Error(d.error);
-    showToast(d.notified > 0 ? '📢 새 공시 ' + d.notified + '건 알림 보냈어요' : '📭 새 공시 없어요');
-  } catch (e) { showToast('확인 실패: ' + e.message, 'error'); }
-  btn.disabled = false; btn.textContent = '🔄 지금 확인';
+    if (!d.ok) { box.innerHTML = '<div class="bot-muted">' + pEsc(d.note || '미리보기를 만들 데이터가 없어요') + '</div>'; return; }
+    // 서버가 값을 모두 이스케이프하고 <b>만 넣어서 보냄 (텔레그램 HTML과 같은 결과)
+    box.innerHTML = '<div class="bot-muted" style="margin-bottom:.35rem">' + pEsc(d.note || '') + '</div><div class="bot-preview">' + d.html + '</div>';
+    if (send) showToast(d.sent ? '📨 텔레그램으로 보냈어요' : '전송 실패 — 텔레그램 연결을 확인해 주세요', d.sent ? 'success' : 'error');
+  } catch (e) { box.innerHTML = '<div style="color:var(--danger);font-size:.8rem">미리보기 실패: ' + pEsc(e.message) + '</div>'; }
+}
+
+async function saveBotPanel() {
+  var t = _bot.tab, s = botSetting(t), timing = Object.assign({}, s.timing), options = Object.assign({}, s.options), templates = {};
+  var checked = function(cls) { return Array.prototype.slice.call(document.querySelectorAll('#bot-panel .' + cls + ':checked')).map(function(x) { return +x.value; }); };
+  var hour = document.getElementById('bot-hour');
+  if (t === 'disclosure') {
+    var mode = document.querySelector('#bot-panel input[name="bot-disc-mode"]:checked');
+    timing.mode = mode ? mode.value : 'realtime';
+    timing.digest_hour = +document.getElementById('bot-digest-hour').value;
+  }
+  if (t === 'earnings_schedule') { timing.offsets = checked('bot-offset'); timing.hour = +hour.value; }
+  if (t === 'rate_kr' || t === 'rate_us') { timing.result = document.getElementById('bot-rate-result').checked; timing.before = checked('bot-offset'); timing.hour = +hour.value; }
+  if (t === 'morning_brief') {
+    timing.hour = +hour.value; timing.days = checked('bot-day');
+    options.blocks = Array.prototype.slice.call(document.querySelectorAll('#bot-panel .bot-block:checked')).map(function(x) { return x.value; });
+  }
+  Object.keys(_bot.meta.meta[t].templates).forEach(function(k) { templates[k] = document.getElementById('bot-tpl-' + k).value; });
+  if (await saveBotSetting(t, { timing: timing, options: options, templates: templates })) showToast('💾 ' + _bot.meta.meta[t].name + ' 설정을 저장했어요', 'success');
+}
+
+// ── 아침 브리핑 지표 ──
+function renderBotItems() {
+  var box = document.getElementById('bot-items');
+  var KINDS = { price: '가격', index: '지수', yield: '금리(%)', fx: '환율' };
+  box.innerHTML = _bot.items.length ? _bot.items.map(function(it, i) {
+    return '<div class="bot-row" style="flex-wrap:wrap">' +
+      '<span style="display:flex;flex-direction:column;line-height:1">' +
+        '<button class="bot-x" style="font-size:.7rem"' + (i === 0 ? ' disabled' : '') + ' onclick="moveBotItem(' + i + ',-1)">▲</button>' +
+        '<button class="bot-x" style="font-size:.7rem"' + (i === _bot.items.length - 1 ? ' disabled' : '') + ' onclick="moveBotItem(' + i + ',1)">▼</button></span>' +
+      '<label class="bot-check"><input type="checkbox"' + (it.enabled ? ' checked' : '') + ' onchange="updateBotItem(\'' + it.id + '\',{enabled:this.checked})"></label>' +
+      '<span style="color:var(--text);font-weight:700">' + pEsc(it.label) + '</span>' +
+      '<span style="color:var(--muted);font-family:JetBrains Mono,monospace;font-size:.72rem">' + pEsc(it.symbol) + '</span>' +
+      '<span style="flex:1"></span>' +
+      '<select class="bot-input" style="padding:.25rem .4rem;font-size:.75rem" onchange="updateBotItem(\'' + it.id + '\',{kind:this.value})">' +
+        Object.keys(KINDS).map(function(k) { return '<option value="' + k + '"' + (it.kind === k ? ' selected' : '') + '>' + KINDS[k] + '</option>'; }).join('') + '</select>' +
+      '<label class="bot-check" title="1개월 전 대비 변화도 표시"><input type="checkbox"' + (it.show_trend ? ' checked' : '') +
+        ' onchange="updateBotItem(\'' + it.id + '\',{show_trend:this.checked})">1개월 추세</label>' +
+      '<button class="bot-x" onclick="removeBotItem(\'' + it.id + '\')">✕</button></div>';
+  }).join('') : '<div class="bot-muted">아직 지표가 없어요. 아래에서 추가해보세요</div>';
+
+  var have = {};
+  _bot.items.forEach(function(it) { have[it.symbol] = true; });
+  document.getElementById('bot-presets').innerHTML = _bot.meta.presets.map(function(p, i) {
+    return have[p.symbol] ? '' : '<button class="bot-pill" onclick="addBotPreset(' + i + ')">＋ ' + pEsc(p.label) + '</button>';
+  }).join('') || '<span class="bot-muted">자주 쓰는 지표를 모두 추가했어요</span>';
+}
+
+async function insertBotItem(row) {
+  row.sort_order = _bot.items.reduce(function(m, it) { return Math.max(m, it.sort_order || 0); }, 0) + 1;
+  var r = await supa.from('bot_brief_items').insert(row).select().single();
+  if (r.error) { showToast('추가 실패: ' + r.error.message, 'error'); return false; }
+  _bot.items.push(r.data);
+  renderBotItems();
+  return true;
+}
+
+async function addBotPreset(i) {
+  var p = _bot.meta.presets[i];
+  if (p && await insertBotItem({ label: p.label, symbol: p.symbol, kind: p.kind })) showToast('＋ ' + p.label + ' 추가했어요');
+}
+
+async function addBotItemCustom() {
+  var label = document.getElementById('bot-item-label').value.trim(), symbol = document.getElementById('bot-item-symbol').value.trim();
+  if (!symbol) { showToast('심볼을 입력해 주세요', 'error'); return; }
+  try {
+    var r = await fetchWithTimeout('/api/economic-calendar?action=bot-quote&symbol=' + encodeURIComponent(symbol), 15000);
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || '찾을 수 없는 심볼이에요');
+    if (await insertBotItem({ label: label || d.name, symbol: symbol, kind: document.getElementById('bot-item-kind').value })) {
+      document.getElementById('bot-item-label').value = '';
+      document.getElementById('bot-item-symbol').value = '';
+      showToast('＋ ' + (label || d.name) + ' 추가했어요 (현재 ' + d.price + ')');
+    }
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function updateBotItem(id, patch) {
+  var r = await supa.from('bot_brief_items').update(patch).eq('id', id).select().single();
+  if (r.error) { showToast('저장 실패: ' + r.error.message, 'error'); return; }
+  _bot.items = _bot.items.map(function(it) { return it.id === id ? r.data : it; });
+  renderBotItems();
+}
+
+async function moveBotItem(i, dir) {
+  var j = i + dir;
+  if (j < 0 || j >= _bot.items.length) return;
+  var arr = _bot.items.slice(), tmp = arr[i];
+  arr[i] = arr[j]; arr[j] = tmp;
+  var changed = arr.map(function(it, idx) { return { it: it, order: idx + 1 }; }).filter(function(x) { return x.it.sort_order !== x.order; });
+  var results = await Promise.all(changed.map(function(x) { return supa.from('bot_brief_items').update({ sort_order: x.order }).eq('id', x.it.id); }));
+  var bad = results.find(function(r) { return r.error; });
+  if (bad) { showToast('순서 저장 실패: ' + bad.error.message, 'error'); return; }
+  changed.forEach(function(x) { x.it.sort_order = x.order; });
+  _bot.items = arr;
+  renderBotItems();
+}
+
+async function removeBotItem(id) {
+  var r = await supa.from('bot_brief_items').delete().eq('id', id);
+  if (r.error) { showToast('삭제 실패: ' + r.error.message, 'error'); return; }
+  _bot.items = _bot.items.filter(function(it) { return it.id !== id; });
+  renderBotItems();
+}
+
+// ── 최근 보낸 알림 ──
+async function renderBotLog() {
+  var box = document.getElementById('bot-log');
+  var r = await supa.from('bot_message_log').select('alert_type,title,status,created_at').order('created_at', { ascending: false }).limit(20);
+  if (r.error) { box.innerHTML = '<div style="color:var(--danger);font-size:.8rem">' + pEsc(r.error.message) + '</div>'; return; }
+  if (!r.data.length) { box.innerHTML = '<div class="bot-muted">아직 보낸 알림이 없어요</div>'; return; }
+  var icon = function(t) { var m = _bot.meta.meta[t === 'disclosure_digest' ? 'disclosure' : t]; return m ? m.icon : '🔔'; };
+  box.innerHTML = r.data.map(function(x) {
+    var dt = new Date(x.created_at);
+    var when = (dt.getMonth() + 1) + '/' + dt.getDate() + ' ' + String(dt.getHours()).padStart(2, '0') + ':' + String(dt.getMinutes()).padStart(2, '0');
+    return '<div class="bot-row"><span>' + icon(x.alert_type) + '</span>' +
+      '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">' + pEsc(x.title || x.alert_type) + '</span>' +
+      (x.status === 'queued' ? '<span class="bot-badge">모아보기 대기</span>' : x.status === 'pending' ? '<span class="bot-badge">보내는 중</span>' : '') +
+      '<span style="color:var(--muted);font-size:.72rem;white-space:nowrap">' + when + '</span></div>';
+  }).join('');
 }
 
 // ── 투자기록 ──

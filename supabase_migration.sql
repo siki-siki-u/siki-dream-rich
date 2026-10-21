@@ -179,3 +179,83 @@ select cron.schedule(
      ) $$
 );
 -- 확인: select * from cron.job;   중지: select cron.unschedule('siki-tick');
+
+-- 13. 봇 설정 (텔레그램 알림) — 홈페이지 [봇 설정] 페이지에서 읽고 쓰고, 1분 tick(lib/bot.js)이 이 값대로 발송
+-- 알림 종류별 켜기/끄기 · 템플릿 · 받는 시점 · 옵션 (비어 있는 값은 lib/bot.js의 기본값 사용)
+create table if not exists bot_alert_settings (
+  alert_type text primary key,       -- disclosure | earnings_result | earnings_schedule | rate_kr | rate_us | morning_brief
+  enabled    boolean not null default true,
+  templates  jsonb not null default '{}',
+  timing     jsonb not null default '{}',
+  options    jsonb not null default '{}',
+  updated_at timestamptz default now()
+);
+
+-- 관심 기업 (국내 DART + 미국 SEC)
+create table if not exists bot_watch_companies (
+  id               uuid primary key default gen_random_uuid(),
+  market           text not null,                 -- KR | US
+  ticker           text not null,
+  name             text not null,
+  corp_code        text,                          -- DART 고유번호 (국내)
+  cik              text,                          -- SEC CIK (미국)
+  yahoo_symbol     text,
+  alert_disclosure boolean not null default true,
+  alert_earnings   boolean not null default true,
+  next_earnings    jsonb,                         -- 다음 실적일·컨센서스 (하루 한 번 자동 갱신)
+  state            jsonb not null default '{}',   -- 분기 실적 이력 등 (YoY 계산용)
+  created_at       timestamptz default now(),
+  unique (market, ticker)
+);
+
+-- 아침 브리핑 지표 (Yahoo Finance 심볼)
+create table if not exists bot_brief_items (
+  id         uuid primary key default gen_random_uuid(),
+  label      text not null,
+  symbol     text not null,
+  kind       text not null default 'index',       -- yield | fx | index | price
+  show_trend boolean not null default false,      -- 1개월 변화도 표시
+  sort_order int not null default 0,
+  enabled    boolean not null default true,
+  created_at timestamptz default now()
+);
+
+-- 보낸 알림 기록 (중복 발송 방지 + 최근 알림 목록)
+create table if not exists bot_message_log (
+  id         bigint generated always as identity primary key,
+  alert_type text not null,
+  dedupe_key text not null unique,
+  status     text not null default 'pending',     -- pending | sent | queued
+  title      text,
+  text       text,
+  created_at timestamptz default now()
+);
+create index if not exists bot_message_log_created_idx on bot_message_log (created_at desc);
+
+alter table bot_alert_settings  disable row level security;
+alter table bot_watch_companies disable row level security;
+alter table bot_brief_items     disable row level security;
+alter table bot_message_log     disable row level security;
+
+-- 기본값: 알림 6종 켜짐
+insert into bot_alert_settings (alert_type) values
+  ('disclosure'), ('earnings_result'), ('earnings_schedule'), ('rate_kr'), ('rate_us'), ('morning_brief')
+on conflict do nothing;
+
+-- 기존 [공시 알림] 관심 기업 옮겨오기
+insert into bot_watch_companies (market, ticker, name, corp_code, yahoo_symbol)
+select 'KR', coalesce(stock_code, corp_code), corp_name, corp_code, stock_code || '.KS' from dart_watchlist
+on conflict do nothing;
+
+-- 지금까지 아침 브리핑에 나가던 지표
+insert into bot_brief_items (label, symbol, kind, sort_order)
+select * from (values
+  ('미국 3개월', '^IRX', 'yield', 1), ('미국 5년', '^FVX', 'yield', 2), ('미국 10년', '^TNX', 'yield', 3),
+  ('미국 30년', '^TYX', 'yield', 4), ('원/달러', 'KRW=X', 'fx', 5), ('VIX', '^VIX', 'index', 6)
+) as v(label, symbol, kind, sort_order)
+where not exists (select 1 from bot_brief_items);
+
+-- 오늘 아침 브리핑은 이전 버전이 이미 보냈으므로 중복 발송 방지
+insert into bot_message_log (alert_type, dedupe_key, status, title)
+values ('morning_brief', 'brief:' || to_char(now() at time zone 'Asia/Seoul', 'YYYY-MM-DD'), 'sent', '아침 브리핑')
+on conflict do nothing;
