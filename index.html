@@ -1428,25 +1428,6 @@ body.guest-mode #mock-list{filter:blur(7px);user-select:none;pointer-events:none
       </div>
     </div>
 
-    <!-- 금리 (기준금리 + 미 국채) -->
-    <div class="card" style="margin-bottom:1.5rem">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;flex-wrap:wrap;gap:.5rem">
-        <div>
-          <div style="font-size:1rem;font-weight:700;color:var(--text)">🏦 금리 동향</div>
-          <div style="font-size:.75rem;color:var(--muted);margin-top:.1rem">한·미 기준금리 · 미 국채 10년/30년/3개월 · 항목을 눌러 켜고 끄기</div>
-        </div>
-        <div id="rates-spread" style="font-size:.75rem;font-family:JetBrains Mono,monospace;color:var(--muted)"></div>
-      </div>
-      <div id="rates-legend" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.7rem"></div>
-      <div id="rates-chart" style="position:relative;min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.85rem">로딩 중...</div>
-      <div style="display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap">
-        <button onclick="loadRates('1y')"  id="rates-btn-1y"  class="btn btn-primary" style="font-size:.72rem;padding:.2rem .5rem">1년</button>
-        <button onclick="loadRates('2y')"  id="rates-btn-2y"  class="btn btn-ghost" style="font-size:.72rem;padding:.2rem .5rem">2년</button>
-        <button onclick="loadRates('5y')"  id="rates-btn-5y"  class="btn btn-ghost" style="font-size:.72rem;padding:.2rem .5rem">5년</button>
-        <button onclick="loadRates('10y')" id="rates-btn-10y" class="btn btn-ghost" style="font-size:.72rem;padding:.2rem .5rem">10년</button>
-      </div>
-    </div>
-
     <!-- S&P 500 섹터 히트맵 (Finviz 스타일) -->
     <div class="card" style="padding:0;overflow:hidden;margin-bottom:1.5rem">
       <div style="padding:1rem 1.2rem .5rem;background:var(--surface)">
@@ -2979,7 +2960,7 @@ function showPage(id, el) {
   if(id==='realty')  { renderRealty(); initCheongak(); }
   if(id==='gifts')       { renderGiftList(); }
   if(id==='condolences') { renderCondolenceList(); }
-  if(id==='market')  { loadVix('1mo'); loadYen('3mo'); loadRates(); loadEconCalendar(); loadEarningsCalendar(); }
+  if(id==='market')  { loadVix('1mo'); loadYen('3mo'); loadEconCalendar(); loadEarningsCalendar(); }
   if(id==='sectormap') { renderSectorMap(); }
   if(id==='inv-records') { renderInvRecords(); }
   if(id==='mock-invest') { syncAndRenderMockInvest(); }
@@ -6064,184 +6045,6 @@ async function loadYen(range) {
   } catch(e) {
     chartEl.innerHTML = '<span style="color:var(--muted);font-size:.82rem">데이터 불러오기 실패 ('+e.message+')</span>';
   }
-}
-
-// ── 금리 동향 (한·미 기준금리 + 미 국채) ──
-var _ratesRange = '1y';
-var _ratesData = null;
-var _ratesHidden = {};
-var RATE_SERIES = [
-  { key:'kr',  label:'🇰🇷 한국 기준금리', color:'#ff7eb3', step:true },
-  { key:'us',  label:'🇺🇸 미국 기준금리', color:'#6c8aff', step:true },
-  { key:'y10', label:'미 10년물',        color:'#ffbe5c' },
-  { key:'y30', label:'미 30년물',        color:'#52d9a3' },
-  { key:'y3m', label:'미 3개월(단기)',   color:'#b794f6' },
-];
-
-async function loadRates(range) {
-  _ratesRange = range || _ratesRange;
-  ['1y','2y','5y','10y'].forEach(function(r) {
-    var b = document.getElementById('rates-btn-'+r);
-    if(b) { b.className = r === _ratesRange ? 'btn btn-primary' : 'btn btn-ghost'; b.style.cssText='font-size:.72rem;padding:.2rem .5rem'; }
-  });
-  var chartEl = document.getElementById('rates-chart');
-  if(!chartEl) return;
-  chartEl.innerHTML = '<span style="color:var(--muted);font-size:.85rem">로딩 중...</span>';
-  try {
-    var res = await fetchWithTimeout('/api/vix?action=rates&range='+_ratesRange, 15000);
-    if(!res || !res.ok) throw new Error('서버 오류');
-    var data = await res.json();
-    if(data.error) throw new Error(data.error);
-    _ratesData = data;
-    renderRates();
-  } catch(e) {
-    chartEl.innerHTML = '<span style="color:var(--muted);font-size:.82rem">데이터 불러오기 실패 ('+e.message+')</span>';
-  }
-}
-
-function toggleRateSeries(key) {
-  _ratesHidden[key] = !_ratesHidden[key];
-  renderRates();
-}
-
-// 기준금리 변경 이력 → 기간 안의 계단형 포인트 [{ts, v}]
-function _policyToPts(hist, valFn, startTs, endTs) {
-  if(!hist || !hist.length) return [];
-  var pts = [], before = null;
-  hist.forEach(function(h) {
-    var ts = new Date(h.d+'T00:00:00+09:00').getTime()/1000;
-    if(ts <= startTs) before = valFn(h);
-    else if(ts <= endTs) pts.push({ ts:ts, v:valFn(h) });
-  });
-  if(before != null) pts.unshift({ ts:startTs, v:before });
-  if(pts.length) pts.push({ ts:endTs, v:pts[pts.length-1].v });
-  return pts;
-}
-
-function renderRates() {
-  var data = _ratesData, chartEl = document.getElementById('rates-chart');
-  if(!data || !chartEl) return;
-  var endTs = Math.floor(Date.now()/1000);
-  var yrs = { '1y':1, '2y':2, '5y':5, '10y':10 }[data.range] || 1;
-  var startTs = endTs - yrs*365*86400;
-  // 국채 데이터가 있으면 그 시작점에 x축을 맞춤
-  var firstYield = [data.y10, data.y30, data.y3m].filter(function(y){ return y && y.pts && y.pts.length; });
-  if(firstYield.length) startTs = Math.min.apply(null, firstYield.map(function(y){ return y.pts[0].ts; }));
-
-  var series = {
-    kr:  _policyToPts(data.kr, function(h){ return h.v; }, startTs, endTs),
-    us:  _policyToPts(data.us, function(h){ return h.hi; }, startTs, endTs),
-    y10: data.y10 ? data.y10.pts : [],
-    y30: data.y30 ? data.y30.pts : [],
-    y3m: data.y3m ? data.y3m.pts : [],
-  };
-  var currents = {
-    kr:  data.kr && data.kr.length ? data.kr[data.kr.length-1].v : null,
-    us:  data.us && data.us.length ? data.us[data.us.length-1].hi : null,
-    y10: data.y10 ? data.y10.current : null,
-    y30: data.y30 ? data.y30.current : null,
-    y3m: data.y3m ? data.y3m.current : null,
-  };
-  var usLast = data.us && data.us.length ? data.us[data.us.length-1] : null;
-
-  // 범례 = 현재값 + 토글
-  var legendEl = document.getElementById('rates-legend');
-  if(legendEl) legendEl.innerHTML = RATE_SERIES.map(function(s) {
-    var cur = currents[s.key];
-    var txt = cur == null ? '--' : (s.key === 'us' && usLast && usLast.lo !== usLast.hi ? usLast.lo.toFixed(2)+'~'+usLast.hi.toFixed(2) : cur.toFixed(2))+'%';
-    var off = _ratesHidden[s.key];
-    return '<button onclick="toggleRateSeries(\''+s.key+'\')" style="display:flex;align-items:center;gap:.35rem;padding:.3rem .6rem;border-radius:7px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-family:inherit;opacity:'+(off?'.4':'1')+'">'+
-      '<span style="width:10px;height:10px;border-radius:'+(s.step?'2px':'50%')+';background:'+s.color+'"></span>'+
-      '<span style="font-size:.72rem;color:var(--muted)">'+s.label+'</span>'+
-      '<span style="font-size:.8rem;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--text)">'+txt+'</span></button>';
-  }).join('');
-
-  // 장단기 스프레드 (10년 - 3개월)
-  var spreadEl = document.getElementById('rates-spread');
-  if(spreadEl) {
-    if(currents.y10 != null && currents.y3m != null) {
-      var sp = currents.y10 - currents.y3m;
-      spreadEl.innerHTML = '10Y-3M 스프레드 <b style="color:'+(sp < 0 ? 'var(--danger)' : 'var(--success)')+'">'+(sp>=0?'+':'')+sp.toFixed(2)+'%p</b>'+(sp < 0 ? ' ⚠️ 역전' : '');
-    } else spreadEl.textContent = '';
-  }
-
-  var visible = RATE_SERIES.filter(function(s){ return !_ratesHidden[s.key] && series[s.key].length >= 2; });
-  if(!visible.length) { chartEl.innerHTML = '<span style="color:var(--muted);font-size:.8rem">표시할 데이터가 없어요</span>'; return; }
-
-  var svgW=540, svgH=220, pL=36, pR=10, pT=10, pB=22;
-  var gW=svgW-pL-pR, gH=svgH-pT-pB;
-  var allV = [];
-  visible.forEach(function(s){ series[s.key].forEach(function(p){ allV.push(p.v); }); });
-  var maxV = Math.ceil(Math.max.apply(null, allV)*2)/2 + 0.25;
-  var minV = Math.max(0, Math.floor(Math.min.apply(null, allV)*2)/2 - 0.25);
-  function px(ts){ return pL + (ts-startTs)/(endTs-startTs)*gW; }
-  function py(v){ return pT + gH - (v-minV)/(maxV-minV)*gH; }
-
-  // y축 눈금 (0.5% 단위, 범위가 넓으면 1%)
-  var yStep = (maxV-minV) > 4 ? 1 : 0.5, yGrid = '';
-  for(var v = Math.ceil(minV/yStep)*yStep; v <= maxV; v += yStep) {
-    var gy = py(v).toFixed(1);
-    yGrid += '<line x1="'+pL+'" y1="'+gy+'" x2="'+(pL+gW)+'" y2="'+gy+'" stroke="rgba(255,255,255,.07)" stroke-width="1"/>'+
-             '<text x="'+(pL-4)+'" y="'+(parseFloat(gy)+3)+'" text-anchor="end" font-size="9" fill="rgba(123,130,168,.7)">'+v.toFixed(yStep<1?1:0)+'%</text>';
-  }
-  // x축 레이블 (5개)
-  var xLabels = '';
-  for(var j=0; j<=4; j++) {
-    var t = startTs + (endTs-startTs)*j/4, d = new Date(t*1000);
-    var lbl = yrs >= 2 ? (String(d.getFullYear()).slice(2)+'.'+(d.getMonth()+1)) : ((d.getMonth()+1)+'/'+d.getDate());
-    xLabels += '<text x="'+px(t).toFixed(1)+'" y="'+(pT+gH+15)+'" text-anchor="'+(j===0?'start':j===4?'end':'middle')+'" font-size="9" fill="rgba(123,130,168,.7)">'+lbl+'</text>';
-  }
-
-  var lines = visible.map(function(s) {
-    var pts = series[s.key], path = '';
-    pts.forEach(function(p, i) {
-      var x = px(p.ts).toFixed(1), y = py(p.v).toFixed(1);
-      if(i === 0) path += 'M'+x+','+y;
-      else if(s.step) path += ' H'+x+' V'+y;
-      else path += ' L'+x+','+y;
-    });
-    var last = pts[pts.length-1];
-    return '<path d="'+path+'" fill="none" stroke="'+s.color+'" stroke-width="'+(s.step?2.2:1.5)+'" stroke-linejoin="round" stroke-linecap="round"/>'+
-           '<circle cx="'+px(last.ts).toFixed(1)+'" cy="'+py(last.v).toFixed(1)+'" r="3" fill="'+s.color+'"/>';
-  }).join('');
-
-  chartEl.innerHTML =
-    '<svg id="rates-svg" viewBox="0 0 '+svgW+' '+svgH+'" style="width:100%;height:auto;display:block;touch-action:pan-y" xmlns="http://www.w3.org/2000/svg">'+
-      yGrid + lines + xLabels +
-      '<line id="rates-cross" x1="0" y1="'+pT+'" x2="0" y2="'+(pT+gH)+'" stroke="rgba(255,255,255,.25)" stroke-width="1" style="display:none"/>'+
-    '</svg>'+
-    '<div id="rates-tip" style="display:none;position:absolute;top:4px;pointer-events:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.4rem .55rem;font-size:.72rem;line-height:1.5;box-shadow:0 4px 16px rgba(0,0,0,.3);white-space:nowrap"></div>';
-
-  // 호버/터치 시 해당 날짜 값 표시
-  var svgEl = document.getElementById('rates-svg'), tip = document.getElementById('rates-tip'), cross = document.getElementById('rates-cross');
-  function valueAt(pts, ts) {
-    var val = null;
-    for(var i=0; i<pts.length && pts[i].ts <= ts; i++) val = pts[i].v;
-    return val;
-  }
-  function onMove(ev) {
-    var rect = svgEl.getBoundingClientRect();
-    var cx = (ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left;
-    var sx = cx / rect.width * svgW;
-    if(sx < pL || sx > pL+gW) { onLeave(); return; }
-    var ts = startTs + (sx-pL)/gW*(endTs-startTs), d = new Date(ts*1000);
-    cross.setAttribute('x1', sx); cross.setAttribute('x2', sx); cross.style.display = '';
-    tip.innerHTML = '<div style="color:var(--muted);margin-bottom:.15rem">'+d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate()+'</div>'+
-      visible.map(function(s){
-        var v = valueAt(series[s.key], ts);
-        return '<div><span style="color:'+s.color+'">●</span> '+s.label+' <b style="font-family:JetBrains Mono,monospace">'+(v==null?'--':v.toFixed(2)+'%')+'</b></div>';
-      }).join('');
-    tip.style.display = 'block';
-    var left = cx + 12;
-    if(left + tip.offsetWidth > rect.width) left = cx - tip.offsetWidth - 12;
-    tip.style.left = Math.max(0, left) + 'px';
-  }
-  function onLeave() { tip.style.display = 'none'; cross.style.display = 'none'; }
-  svgEl.addEventListener('mousemove', onMove);
-  svgEl.addEventListener('mouseleave', onLeave);
-  svgEl.addEventListener('touchstart', onMove, { passive:true });
-  svgEl.addEventListener('touchmove', onMove, { passive:true });
-  svgEl.addEventListener('touchend', onLeave);
 }
 
 // ── STOCKS (REAL-TIME) ──
