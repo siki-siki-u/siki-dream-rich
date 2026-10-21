@@ -7909,7 +7909,7 @@ function renderBotPanel() {
         return '<button class="bot-chip" onclick="insertBotVar(\'' + k + '\',\'' + v + '\')">{' + v + '}</button>';
       }).join('') + '</div>' +
       '<textarea id="bot-tpl-' + k + '" class="bot-input bot-textarea">' + pEsc(s.templates[k]) + '</textarea>' +
-      '<div class="bot-muted">{변수}는 실제 값으로 바뀌어요 · 값이 없는 변수가 있는 줄은 통째로 빠져요 · [ ] 안은 값이 없을 때 그 부분만 빠져요 · **굵게**</div>' +
+      '<div class="bot-muted">{변수}는 실제 값으로 바뀌어요 · 값이 없는 변수가 있는 줄은 통째로 빠져요 · [[ ]] 안은 값이 없을 때 그 부분만 빠져요 · **굵게**</div>' +
       '<div style="display:flex;gap:.4rem;flex-wrap:wrap">' +
         '<button class="bot-pill" onclick="resetBotTpl(\'' + k + '\')">기본값으로</button>' +
         '<button class="bot-pill" onclick="previewBotTpl(\'' + k + '\',false)">👀 미리보기</button>' +
