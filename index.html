@@ -7686,11 +7686,16 @@ async function renderBotSettings() {
 }
 
 // 템플릿은 기본값과 다를 때만 저장 (기본값이 바뀌면 손대지 않은 알림은 자동으로 따라감)
+// 바꾼 항목만 보냄 — 다른 창에 열린 예전 화면이 템플릿 등 다른 값을 덮어쓰지 않도록
 async function saveBotSetting(type, patch) {
-  var s = Object.assign(botSetting(type), patch), defs = _bot.meta.meta[type].templates, tpls = {};
-  Object.keys(s.templates).forEach(function(k) { if (s.templates[k] !== defs[k].def) tpls[k] = s.templates[k]; });
-  var r = await supa.from('bot_alert_settings').upsert({ alert_type: type, enabled: s.enabled, templates: tpls, timing: s.timing,
-    options: s.options, updated_at: new Date().toISOString() }, { onConflict: 'alert_type' }).select().single();
+  var row = { alert_type: type, updated_at: new Date().toISOString() };
+  ['enabled', 'timing', 'options'].forEach(function(f) { if (patch[f] !== undefined) row[f] = patch[f]; });
+  if (patch.templates) {
+    var defs = _bot.meta.meta[type].templates;
+    row.templates = {};
+    Object.keys(patch.templates).forEach(function(k) { if (patch.templates[k] !== defs[k].def) row.templates[k] = patch.templates[k]; });
+  }
+  var r = await supa.from('bot_alert_settings').upsert(row, { onConflict: 'alert_type' }).select().single();
   if (r.error) { showToast('저장 실패: ' + r.error.message, 'error'); return false; }
   _bot.settings[type] = r.data;
   return true;
