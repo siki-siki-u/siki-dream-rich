@@ -1200,9 +1200,10 @@ async function tickDart() {
   for (var page = 1; page <= 5; page++) {
     var lr = await dartGetJson('/api/list.json?crtfc_key=' + encodeURIComponent(key) + '&bgn_de=' + bgn + '&end_de=' + end +
       '&page_no=' + page + '&page_count=100&sort=date&sort_mth=desc');
-    if (lr.status !== 200) break;
+    if (lr.status !== 200) return 'DART HTTP ' + lr.status;
     var ld = JSON.parse(lr.body);
     if (ld.status === '013') break; // 조회된 데이터 없음
+    if (ld.status === '000' && page === 1 && !(ld.list || []).length) return 'DART 빈 응답 ' + lr.body.slice(0, 150);
     if (ld.status !== '000') return 'DART ' + ld.status + ' ' + ld.message;
     items = items.concat(ld.list || []);
     // 커서보다 오래된 공시까지 내려왔으면 그만 (첫 실행이면 1페이지만)
