@@ -1097,7 +1097,7 @@ async function handleDartAdd(req, res) {
       var lr = await dartGetJson('/api/list.json?crtfc_key=' + encodeURIComponent(key) + '&corp_code=' + encodeURIComponent(corpCode) +
         '&bgn_de=' + bgn0 + '&end_de=' + end0 + '&page_count=1&sort=date&sort_mth=desc');
       if (lr.status === 200) {
-        var ld; try { ld = JSON.parse(lr.body); } catch(_) { return 'DART 응답 파싱 실패 ' + lr.body.slice(0, 120); }
+        var ld = JSON.parse(lr.body);
         if (ld.status === '000' && ld.list && ld.list.length) lastRceptNo = ld.list[0].rcept_no;
       }
     } catch (_) {}
@@ -1143,7 +1143,7 @@ async function checkDartDisclosures() {
       var lr = await dartGetJson('/api/list.json?crtfc_key=' + encodeURIComponent(key) + '&corp_code=' + encodeURIComponent(w.corp_code) +
         '&bgn_de=' + bgn0 + '&end_de=' + end0 + '&page_count=20&sort=date&sort_mth=desc');
       if (lr.status !== 200) continue;
-      var ld; try { ld = JSON.parse(lr.body); } catch(_) { return 'DART 응답 파싱 실패 ' + lr.body.slice(0, 120); }
+      var ld = JSON.parse(lr.body);
       if (ld.status !== '000' || !ld.list || !ld.list.length) continue;
 
       var newOnes = ld.list.filter(function(it) { return !w.last_rcept_no || it.rcept_no > w.last_rcept_no; });
