@@ -1012,7 +1012,7 @@ function httpsGetBuffer(hostname, path, redirectsLeft) {
 // DART가 302로 리다이렉트하는 경우가 있어 httpsGetBuffer로 따라감
 function dartGetJson(path) {
   return httpsGetBuffer('opendart.fss.or.kr', path).then(function(r) {
-    return { status: r.status, body: r.buffer.toString('utf8') };
+    return { status: r.status, body: r.buffer.toString('utf8'), location: r.headers.location };
   });
 }
 
@@ -1194,7 +1194,7 @@ async function tickDart() {
   for (var page = 1; page <= 5; page++) {
     var lr = await dartGetJson('/api/list.json?crtfc_key=' + encodeURIComponent(key) + '&bgn_de=' + bgn + '&end_de=' + end +
       '&page_no=' + page + '&page_count=100&sort=date&sort_mth=desc');
-    if (lr.status !== 200) return 'DART HTTP ' + lr.status;
+    if (lr.status !== 200) return 'DART HTTP ' + lr.status + (lr.location ? ' → ' + lr.location : '');
     var ld; try { ld = JSON.parse(lr.body); } catch(_) { return 'DART 응답 파싱 실패 ' + lr.body.slice(0, 120); }
     if (ld.status === '013') break; // 조회된 데이터 없음
     if (ld.status === '000' && page === 1 && !(ld.list || []).length) return 'DART 빈 응답 ' + lr.body.slice(0, 150);
