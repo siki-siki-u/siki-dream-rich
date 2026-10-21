@@ -146,6 +146,16 @@ var COUNTRY_KO = {
 var IMPACT_KO = { 'High': '🔴 높음', 'Medium': '🟡 중간', 'Low': '⚪ 낮음', 'Holiday': '📅 휴장' };
 var IMPACT_ORDER = { 'High': 3, 'Medium': 2, 'Low': 1, 'Holiday': 0 };
 
+// ForexFactory 피드가 currency → country 로 필드명을 바꾸고 time 필드를 없앰 → 예전 형태로 맞춰줌
+function normalizeFFEvent(e) {
+  if (!e.currency && e.country) e.currency = e.country;
+  if (!e.time && e.date) {
+    var d = new Date(e.date);
+    if (!isNaN(d)) e.time = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul' });
+  }
+  return e;
+}
+
 function translateTitle(title) {
   if (!title) return title;
   var direct = EVENT_KO[title.trim()];
@@ -283,7 +293,7 @@ async function handlePushSend(req,res){
     var ALLOWED=['USD','KRW','JPY'], ALLOWED_IMPACT=['High','Medium'], allEvents=[];
     for(var w of ['thisweek','nextweek']){
       try{var r=await get('https://nfs.faireconomy.media/ff_calendar_'+w+'.json?timezone=Asia/Seoul');
-        if(r.status===200) JSON.parse(r.body).forEach(function(e){if(ALLOWED.includes(e.currency)&&ALLOWED_IMPACT.includes(e.impact)&&e.date)allEvents.push(e);});
+        if(r.status===200) JSON.parse(r.body).map(normalizeFFEvent).forEach(function(e){if(ALLOWED.includes(e.currency)&&ALLOWED_IMPACT.includes(e.impact)&&e.date)allEvents.push(e);});
       }catch(_){}
     }
     var nowMs=Date.now(), toNotify=[];
@@ -1088,7 +1098,7 @@ module.exports = async function(req, res) {
       if (period === 'nextweek') return res.json({ events: [], period: period, notice: '다음주 일정은 아직 공개되지 않았어요' });
       return res.status(502).json({ error: 'ForexFactory API 오류: ' + r.status });
     }
-    var events = JSON.parse(r.body);
+    var events = JSON.parse(r.body).map(normalizeFFEvent);
     var ALLOWED_CURRENCIES = ['USD', 'EUR', 'JPY', 'GBP', 'CNY', 'KRW'];
     var result = events
       .filter(function(e) { return ALLOWED_CURRENCIES.includes(e.currency); })
