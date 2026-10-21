@@ -166,3 +166,16 @@ create table if not exists dart_watchlist (
   created_at    timestamptz default now()
 );
 alter table dart_watchlist disable row level security;
+
+-- 12. 텔레그램 실시간 알림 — 1분마다 Vercel의 tick 액션 호출 (공시/기준금리/아침 브리핑/실적 D-3·D-1)
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+select cron.schedule(
+  'siki-tick',
+  '* * * * *',
+  $$ select net.http_get(
+       url := 'https://siki-dream-rich.vercel.app/api/economic-calendar?action=tick',
+       timeout_milliseconds := 30000
+     ) $$
+);
+-- 확인: select * from cron.job;   중지: select cron.unschedule('siki-tick');

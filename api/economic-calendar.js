@@ -501,53 +501,10 @@ async function handlePushSend(req,res){
           await sendToAll(payload);
         }
       }
-
-      // 텔레그램: 실적 발표 3일 전·하루 전 (KST 9시 이후 첫 실행에서 하루 1회 — Actions 지연/누락 대비)
-      if (kstH >= 9 && (await getSetting('telegram_earnings_sent')) !== kstToday) {
-        var DOW = ['일','월','화','수','목','금','토'];
-        var tgLines = [];
-        ee.forEach(function(e) {
-          var isAMC = e.report_time && e.report_time.includes('AMC');
-          var isBMO = e.report_time && e.report_time.includes('BMO');
-          var kstEventDate = isAMC
-            ? new Date(new Date(e.report_date+'T00:00:00Z').getTime()+86400000).toISOString().slice(0,10)
-            : e.report_date;
-          var dDay = Math.round((new Date(kstEventDate+'T00:00:00Z') - new Date(kstToday+'T00:00:00Z')) / 86400000);
-          if (dDay !== 3 && dDay !== 1) return;
-          var d = new Date(kstEventDate+'T00:00:00Z');
-          var when = (d.getUTCMonth()+1)+'/'+d.getUTCDate()+'('+DOW[d.getUTCDay()]+')' + (isAMC ? ' 새벽' : isBMO ? ' 밤' : '');
-          tgLines.push({ dDay: dDay, text: '<b>D-'+dDay+'</b>  '+tgEsc(tMap[e.ticker] || e.ticker)+' ('+tgEsc(e.ticker)+') · '+when });
-        });
-        var tgOk = true;
-        if (tgLines.length) {
-          tgLines.sort(function(a, b){ return a.dDay - b.dDay; });
-          tgOk = await sendTelegram('📊 <b>실적 발표 예정</b>\n\n' + tgLines.map(function(l){ return l.text; }).join('\n') + '\n\n<i>날짜·시간은 한국시간 기준</i>');
-        }
-        if (tgOk) await setSetting('telegram_earnings_sent', kstToday);
-      }
     }
   } catch(_) {}
 
-  // ── ③ 텔레그램 아침 브리핑 (평일 KST 8시 이후 첫 실행에서 하루 1회) ──
-  var briefSent = false;
-  try {
-    var kstNow3 = new Date(Date.now() + 9*3600000);
-    var kstToday3 = kstNow3.toISOString().slice(0,10), dow3 = kstNow3.getUTCDay();
-    if (kstNow3.getUTCHours() >= 8 && dow3 >= 1 && dow3 <= 5 && (await getSetting('telegram_brief_sent')) !== kstToday3) {
-      var todayEvents = (typeof allEvents !== 'undefined' ? allEvents : []).filter(function(ev) {
-        if (ev.impact !== 'High') return false;
-        return new Date(new Date(ev.date).getTime() + 9*3600000).toISOString().slice(0,10) === kstToday3;
-      }).sort(function(a, b){ return new Date(a.date) - new Date(b.date); });
-      briefSent = await sendTelegram(await buildMorningBrief(kstNow3, todayEvents));
-      if (briefSent) await setSetting('telegram_brief_sent', kstToday3);
-    }
-  } catch(_) {}
-
-  // ── ④ 관심 기업 신규 공시 (매시간 실행에 함께 태움) ──
-  var dart = null;
-  try { dart = await checkDartDisclosures(); } catch(_) {}
-
-  res.json({sent,errors,econEvents,earningsChecked,subs:subs.length,briefSent,dart});
+  res.json({sent,errors,econEvents,earningsChecked,subs:subs.length});
 }
 
 // ── 리버풀 경기 알림 (Vercel Cron: 매일 23:00 UTC = 익일 08:00 KST) ──
@@ -1222,6 +1179,199 @@ async function handleDartCheck(req, res) {
   res.json(await checkDartDisclosures());
 }
 
+// ══ 1분 주기 실행 (Supabase pg_cron → ?action=tick). 텔레그램 알림은 전부 여기서 발송 ══
+function kstDate(offsetDays) { return new Date(Date.now() + 9*3600000 + (offsetDays||0)*86400000).toISOString().slice(0,10); }
+
+async function webPushAll(payload) {
+  var vapidPub = await getSetting('vapid_public_key'), vapidPriv = await getSetting('vapid_private_key');
+  if (!vapidPub || !vapidPriv) return;
+  var subRes = await supaRest('GET', '/rest/v1/push_subscriptions?select=*', null);
+  var subs = []; try { var sp = JSON.parse(subRes.body); subs = Array.isArray(sp) ? sp : []; } catch(_) {}
+  for (var sub of subs) { try { await sendPushNotif(sub.endpoint, sub.p256dh, sub.auth, vapidPub, vapidPriv, payload); } catch(_) {} }
+}
+
+// 공시: 회사별 조회 대신 최근 전체 공시를 한 번에 받아 관심 기업만 거름 (관심 기업 수와 무관하게 분당 1~2회 호출)
+async function tickDart() {
+  var key = dartKey();
+  if (!key) return 'DART_API_KEY 없음';
+  var cursor = await getSetting('dart_global_cursor');
+  var bgn = kstDate(-1).replace(/-/g, ''), end = kstDate(0).replace(/-/g, '');
+  var items = [];
+  for (var page = 1; page <= 5; page++) {
+    var lr = await dartGetJson('/api/list.json?crtfc_key=' + encodeURIComponent(key) + '&bgn_de=' + bgn + '&end_de=' + end +
+      '&page_no=' + page + '&page_count=100&sort=date&sort_mth=desc');
+    if (lr.status !== 200) break;
+    var ld = JSON.parse(lr.body);
+    if (ld.status === '013') break; // 조회된 데이터 없음
+    if (ld.status !== '000') return 'DART ' + ld.status + ' ' + ld.message;
+    items = items.concat(ld.list || []);
+    // 커서보다 오래된 공시까지 내려왔으면 그만 (첫 실행이면 1페이지만)
+    var minNo = (ld.list || []).reduce(function(m, it){ return it.rcept_no < m ? it.rcept_no : m; }, '99999999999999');
+    if (!cursor || minNo <= cursor || page >= ld.total_page) break;
+  }
+  if (!items.length) return { scanned: 0 };
+  var maxNo = items.reduce(function(m, it){ return it.rcept_no > m ? it.rcept_no : m; }, '');
+  // 첫 실행: 커서만 잡고 과거 공시는 알리지 않음
+  if (!cursor) { await setSetting('dart_global_cursor', maxNo); return { init: maxNo }; }
+
+  var wRes = await supaRest('GET', '/rest/v1/dart_watchlist?select=*&notify=eq.true', null);
+  var byCorp = {}; try { (JSON.parse(wRes.body) || []).forEach(function(w){ byCorp[w.corp_code] = w; }); } catch(_) {}
+  var fresh = items.filter(function(it) {
+    var w = byCorp[it.corp_code];
+    return it.rcept_no > cursor && w && (!w.last_rcept_no || it.rcept_no > w.last_rcept_no);
+  }).sort(function(a, b){ return a.rcept_no.localeCompare(b.rcept_no); });
+
+  for (var it of fresh) {
+    var title = it.report_nm.replace(/\s+/g, ' ').trim();
+    var link = 'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=' + it.rcept_no;
+    await sendTelegram('📢 <b>' + tgEsc(it.corp_name) + '</b> 새 공시\n' + tgEsc(title) + '\n<a href="' + link + '">DART에서 보기</a>');
+    await webPushAll({ title: '📢 ' + it.corp_name + ' 새 공시', body: title, tag: 'dart-' + it.rcept_no, url: link });
+    await supaRest('PATCH', '/rest/v1/dart_watchlist?corp_code=eq.' + encodeURIComponent(it.corp_code), { last_rcept_no: it.rcept_no });
+  }
+  if (maxNo > cursor) await setSetting('dart_global_cursor', maxNo);
+  return { scanned: items.length, notified: fresh.length };
+}
+
+// 연준: FOMC 결정은 수요일 14:00 ET → 수요일 13:55~15:30 ET 동안만 연준 보도자료 RSS 확인
+async function tickFed() {
+  var et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  var mins = et.getHours() * 60 + et.getMinutes();
+  if (et.getDay() !== 3 || mins < 13*60+55 || mins > 15*60+30) return 'off';
+
+  var r = await fetchText2('https://www.federalreserve.gov/feeds/press_monetary.xml');
+  if (r.status !== 200) return 'rss ' + r.status;
+  var item = (r.body.match(/<item>[\s\S]*?<\/item>/g) || []).find(function(x){ return /issues FOMC statement/.test(x); });
+  if (!item) return 'no statement';
+  var link = ((item.match(/<link><!\[CDATA\[(.*?)\]\]><\/link>/) || [])[1] || '').trim();
+  var pub = new Date(((item.match(/<pubDate><!\[CDATA\[(.*?)\]\]><\/pubDate>/) || [])[1] || '').trim());
+  if (!link || isNaN(pub) || Date.now() - pub.getTime() > 3*3600000) return 'old';
+  if ((await getSetting('fed_notified')) === link) return 'done';
+
+  var page = await fetchText2(link);
+  var text = page.body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  var m = text.match(/decided to (maintain|raise|lower) the target range for the federal funds rate (?:by ([\d\/]+) percentage point )?(?:at|to) ([\d\-\/]+ to [\d\-\/]+) percent/);
+  var VERB = { maintain: '동결', raise: '인상', lower: '인하' };
+  // 연준 표기 '3-3/4', '1/4' → 3.75, 0.25
+  function frac(s) { var f = s.match(/^(?:(\d+)-)?(\d+)\/(\d+)$/); return f ? String((+(f[1]||0)) + f[2]/f[3]) : s; }
+  var range = m ? m[3].split(' to ').map(frac).join('~') : '';
+  var msg = m
+    ? '🏦 <b>미 연준 기준금리 ' + VERB[m[1]] + '</b>' + (m[2] ? ' (' + frac(m[2]) + '%p)' : '') + '\n목표 범위 <b>' + range + '%</b>'
+    : '🏦 <b>미 연준 FOMC 성명 발표</b>';
+  var ok = await sendTelegram(msg + '\n<a href="' + link + '">성명서 보기</a>');
+  if (ok) await setSetting('fed_notified', link);
+  return ok ? 'sent' : 'send failed';
+}
+
+function fetchText2(url) {
+  var u = new URL(url);
+  return httpsGetRaw(u.hostname, u.pathname + u.search, { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' });
+}
+
+// 한국은행: 금통위 일정은 한은 홈페이지에서 하루 1번 가져오고, 회의 당일 09:30~11:30 KST에 연합뉴스 속보 제목으로 결과 감지
+async function getBokMeetingDates() {
+  var cached = null; try { cached = JSON.parse(await getSetting('bok_meetings') || 'null'); } catch(_) {}
+  if (cached && cached.fetched === kstDate(0)) return cached.dates;
+  var r = await fetchText2('https://www.bok.or.kr/portal/singl/crncyPolicyDrcMtg/listYear.do?mtgSe=A&menuNo=200755');
+  if (r.status !== 200) return cached ? cached.dates : [];
+  var year = kstDate(0).slice(0, 4), dates = [], re = /(\d{2})월\s*(\d{2})일\s*\([월화수목금]\)/g, m;
+  var text = r.body.replace(/<[^>]+>/g, ' ');
+  while ((m = re.exec(text))) dates.push(year + '-' + m[1] + '-' + m[2]);
+  dates = dates.filter(function(d, i){ return dates.indexOf(d) === i; });
+  if (dates.length) await setSetting('bok_meetings', JSON.stringify({ fetched: kstDate(0), dates: dates }));
+  return dates.length ? dates : (cached ? cached.dates : []);
+}
+
+async function tickBok() {
+  var kst = new Date(Date.now() + 9*3600000), mins = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+  if (mins < 9*60+30 || mins > 11*60+30) return 'off';
+  var today = kstDate(0);
+  if ((await getBokMeetingDates()).indexOf(today) < 0) return 'no meeting';
+  if ((await getSetting('bok_notified')) === today) return 'done';
+
+  var r = await fetchText2('https://www.yna.co.kr/rss/news.xml');
+  if (r.status !== 200) return 'rss ' + r.status;
+  var hit = (r.body.match(/<item>[\s\S]*?<\/item>/g) || []).map(function(x) {
+    return {
+      title: ((x.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) || [])[1] || '').trim(),
+      link: ((x.match(/<link><!\[CDATA\[([\s\S]*?)\]\]><\/link>/) || x.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '').trim(),
+      pub: new Date(((x.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '').trim()),
+    };
+  }).filter(function(it) {
+    return /기준금리/.test(it.title) && /동결|인상|인하/.test(it.title) && !isNaN(it.pub) &&
+      new Date(it.pub.getTime() + 9*3600000).toISOString().slice(0,10) === today;
+  }).sort(function(a, b){ return a.pub - b.pub; })[0];
+  if (!hit) return 'waiting';
+
+  var ok = await sendTelegram('🏦 <b>한국은행 금통위 결정</b>\n' + tgEsc(hit.title) + (hit.link ? '\n<a href="' + hit.link + '">기사 보기</a>' : ''));
+  if (ok) await setSetting('bok_notified', today);
+  return ok ? 'sent' : 'send failed';
+}
+
+// 평일 KST 8시 아침 브리핑 (하루 1회)
+async function tickBrief() {
+  var kst = new Date(Date.now() + 9*3600000), dow = kst.getUTCDay(), today = kstDate(0);
+  if (kst.getUTCHours() < 8 || dow < 1 || dow > 5) return 'off';
+  if ((await getSetting('telegram_brief_sent')) === today) return 'done';
+  var ALLOWED = ['USD','KRW','JPY'], todayEvents = [];
+  try {
+    var r = await get('https://nfs.faireconomy.media/ff_calendar_thisweek.json?timezone=Asia/Seoul');
+    if (r.status === 200) todayEvents = JSON.parse(r.body).map(normalizeFFEvent).filter(function(ev) {
+      return ev.impact === 'High' && ALLOWED.includes(ev.currency) && ev.date &&
+        new Date(new Date(ev.date).getTime() + 9*3600000).toISOString().slice(0,10) === today;
+    }).sort(function(a, b){ return new Date(a.date) - new Date(b.date); });
+  } catch(_) {}
+  var ok = await sendTelegram(await buildMorningBrief(kst, todayEvents));
+  if (ok) await setSetting('telegram_brief_sent', today);
+  return ok ? 'sent' : 'send failed';
+}
+
+// KST 9시 실적 발표 3일 전·하루 전 (하루 1회). 실적일 갱신은 매시간 send가 담당
+async function tickEarnings() {
+  var kst = new Date(Date.now() + 9*3600000), today = kstDate(0);
+  if (kst.getUTCHours() < 9) return 'off';
+  if ((await getSetting('telegram_earnings_sent')) === today) return 'done';
+
+  var ewRes = await supaRest('GET', '/rest/v1/earnings_watchlist?select=ticker,company_name&notify=eq.true', null);
+  var tMap = {}; try { (JSON.parse(ewRes.body) || []).forEach(function(w){ tMap[w.ticker] = w.company_name; }); } catch(_) {}
+  var tickers = Object.keys(tMap), lines = [];
+  if (tickers.length) {
+    var eeRes = await supaRest('GET', '/rest/v1/earnings_events?select=*&ticker=in.(' + tickers.join(',') + ')&report_date=gte.' + kstDate(-1), null);
+    var ee = []; try { ee = JSON.parse(eeRes.body) || []; } catch(_) {}
+    var DOW = ['일','월','화','수','목','금','토'];
+    ee.forEach(function(e) {
+      var isAMC = e.report_time && e.report_time.includes('AMC');
+      var isBMO = e.report_time && e.report_time.includes('BMO');
+      // 미국 장 마감 후(AMC) 발표는 한국시간으로 다음날 새벽
+      var kstEventDate = isAMC ? new Date(new Date(e.report_date+'T00:00:00Z').getTime()+86400000).toISOString().slice(0,10) : e.report_date;
+      var dDay = Math.round((new Date(kstEventDate+'T00:00:00Z') - new Date(today+'T00:00:00Z')) / 86400000);
+      if (dDay !== 3 && dDay !== 1) return;
+      var d = new Date(kstEventDate+'T00:00:00Z');
+      var when = (d.getUTCMonth()+1)+'/'+d.getUTCDate()+'('+DOW[d.getUTCDay()]+')' + (isAMC ? ' 새벽' : isBMO ? ' 밤' : '');
+      lines.push({ dDay: dDay, text: '<b>D-'+dDay+'</b>  '+tgEsc(tMap[e.ticker] || e.ticker)+' ('+tgEsc(e.ticker)+') · '+when });
+    });
+  }
+  var ok = true;
+  if (lines.length) {
+    lines.sort(function(a, b){ return a.dDay - b.dDay; });
+    ok = await sendTelegram('📊 <b>실적 발표 예정</b>\n\n' + lines.map(function(l){ return l.text; }).join('\n') + '\n\n<i>날짜·시간은 한국시간 기준</i>');
+  }
+  if (ok) await setSetting('telegram_earnings_sent', today);
+  return ok ? (lines.length ? 'sent' : 'none') : 'send failed';
+}
+
+async function handleTick(req, res) {
+  // 누가 주소를 반복 호출해도 DART 호출 한도를 소모하지 않도록 40초 내 재실행은 건너뜀
+  var last = Number(await getSetting('tick_at') || 0);
+  if (Date.now() - last < 40000) return res.json({ skipped: true });
+  await setSetting('tick_at', String(Date.now()));
+
+  var names = ['dart', 'fed', 'bok', 'brief', 'earnings'];
+  var results = await Promise.allSettled([tickDart(), tickFed(), tickBok(), tickBrief(), tickEarnings()]);
+  var out = {};
+  results.forEach(function(r, i){ out[names[i]] = r.status === 'fulfilled' ? r.value : 'error: ' + (r.reason && r.reason.message); });
+  res.json(out);
+}
+
 module.exports = async function(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -1246,6 +1396,7 @@ module.exports = async function(req, res) {
     if (action === 'dart-add')        return await handleDartAdd(req, res);
     if (action === 'dart-check')      return await handleDartCheck(req, res);
     if (action === 'telegram-setup')  return await handleTelegramSetup(req, res);
+    if (action === 'tick')            return await handleTick(req, res);
 
     // 기본: 경제 캘린더 조회
     var period = req.query.period || 'thisweek';
