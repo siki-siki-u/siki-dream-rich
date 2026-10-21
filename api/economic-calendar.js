@@ -1009,16 +1009,10 @@ function httpsGetBuffer(hostname, path, redirectsLeft) {
   });
 }
 
+// DART가 302로 리다이렉트하는 경우가 있어 httpsGetBuffer로 따라감
 function dartGetJson(path) {
-  return new Promise(function(resolve, reject) {
-    var req2 = https.request({ hostname: 'opendart.fss.or.kr', path: path, method: 'GET', timeout: 15000 }, function(resp) {
-      var chunks = [];
-      resp.on('data', function(c) { chunks.push(c); });
-      resp.on('end', function() { resolve({ status: resp.statusCode, body: Buffer.concat(chunks).toString('utf8') }); });
-    });
-    req2.on('error', reject);
-    req2.on('timeout', function() { req2.destroy(); reject(new Error('timeout')); });
-    req2.end();
+  return httpsGetBuffer('opendart.fss.or.kr', path).then(function(r) {
+    return { status: r.status, body: r.buffer.toString('utf8') };
   });
 }
 
@@ -1103,7 +1097,7 @@ async function handleDartAdd(req, res) {
       var lr = await dartGetJson('/api/list.json?crtfc_key=' + encodeURIComponent(key) + '&corp_code=' + encodeURIComponent(corpCode) +
         '&bgn_de=' + bgn0 + '&end_de=' + end0 + '&page_count=1&sort=date&sort_mth=desc');
       if (lr.status === 200) {
-        var ld = JSON.parse(lr.body);
+        var ld; try { ld = JSON.parse(lr.body); } catch(_) { return 'DART 응답 파싱 실패 ' + lr.body.slice(0, 120); }
         if (ld.status === '000' && ld.list && ld.list.length) lastRceptNo = ld.list[0].rcept_no;
       }
     } catch (_) {}
@@ -1149,7 +1143,7 @@ async function checkDartDisclosures() {
       var lr = await dartGetJson('/api/list.json?crtfc_key=' + encodeURIComponent(key) + '&corp_code=' + encodeURIComponent(w.corp_code) +
         '&bgn_de=' + bgn0 + '&end_de=' + end0 + '&page_count=20&sort=date&sort_mth=desc');
       if (lr.status !== 200) continue;
-      var ld = JSON.parse(lr.body);
+      var ld; try { ld = JSON.parse(lr.body); } catch(_) { return 'DART 응답 파싱 실패 ' + lr.body.slice(0, 120); }
       if (ld.status !== '000' || !ld.list || !ld.list.length) continue;
 
       var newOnes = ld.list.filter(function(it) { return !w.last_rcept_no || it.rcept_no > w.last_rcept_no; });
@@ -1201,7 +1195,7 @@ async function tickDart() {
     var lr = await dartGetJson('/api/list.json?crtfc_key=' + encodeURIComponent(key) + '&bgn_de=' + bgn + '&end_de=' + end +
       '&page_no=' + page + '&page_count=100&sort=date&sort_mth=desc');
     if (lr.status !== 200) return 'DART HTTP ' + lr.status;
-    var ld = JSON.parse(lr.body);
+    var ld; try { ld = JSON.parse(lr.body); } catch(_) { return 'DART 응답 파싱 실패 ' + lr.body.slice(0, 120); }
     if (ld.status === '013') break; // 조회된 데이터 없음
     if (ld.status === '000' && page === 1 && !(ld.list || []).length) return 'DART 빈 응답 ' + lr.body.slice(0, 150);
     if (ld.status !== '000') return 'DART ' + ld.status + ' ' + ld.message;
