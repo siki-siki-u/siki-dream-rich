@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.137.0",
     "adm-zip": "^0.6.1",
     "web-push": "^3.6.7"
   }
