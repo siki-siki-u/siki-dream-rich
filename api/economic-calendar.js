@@ -894,7 +894,12 @@ function httpsGetBuffer(hostname, path, redirectsLeft) {
       resp.on('data', function(c) { chunks.push(c); });
       resp.on('end', function() { resolve({ status: resp.statusCode, buffer: Buffer.concat(chunks), headers: resp.headers }); });
     });
-    req2.on('error', reject);
+    req2.on('error', function(err) {
+      if (/fss\.or\.kr$/.test(hostname) && (err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET')) {
+        return reject(new Error('DART 서버 연결이 막혀있어요 (서버 쪽 네트워크 문제, 노트북과 무관) — 잠시 후 다시 시도해 주세요'));
+      }
+      reject(err);
+    });
     req2.on('timeout', function() { req2.destroy(); reject(new Error('timeout')); });
     req2.end();
   });
