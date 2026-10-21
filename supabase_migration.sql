@@ -242,11 +242,6 @@ insert into bot_alert_settings (alert_type) values
   ('disclosure'), ('earnings_result'), ('earnings_schedule'), ('rate_kr'), ('rate_us'), ('morning_brief')
 on conflict do nothing;
 
--- 기존 [공시 알림] 관심 기업 옮겨오기
-insert into bot_watch_companies (market, ticker, name, corp_code, yahoo_symbol)
-select 'KR', coalesce(stock_code, corp_code), corp_name, corp_code, stock_code || '.KS' from dart_watchlist
-on conflict do nothing;
-
 -- 지금까지 아침 브리핑에 나가던 지표
 insert into bot_brief_items (label, symbol, kind, sort_order)
 select * from (values
