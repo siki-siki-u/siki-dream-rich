@@ -991,7 +991,7 @@ function dartKey() { return process.env.DART_API_KEY || ''; }
 function httpsGetBuffer(hostname, path, redirectsLeft) {
   if (redirectsLeft == null) redirectsLeft = 3;
   return new Promise(function(resolve, reject) {
-    var req2 = https.request({ hostname: hostname, path: path, method: 'GET', timeout: 25000 }, function(resp) {
+    var req2 = https.request({ hostname: hostname, path: path, method: 'GET', timeout: 25000, headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }, function(resp) {
       if ((resp.statusCode === 301 || resp.statusCode === 302) && resp.headers.location && redirectsLeft > 0) {
         resp.resume();
         try {
