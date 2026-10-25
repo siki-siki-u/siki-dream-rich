@@ -5137,7 +5137,7 @@ function drawDashMonthlyChart() {
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
 
   var months = get6MonthsData();
-  var pad = { top: 18, right: 12, bottom: 24, left: 46 };
+  var pad = { top: 18, right: 18, bottom: 24, left: 46 };
   var cw = w - pad.left - pad.right, ch = h - pad.top - pad.bottom;
   var n = months.length;
   var barGap = cw / n;
@@ -5147,7 +5147,11 @@ function drawDashMonthlyChart() {
   if (!maxVal) maxVal = 1;
   var vMax = maxVal * 1.2;
   function py(v) { return pad.top + ch - (v / vMax) * ch; }
-  function cx0(i) { return pad.left + i * barGap + (barGap - barW * 2 - 4) / 2; }
+  function cx0(i) {
+    var x = pad.left + i * barGap + (barGap - barW * 2 - 4) / 2;
+    var maxX = w - pad.right - (barW * 2 + 4); // 마지막 달 막대쌍이 캔버스 밖으로 빠져나가지 않도록 고정
+    return Math.min(x, maxX);
+  }
 
   function render(hoverIdx) {
     var ctx = canvas.getContext('2d');
