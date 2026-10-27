@@ -9859,36 +9859,9 @@ async function toggleEconNotify() {
         }
       });
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, function(payload) {
-      try {
-        var row = payload.new;
-        if (!row) return;
-        if (row.key === 'portfolio_holdings') {
-          try { var ph = JSON.parse(row.value); if (ph) { S.set('portfolio_holdings', ph); _holdings = ph; try { renderPortHoldings(); renderPortSummary(); renderMarriageGrowth(); renderHomeGoal(); } catch(e) {} } } catch(e) {}
-        } else if (row.key === 'portfolio_snapshots') {
-          try { var ps = JSON.parse(row.value); if (ps) { S.set('portfolio_snapshots', ps); try { renderPortMonthlyChart(); } catch(e) {} } } catch(e) {}
-        } else if (row.key === 'home_goal_price') {
-          var hgp = parseFloat(row.value)||0;
-          if (hgp > 0) { _homeGoalPrice = hgp; S.set('home_goal_price', hgp); try { renderHomeGoal(); } catch(e) {} }
-        } else if (row.key === 'home_loan_amount') {
-          _homeLoanAmount = parseFloat(row.value)||0; S.set('home_loan_amount', _homeLoanAmount); try { renderHomeGoal(); } catch(e) {}
-        } else if (row.key === 'home_loan_rate') {
-          _homeLoanRate = parseFloat(row.value)||3.5; S.set('home_loan_rate', _homeLoanRate); try { renderHomeGoal(); } catch(e) {}
-        } else if (row.key === 'home_loan_years') {
-          _homeLoanYears = parseInt(row.value)||30; S.set('home_loan_years', _homeLoanYears); try { renderHomeGoal(); } catch(e) {}
-
-        } else if (row.key === 'anniversary') {
-          S.set('anniversary', row.value); try { updateDday(); } catch(e) {}
-        } else if (row.key === 'myname') {
-          S.set('myname', row.value);
-          var np = document.querySelector('.sidebar-logo p'); if(np) np.textContent = row.value + '님의 대시보드';
-        } else if (row.key === 'goal_amount' || row.key === 'goal_year') {
-          S.set(row.key, parseFloat(row.value)||0); try { renderGoalWidget(); } catch(e) {}
-        } else if (row.key === 'fixed_costs') {
-          try { var fc = JSON.parse(row.value); if(fc) { S.set('fixed_costs', fc); try { renderFixedCosts(); recalcBudget(); refreshDashboard(); } catch(e) {} } } catch(e) {}
-        }
-      } catch(e) {}
-    })
+    // settings 테이블 구독은 2026-10-27 제거함 — 디스크 IO 버짓 부담 줄이기 위해.
+    // (봇 tick이 커서값을 이 테이블에 자주 썼던 게 겹쳐서 특히 부담이 컸음. portfolio_holdings/home_goal_price 등은
+    // 이제 다른 기기에서 바꿔도 새로고침해야 반영됨 — 자주 바뀌는 값이 아니라 큰 불편은 없을 것)
     .subscribe();
 })();
 
