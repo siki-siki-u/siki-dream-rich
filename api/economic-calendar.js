@@ -978,7 +978,11 @@ module.exports = async function(req, res) {
     if (action === 'epl-table')       return await handleEPLTable(req, res);
     if (action === 'push-lfc')        return await handlePushLFC(req, res);
     if (action === 'telegram-setup')  return await bot.handleTelegramSetup(req, res);
-    if (action === 'tick')            return await bot.handleTick(req, res);
+    // 2026-10-27 사용자 요청으로 텔레그램 봇 알림 기능 끔 — tick이 계속 타임아웃나서 알림이 하나도 안 가고 있었음.
+    // 외부 스케줄러가 이 주소를 계속 호출해도(cron-job.org 등 코드 밖 설정이라 여기서 끌 수 없음) 바로 skip만 반환하도록 막아둠.
+    // 다시 켜려면 아래 주석을 해제.
+    if (action === 'tick')            return res.json({ skipped: true, reason: 'bot disabled by user request (2026-10-27)' });
+    // if (action === 'tick')            return await bot.handleTick(req, res);
     if (action === 'bot-meta')        return bot.handleMeta(req, res);
     if (action === 'bot-search')      return await bot.handleSearch(req, res);
     if (action === 'bot-quote')       return await bot.handleQuote(req, res);
